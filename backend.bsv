@@ -39,6 +39,9 @@ module mkBackend4S(Backend);
 	FIFO#(WBToken)   wrbackQ   <- mkFIFO;
 	FIFO#(ContToken) redirectQ <- mkFIFO;
 
+	//////////// EPOCH ////////////
+
+	Reg#(Bool)       wbEpoch   <- mkReg(False);
 
 	//////////// DECODE ////////////
 
@@ -50,12 +53,18 @@ module mkBackend4S(Backend);
 		let arg1    = rf.rd1(fromMaybe(?, decInst.src1));
 		let arg2    = rf.rd2(fromMaybe(?, decInst.src2));
 		let pc      = dToken.pc;
-		let eToken  = ExecToken{inst: decInst, arg1: arg1, arg2: arg2, pc: pc};
+		let eToken  = ExecToken{inst: decInst, arg1: arg1, arg2: arg2, pc: pc, epoch: dToken.epoch};
 
-		if (!sb.search1(decInst.src1) && !sb.search1(decInst.src2)) begin
+		if (dToken.epoch != wbEpoch) begin
+
+			decodeQ.deq();
+
+		end else if (!sb.search1(decInst.src1) && !sb.search1(decInst.src2)) begin
+
 			sb.insert(decInst.dst);
 			decodeQ.deq();
 			executeQ.enq(eToken);
+
 		end
 
 	endrule
@@ -68,7 +77,7 @@ module mkBackend4S(Backend);
 		let eToken = executeQ.first(); executeQ.deq();
 
 		let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, ?, ?);
-		let mToken   = MemToken{inst: execInst};
+		let mToken   = MemToken{inst: execInst, epoch: eToken.epoch};
 
 		memoryQ.enq(mToken);
 
@@ -82,14 +91,20 @@ module mkBackend4S(Backend);
 		let mToken   = memoryQ.first(); memoryQ.deq();
 
 		let execInst = mToken.inst;
-		if(execInst.iType == Ld) begin
-            l1D.req(MemReq{op: Ld, addr: execInst.addr, data: ?});
-        end else if(execInst.iType == St) begin
-            l1D.req(MemReq{op: St, addr: execInst.addr, data: execInst.data});
-        end
-		let wToken   = WBToken{inst: execInst};
 
-		wrbackQ.enq(wToken);
+		if (mToken.epoch == wbEpoch) begin
+
+			if(execInst.iType == Ld) begin
+        	    l1D.req(MemReq{op: Ld, addr: execInst.addr, data: ?});
+        	end else if(execInst.iType == St) begin
+        	    l1D.req(MemReq{op: St, addr: execInst.addr, data: execInst.data});
+        	end
+		
+			let wToken   = WBToken{inst: execInst, epoch: mToken.epoch};
+
+			wrbackQ.enq(wToken);
+
+		end
 
 	endrule
 
@@ -100,16 +115,36 @@ module mkBackend4S(Backend);
 
 		let wToken     = wrbackQ.first(); wrbackQ.deq();
 
-		let commitInst = wToken.inst;
+		if (wToken.epoch != wbEpoch) begin
 
-		if(commitInst.iType == Ld) begin
-            rf.wr(fromMaybe(?, commitInst.dst), l1D.read());
-            l1D.resp();
-        end else if(isValid(commitInst.dst)) begin
-			rf.wr(fromMaybe(?, commitInst.dst), commitInst.data);
+			let commitInst = wToken.inst;
+			
+			if(commitInst.iType == Ld) begin
+        	    l1D.resp();
+        	    sb.remove();
+        	end else if(isValid(commitInst.dst)) begin
+				sb.remove();
+			end
+
+		end else begin
+
+			let commitInst = wToken.inst;
+
+			if(commitInst.iType == Ld) begin
+        	    rf.wr(fromMaybe(?, commitInst.dst), l1D.read());
+        	    l1D.resp();
+        	    sb.remove();
+        	end else if(isValid(commitInst.dst)) begin
+				rf.wr(fromMaybe(?, commitInst.dst), commitInst.data);
+				sb.remove();
+			end
+
+			if(commitInst.brTaken) begin
+				redirectQ.enq(ContToken{redirect: commitInst.addr, epoch:!wToken.epoch});
+				wbEpoch <= !wbEpoch;
+			end
+
 		end
-
-		sb.remove();
 
 	endrule
 
