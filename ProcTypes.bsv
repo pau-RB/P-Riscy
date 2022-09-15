@@ -184,6 +184,34 @@ Bit#(3) fnCSRRS  = 3'b010;
 Bit#(3) fnPRIV   = 3'b000;
 Bit#(12) privSCALL    = 12'h000;
 
+typedef struct {
+	Addr        pc;
+	Bool        epoch;
+} DecToken deriving(Bits, Eq);
+
+typedef struct {
+	DecodedInst inst;
+	Data        arg1;
+	Data        arg2;
+	Addr        pc;
+	Bool        epoch;
+} ExecToken deriving (Bits, Eq);
+
+typedef struct {
+	ExecInst    inst;
+	Bool        epoch;
+} MemToken deriving (Bits, Eq);
+
+typedef struct {
+	ExecInst    inst;
+	Bool        epoch;
+} WBToken deriving (Bits, Eq);
+
+typedef struct {
+	Addr        redirect;
+	Bool        epoch;
+} ContToken deriving (Bits, Eq);
+
 function Bool dataHazard(Maybe#(RIndx) src1, Maybe#(RIndx) src2, Maybe#(RIndx) dst);
     return (isValid(dst) && ((isValid(src1) && fromMaybe(?, dst)==fromMaybe(?, src1)) ||
                              (isValid(src2) && fromMaybe(?, dst)==fromMaybe(?, src2))));

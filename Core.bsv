@@ -1,7 +1,6 @@
 import Types::*;
 import ProcTypes::*;
 import CMemTypes::*;
-import BackendTypes::*;
 import Scoreboard::*;
 import decoder::*;
 import execution::*;
@@ -10,24 +9,20 @@ import RFile::*;
 import FIFO::*;
 import Ehr::*;
 
-interface Backend;
-	
-	//method Action    setRegFile ( RegSet data );
-	//method RegSet    getRegFile ();
-	method Action    execute    ( DecToken e );
-	method ContToken getRedirect();
-	method Action    deqRedirect();
+interface Core;
 
 endinterface // backend
 
 
-module mkBackend4S(Backend);
+module mkCore5S(Core);
 
-	//////////// BE STATE ////////////
+	//////////// CORE STATE ////////////
 
+	Reg#(Addr)       pc        <- mkRegU;
+	DelayedMemory    l1I       <- mkDelayedMemory;
+	DelayedMemory    l1D       <- mkDelayedMemory;
 	RFile            rf        <- mkRFile;
 	Scoreboard#(5)   sb        <- mkBypassScoreboard;
-	DelayedMemory    l1D       <- mkDelayedMemory;
 	Ehr#(2,Bool)     wbEpoch   <- mkEhr(False);
 
 
@@ -39,13 +34,25 @@ module mkBackend4S(Backend);
 	FIFO#(WBToken)   wrbackQ   <- mkFIFO;
 	FIFO#(ContToken) redirectQ <- mkFIFO;
 
+
+	//////////// FETCH ////////////
+
+	rule do_fetch;
+
+		l1I.req(MemReq{op: Ld, addr: pc, data: ?});
+		pc <= pc+4;
+
+	endrule
+
+
 	//////////// DECODE ////////////
 
 	rule do_decode;
 
 		let dToken = decodeQ.first();
+		let inst   = l1I.read(); l1I.resp();
 
-		let decInst = decode(dToken.inst);
+		let decInst = decode(inst);
 		let arg1    = rf.rd1(fromMaybe(?, decInst.src1));
 		let arg2    = rf.rd2(fromMaybe(?, decInst.src2));
 		let pc      = dToken.pc;
@@ -133,41 +140,5 @@ module mkBackend4S(Backend);
 		end
 
 	endrule
-
-
-	//////////// REGFILE ////////////
-	/*
-	method Action setRegFile( RegSet data );
-
-		rf.wrSet(data);
-
-	endmethod
-
-	method RegSet getRegFile();
-
-		return rf.rdSet();
-
-	endmethod
-	*/
-
-	//////////// IO ////////////
-
-	method Action execute( DecToken e );
-
-		decodeQ.enq(e);
-
-	endmethod
-
-	method ContToken getRedirect ();
-
-		return redirectQ.first();
-
-	endmethod
-
-	method Action deqRedirect ();
-
-		redirectQ.deq();
-
-	endmethod
 
 endmodule // mkBackend

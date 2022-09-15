@@ -23,6 +23,3 @@ typedef Bit#(DataSz) Data;
 
 typedef 32 InstSz;
 typedef Bit#(InstSz) Instruction;
-
-typedef 32 RFSize;
-typedef Vector#(RFSize, Data) RegSet;
