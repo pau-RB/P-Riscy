@@ -8,6 +8,7 @@ import execution::*;
 import DelayedMemory::*;
 import RFile::*;
 import FIFO::*;
+import Ehr::*;
 
 interface Backend;
 	
@@ -26,10 +27,9 @@ module mkBackend4S(Backend);
 
 	RFile            rf        <- mkRFile;
 	Scoreboard#(5)   sb        <- mkBypassScoreboard;
-
-	//////////// MEM ////////////
-
 	DelayedMemory    l1D       <- mkDelayedMemory;
+	Ehr#(2,Bool)     wbEpoch   <- mkEhr(False);
+
 
 	//////////// PIPELINE ////////////
 
@@ -38,10 +38,6 @@ module mkBackend4S(Backend);
 	FIFO#(MemToken)  memoryQ   <- mkFIFO;
 	FIFO#(WBToken)   wrbackQ   <- mkFIFO;
 	FIFO#(ContToken) redirectQ <- mkFIFO;
-
-	//////////// EPOCH ////////////
-
-	Reg#(Bool)       wbEpoch   <- mkReg(False);
 
 	//////////// DECODE ////////////
 
@@ -55,7 +51,7 @@ module mkBackend4S(Backend);
 		let pc      = dToken.pc;
 		let eToken  = ExecToken{inst: decInst, arg1: arg1, arg2: arg2, pc: pc, epoch: dToken.epoch};
 
-		if (dToken.epoch != wbEpoch) begin
+		if (dToken.epoch != wbEpoch[1]) begin
 
 			decodeQ.deq();
 
@@ -92,7 +88,7 @@ module mkBackend4S(Backend);
 
 		let execInst = mToken.inst;
 
-		if (mToken.epoch == wbEpoch) begin
+		if (mToken.epoch == wbEpoch[1]) begin
 
 			if(execInst.iType == Ld) begin
         	    l1D.req(MemReq{op: Ld, addr: execInst.addr, data: ?});
@@ -115,18 +111,7 @@ module mkBackend4S(Backend);
 
 		let wToken     = wrbackQ.first(); wrbackQ.deq();
 
-		if (wToken.epoch != wbEpoch) begin
-
-			let commitInst = wToken.inst;
-			
-			if(commitInst.iType == Ld) begin
-        	    l1D.resp();
-        	    sb.remove();
-        	end else if(isValid(commitInst.dst)) begin
-				sb.remove();
-			end
-
-		end else begin
+		if (wToken.epoch == wbEpoch[1])  begin
 
 			let commitInst = wToken.inst;
 
@@ -141,7 +126,8 @@ module mkBackend4S(Backend);
 
 			if(commitInst.brTaken) begin
 				redirectQ.enq(ContToken{redirect: commitInst.addr, epoch:!wToken.epoch});
-				wbEpoch <= !wbEpoch;
+				sb.clear();
+				wbEpoch[0] <= !wbEpoch[0];
 			end
 
 		end
