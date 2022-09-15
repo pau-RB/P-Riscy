@@ -208,7 +208,7 @@ typedef struct {
 } WBToken deriving (Bits, Eq);
 
 typedef struct {
-	Addr        redirect;
+	Addr        pc;
 	Bool        epoch;
 } ContToken deriving (Bits, Eq);
 

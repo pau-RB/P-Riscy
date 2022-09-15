@@ -23,6 +23,11 @@ module mkCore5S(Core);
 	DelayedMemory    l1D       <- mkDelayedMemory;
 	RFile            rf        <- mkRFile;
 	Scoreboard#(5)   sb        <- mkBypassScoreboard;
+
+
+	//////////// EPOCH ////////////
+
+	Reg#(Bool)       feEpoch   <- mkReg(False);
 	Ehr#(2,Bool)     wbEpoch   <- mkEhr(False);
 
 
@@ -39,8 +44,19 @@ module mkCore5S(Core);
 
 	rule do_fetch;
 
-		l1I.req(MemReq{op: Ld, addr: pc, data: ?});
-		pc <= pc+4;
+		if (wbEpoch[0] == feEpoch) begin
+			
+			l1I.req(MemReq{op: Ld, addr: pc, data: ?});
+			decodeQ.enq(DecToken{pc: pc, epoch: feEpoch});
+			pc <= pc+4;
+		
+		end else begin
+			
+			let redirect = redirectQ.first(); redirectQ.deq();
+			feEpoch <= redirect.epoch;
+			pc <= redirect.pc;
+
+		end
 
 	endrule
 
@@ -62,7 +78,7 @@ module mkCore5S(Core);
 
 			decodeQ.deq();
 
-		end else if (!sb.search1(decInst.src1) && !sb.search1(decInst.src2)) begin
+		end else if (!sb.search1(decInst.src1) && !sb.search2(decInst.src2)) begin
 
 			sb.insert(decInst.dst);
 			decodeQ.deq();
@@ -132,7 +148,7 @@ module mkCore5S(Core);
 			end
 
 			if(commitInst.brTaken) begin
-				redirectQ.enq(ContToken{redirect: commitInst.addr, epoch:!wToken.epoch});
+				redirectQ.enq(ContToken{pc: commitInst.addr, epoch:!wToken.epoch});
 				sb.clear();
 				wbEpoch[0] <= !wbEpoch[0];
 			end
