@@ -1,12 +1,16 @@
 import Types::*;
 import ProcTypes::*;
-import CMemTypes::*;
 import Scoreboard::*;
 import decoder::*;
 import execution::*;
-import DelayedMemory::*;
+import CacheTypes::*;
+import MemTypes::*;
+import MemUtil::*;
+import Cache::*;
 import RFile::*;
+import Fifo::*;
 import FIFO::*;
+import Vector::*;
 import Ehr::*;
 
 interface Core;
@@ -14,13 +18,11 @@ interface Core;
 endinterface // backend
 
 
-module mkCore5S(Core);
+module mkCore5S(Fifo#(2, DDR3_Req)  ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo, Core ifc);
 
 	//////////// CORE STATE ////////////
 
 	Reg#(Addr)       pc        <- mkRegU;
-	DelayedMemory    l1I       <- mkDelayedMemory;
-	DelayedMemory    l1D       <- mkDelayedMemory;
 	RFile            rf        <- mkRFile;
 	Scoreboard#(5)   sb        <- mkBypassScoreboard;
 
@@ -39,6 +41,13 @@ module mkCore5S(Core);
 	FIFO#(WBToken)   wrbackQ   <- mkFIFO;
 	FIFO#(ContToken) redirectQ <- mkFIFO;
 
+
+	//////////// MEMORY ////////////
+
+	WideMem            memWrapper <- mkWideMemFromDDR3(ddr3ReqFifo, ddr3RespFifo);
+	Vector#(2,WideMem) memSplit   <- mkSplitWideMem(?, memWrapper);
+	Cache              l1I        <- mkNullCache(memSplit[0]);
+	Cache              l1D        <- mkNullCache(memSplit[1]);
 
 	//////////// FETCH ////////////
 
@@ -66,7 +75,7 @@ module mkCore5S(Core);
 	rule do_decode;
 
 		let dToken = decodeQ.first();
-		let inst   = l1I.read(); l1I.resp();
+		let inst   <-l1I.resp();
 
 		let decInst = decode(inst);
 		let arg1    = rf.rd1(fromMaybe(?, decInst.src1));
@@ -139,8 +148,8 @@ module mkCore5S(Core);
 			let commitInst = wToken.inst;
 
 			if(commitInst.iType == Ld) begin
-        	    rf.wr(fromMaybe(?, commitInst.dst), l1D.read());
-        	    l1D.resp();
+				Data res <- l1D.resp();
+        	    rf.wr(fromMaybe(?, commitInst.dst), res);
         	    sb.remove();
         	end else if(isValid(commitInst.dst)) begin
 				rf.wr(fromMaybe(?, commitInst.dst), commitInst.data);

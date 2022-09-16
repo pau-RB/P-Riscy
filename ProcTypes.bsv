@@ -16,28 +16,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 import Types::*;
 import FShow::*;
-//import CMemTypes::*;
-
-// cpu to host data type
-typedef enum {
-	ExitCode = 2'd0,
-	PrintChar = 2'd1,
-	PrintIntLow = 2'd2,
-	PrintIntHigh = 2'd3
-} CpuToHostType deriving(Bits, Eq, FShow);
-
-typedef struct {
-	CpuToHostType c2hType;
-	Bit#(16) data;
-} CpuToHostData deriving(Bits, Eq, FShow);
-/*
-interface Proc;
-    method ActionValue#(CpuToHostData) cpuToHost;
-    method Action hostToCpu(Addr startpc);
-    interface MemInitIfc iMemInit;
-    interface MemInitIfc dMemInit;
-endinterface
-*/
 
 // general purpose reg index
 typedef Bit#(5) RIndx;
