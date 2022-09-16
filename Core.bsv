@@ -36,6 +36,7 @@ module mkCore5S(Fifo#(2, DDR3_Req)  ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFif
 	//////////// PIPELINE ////////////
 
 	FIFO#(DecToken)  decodeQ   <- mkFIFO;
+	FIFO#(RFToken)   regfetchQ <- mkFIFO;
 	FIFO#(ExecToken) executeQ  <- mkFIFO;
 	FIFO#(MemToken)  memoryQ   <- mkFIFO;
 	FIFO#(WBToken)   wrbackQ   <- mkFIFO;
@@ -74,23 +75,37 @@ module mkCore5S(Fifo#(2, DDR3_Req)  ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFif
 
 	rule do_decode;
 
-		let dToken = decodeQ.first();
+		let dToken = decodeQ.first(); decodeQ.deq();
 		let inst   <-l1I.resp();
 
 		let decInst = decode(inst);
-		let arg1    = rf.rd1(fromMaybe(?, decInst.src1));
-		let arg2    = rf.rd2(fromMaybe(?, decInst.src2));
 		let pc      = dToken.pc;
-		let eToken  = ExecToken{inst: decInst, arg1: arg1, arg2: arg2, pc: pc, epoch: dToken.epoch};
+		let rfToken = RFToken{inst: decInst, pc: pc, epoch: dToken.epoch};
 
-		if (dToken.epoch != wbEpoch[1]) begin
+		regfetchQ.enq(rfToken);
 
-			decodeQ.deq();
+	endrule
+
+
+	//////////// REG FETCH ////////////
+
+	rule do_regfetch;
+
+		let rfToken = regfetchQ.first();
+		let decInst = rfToken.inst;
+
+		if (rfToken.epoch != wbEpoch[1]) begin
+
+			regfetchQ.deq();
 
 		end else if (!sb.search1(decInst.src1) && !sb.search2(decInst.src2)) begin
+			
+			let arg1    = rf.rd1(fromMaybe(?, decInst.src1));
+			let arg2    = rf.rd2(fromMaybe(?, decInst.src2));
+			let eToken  = ExecToken{inst: decInst, arg1: arg1, arg2: arg2, pc: rfToken.pc, epoch: rfToken.epoch};
 
 			sb.insert(decInst.dst);
-			decodeQ.deq();
+			regfetchQ.deq();
 			executeQ.enq(eToken);
 
 		end

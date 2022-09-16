@@ -169,6 +169,12 @@ typedef struct {
 
 typedef struct {
 	DecodedInst inst;
+	Addr        pc;
+	Bool        epoch;
+} RFToken deriving (Bits, Eq);
+
+typedef struct {
+	DecodedInst inst;
 	Data        arg1;
 	Data        arg2;
 	Addr        pc;
