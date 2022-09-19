@@ -9,15 +9,16 @@ module mkNullCache(WideMem mem, Cache ifc);
 	FIFO#(Addr) pendingReq <- mkFIFO;
 
 	method Action req(MemReq r);
-		pendingReq.enq(r.addr);
-		mem.req(toWideMemReq(r));
+		//pendingReq.enq(r.addr);
+		//mem.req(toWideMemReq(r));
 	endmethod
 
 	method ActionValue#(MemResp) resp;
-		CacheLine       line       <- mem.resp();
-		Addr            addr       =  pendingReq.first(); pendingReq.deq();
-		CacheWordSelect wordSelect =  truncate(addr >> 2);
-		return line[wordSelect];
+		//CacheLine       line       <- mem.resp();
+		//Addr            addr       =  pendingReq.first(); pendingReq.deq();
+		//CacheWordSelect wordSelect =  truncate(addr >> 2);
+		//return line[wordSelect];
+		return 0;
 	endmethod
 
 endmodule

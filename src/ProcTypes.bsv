@@ -183,11 +183,13 @@ typedef struct {
 
 typedef struct {
 	ExecInst    inst;
+	Addr        pc;
 	Bool        epoch;
 } MemToken deriving (Bits, Eq);
 
 typedef struct {
 	ExecInst    inst;
+	Addr        pc;
 	Bool        epoch;
 } WBToken deriving (Bits, Eq);
 
