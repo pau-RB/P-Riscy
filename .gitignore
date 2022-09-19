@@ -1,2 +1,2 @@
 build/*.bo
-V/*.v
+verilator/

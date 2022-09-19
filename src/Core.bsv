@@ -14,10 +14,15 @@ import Vector::*;
 import Ehr::*;
 
 interface Core;
-memory.resprface // backend
+
+	method Action start(Addr spc);
+
+	method ActionValue#(CommitReport) getCMR();
+
+endinterface
 
 
-module mkCore5S(Fifo#(2, DDR3_Req)  ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo, Core ifc);
+module mkCore6S(Fifo#(2, DDR3_Req)  ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo, Core ifc);
 
 	//////////// CORE STATE ////////////
 
@@ -45,13 +50,26 @@ module mkCore5S(Fifo#(2, DDR3_Req)  ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFif
 	//////////// MEMORY ////////////
 
 	WideMem            memWrapper <- mkWideMemFromDDR3(ddr3ReqFifo, ddr3RespFifo);
-	Vector#(2,WideMem) memSplit   <- mkSplitWideMem(?, memWrapper);
+	Vector#(2,WideMem) memSplit   <- mkSplitWideMem(True, memWrapper);
 	Cache              l1I        <- mkNullCache(memSplit[0]);
 	Cache              l1D        <- mkNullCache(memSplit[1]);
 
+
+	//////////// EXT STATE ////////////
+
+	Reg#(Bool)          coreStarted   <- mkReg(False);
+	Reg#(Data)          numCommit     <- mkReg(0);
+	Reg#(Data)          numCycles     <- mkReg(0);
+	FIFO#(CommitReport) commitReportQ <- mkFIFO;
+
+	rule cntCycles if (coreStarted);
+		numCycles <= numCycles+1;
+	endrule
+
+
 	//////////// FETCH ////////////
 
-	rule do_fetch;
+	rule do_fetch if (coreStarted);
 
 		if (wbEpoch[0] == feEpoch) begin
 			
@@ -93,7 +111,7 @@ module mkCore5S(Fifo#(2, DDR3_Req)  ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFif
 		let rfToken = regfetchQ.first();
 		let decInst = rfToken.inst;
 
-		if (rfToken.epoch != wbEpoch[1]) begin
+		if (rfToken.epoch != wbEpoch[0]) begin
 
 			regfetchQ.deq();
 
@@ -157,7 +175,7 @@ module mkCore5S(Fifo#(2, DDR3_Req)  ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFif
 
 		let wToken     = wrbackQ.first(); wrbackQ.deq();
 
-		if (wToken.epoch == wbEpoch[1])  begin
+		if (wToken.epoch == wbEpoch[0])  begin
 
 			let commitInst = wToken.inst;
 
@@ -179,5 +197,23 @@ module mkCore5S(Fifo#(2, DDR3_Req)  ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFif
 		end
 
 	endrule
+
+
+	//////////// INTERFACE ////////////
+
+	method Action start (Addr spc) if (!coreStarted);
+
+		coreStarted <= True;
+		pc          <= spc;
+		commitReportQ.clear();
+
+	endmethod
+
+	method ActionValue#(CommitReport) getCMR();
+
+		let latest = commitReportQ.first(); commitReportQ.deq();
+		return latest;
+
+	endmethod
 
 endmodule // mkBackend

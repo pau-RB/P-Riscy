@@ -1,27 +1,33 @@
 import Ifc::*;
 import Core::*; 
+import Types::*;
+import MemTypes::*;
+import Fifo::*;
 
 interface ConnectalWrapper;
    interface FromHost connectProc;
 endinterface
 
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
-// Instantiate your processor below
-   DDR memory <- mkSIMDDR;
-   Core5S m <- mkCore5S(memory.req, memory.resp);
+   
+   // Instantiate your processor below
+   //DDR memory <- mkSIMDDR;
+   Fifo#(2, DDR3_Req)  ddr3ReqFifo  <- mkPipelineFifo;
+   Fifo#(2, DDR3_Resp) ddr3RespFifo <- mkPipelineFifo;
 
-// TODO comment the if false
-   rule relayMessage if (False);
-	// FILL in to receive something from the processor (calling a method)
-	Bit#(32) mess = 0;
-        ind.print(mess);	
+   Core dut <- mkCore6S(ddr3ReqFifo,ddr3RespFifo);
+
+   rule relayMessage;
+	     CommitReport cmr <- dut.getCMR();
+        ind.print(cmr.pc);
    endrule
 
    interface FromHost connectProc;
       method Action startPC(Bit#(32) startpc);
         $display("Received software req to start pc\n");
         $fflush(stdout);
-// FILL IN to call m.startProc or somethign like that
+        dut.start(startpc);
       endmethod
    endinterface
+
 endmodule

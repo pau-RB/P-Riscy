@@ -26,8 +26,8 @@ uint32_t print_int = 0;
 class ToHost: public ToHostWrapper 
 {
 public:
-    virtual void print(uint32_t msg){
-	  // THIS IS THE CODE BEING CALLED ASYNCHRONOUSLY WHEN YOUR HARDWARE DESIGN CALL THE ind.print(mess)  
+    virtual void print ( const uint32_t word ){
+        printf("pc    %d: ", word   );
     }
    ToHost(unsigned int id) : ToHostWrapper(id){}
 };
