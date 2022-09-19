@@ -14,8 +14,7 @@ import Vector::*;
 import Ehr::*;
 
 interface Core;
-
-endinterface // backend
+memory.resprface // backend
 
 
 module mkCore5S(Fifo#(2, DDR3_Req)  ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo, Core ifc);

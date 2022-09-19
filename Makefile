@@ -1,10 +1,20 @@
+CONNECTALDIR ?= connectal
+S2H_INTERFACES = \
+	FromHost:ConnectalWrapper.connectProc
+H2S_INTERFACES = \
+	ConnectalWrapper:ToHost
+BSVFILES += \
+	src/Ifc.bsv
+BSVPATH += / \
+	src/ \
+	$(CONNECTALDIR)/bsv
+CPPFILES += \
+	main.cpp
 
-verilog:
-	bsc -simdir SIM -vdir V -bdir build -verilog -g mkCore5S -aggressive-conditions -u ./Core.bsv
+#CONNECTALFLAGS += --mainclockperiod=20
+#CONNECTALFLAGS += --verilog=ddr3_v2_0/
+CONNECTALFLAGS += --bscflags " -show-schedule"
+#CONNECTALFLAGS += --cxxflags="-g -std=gnu++11"
 
-core:
-	bsc -simdir SIM -vdir V -bdir build -aggressive-conditions -u ./Core.bsv
+include $(CONNECTALDIR)/Makefile.connectal
 
-clean:
-	rm -f ./build/*.bo
-	rm -f ./V/*.v

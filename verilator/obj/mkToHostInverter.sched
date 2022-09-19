@@ -1,0 +1,17 @@
+=== Generated schedule for mkToHostInverter ===
+
+Method schedule
+---------------
+Method: ifc_print
+Ready signal: fifo_print.i_notFull
+Conflict-free: inverseIfc_print
+Conflicts: ifc_print
+ 
+Method: inverseIfc_print
+Ready signal: fifo_print.i_notEmpty
+Conflict-free: ifc_print
+Conflicts: inverseIfc_print
+ 
+Logical execution order: ifc_print, inverseIfc_print
+
+================================================
