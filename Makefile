@@ -7,6 +7,8 @@ BSVFILES += \
 	src/Ifc.bsv
 BSVPATH += / \
 	src/ \
+	src/include \
+	src/types \
 	$(CONNECTALDIR)/bsv
 CPPFILES += \
 	main.cpp
@@ -18,3 +20,6 @@ CONNECTALFLAGS += --bscflags " -show-schedule"
 
 include $(CONNECTALDIR)/Makefile.connectal
 
+
+clean:
+	rm -rf ./verilator/*
