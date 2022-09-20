@@ -3,6 +3,7 @@ import Core::*;
 import Types::*;
 import MemTypes::*;
 import Memory::*;
+import WideMemBRAM::*;
 import MemUtil::*;
 import Fifo::*;
 
@@ -12,7 +13,8 @@ endinterface
 
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
-   Core dut <- mkCore6S(?);
+   WideMem mem <- mkWideMemBRAM;
+   Core    dut <- mkCore6S(mem);
 
    rule relayMessage;
 	     CommitReport cmr <- dut.getCMR();

@@ -15,6 +15,12 @@ typedef struct{
 
 typedef Data MemResp;
 
+interface Cache;
+    method Action req(MemReq r);
+    method ActionValue#(MemResp) resp;
+endinterface
+
+
 //////////// CACHE WIDEMEM REQUESTS ////////////
 
 typedef 16 CacheLineWords; // to match DDR3 width
@@ -26,8 +32,6 @@ typedef Bit#( TLog#(CacheRows) ) CacheIndex;
 typedef Bit#( TLog#(CacheLineWords) ) CacheWordSelect;
 typedef Vector#(CacheLineWords, Data) CacheLine;
 
-// Wide memory interface
-// This is defined here since it depends on the CacheLine type
 typedef struct{
     Bit#(CacheLineWords) write_en;  // Word write enable
     Addr                 addr;
@@ -35,14 +39,13 @@ typedef struct{
 } WideMemReq deriving(Eq,Bits);
 
 typedef CacheLine WideMemResp;
+
 interface WideMem;
     method Action req(WideMemReq r);
     method ActionValue#(CacheLine) resp;
 endinterface
 
-// Interface just like FPGAMemory (except no MemInit)
-interface Cache;
-    method Action req(MemReq r);
-    method ActionValue#(MemResp) resp;
-endinterface
 
+//////////// BRAM ////////////
+
+typedef Bit#(12) WMBAddr;
