@@ -1,70 +1,48 @@
-import GetPut::*;
 import Types::*;
 import Memory::*;
+import Vector::*;
 
-typedef Data MemResp;
+
+//////////// LOCAL DATA-BASED MEMORY ////////////
 
 typedef enum{Ld, St} MemOp deriving(Eq, Bits, FShow);
+
 typedef struct{
     MemOp op;
     Addr  addr;
     Data  data;
 } MemReq deriving(Eq, Bits, FShow);
 
-typedef 24 DDR3AddrSize;
-typedef Bit#(DDR3AddrSize) DDR3Addr;
-typedef 512 DDR3DataSize;
-typedef Bit#(DDR3DataSize) DDR3Data;
-typedef TDiv#(DDR3DataSize, 8) DDR3DataBytes;
-typedef Bit#(DDR3DataBytes) DDR3ByteEn;
-typedef TDiv#(DDR3DataSize, DataSz) DDR3DataWords;
+typedef Data MemResp;
 
-// typedef struct {
-//     Bool        write;
-//     Bit#(64)    byteen;
-//     Bit#(24)    address;
-//     Bit#(512)   data;
-// } DDR3_Req deriving (Bits, Eq);
-typedef MemoryRequest#(DDR3AddrSize, DDR3DataSize) DDR3_Req; 
+//////////// CACHE WIDEMEM REQUESTS ////////////
 
-// typedef struct {
-//     Bit#(512)   data;
-// } DDR3_Resp deriving (Bits, Eq);
-typedef MemoryResponse#(DDR3DataSize) DDR3_Resp;
+typedef 16 CacheLineWords; // to match DDR3 width
+typedef TMul#(CacheLineWords, 4) CacheLineBytes;
+typedef 8 CacheRows; // small size to improve compile times
 
-// interface DDR3_Client;
-//     interface Get#( DDR3_Req )  request;
-//     interface Put#( DDR3_Resp ) response;
-// endinterface;
-typedef MemoryClient#(DDR3AddrSize, DDR3DataSize) DDR3_Client;
+typedef Bit#( TSub#(TSub#(TSub#(AddrSz, 2), TLog#(CacheRows)), TLog#(CacheLineWords)) ) CacheTag;
+typedef Bit#( TLog#(CacheRows) ) CacheIndex;
+typedef Bit#( TLog#(CacheLineWords) ) CacheWordSelect;
+typedef Vector#(CacheLineWords, Data) CacheLine;
 
-typedef struct {
-    Addr addr;
-    Data data;
-} MemInitLoad deriving(Eq, Bits, FShow);
+// Wide memory interface
+// This is defined here since it depends on the CacheLine type
+typedef struct{
+    Bit#(CacheLineWords) write_en;  // Word write enable
+    Addr                 addr;
+    CacheLine            data;      // Vector#(CacheLineWords, Data)
+} WideMemReq deriving(Eq,Bits);
 
-typedef union tagged {
-    MemInitLoad InitLoad;
-     void InitDone;
-} MemInit deriving(Eq, Bits, FShow);
-
-interface MemInitIfc;
-    interface Put#(MemInit) request;
-    method Bool done();
+typedef CacheLine WideMemResp;
+interface WideMem;
+    method Action req(WideMemReq r);
+    method ActionValue#(CacheLine) resp;
 endinterface
 
-typedef struct {
-    DDR3Addr addr;
-    DDR3Data data;
-} WideMemInitLoad deriving(Eq, Bits, FShow);
-
-typedef union tagged {
-    WideMemInitLoad InitLoad;
-    void InitDone;
-} WideMemInit deriving(Eq, Bits, FShow);
-
-interface WideMemInitIfc;
-    interface Put#(WideMemInit) request;
-    method Bool done();
+// Interface just like FPGAMemory (except no MemInit)
+interface Cache;
+    method Action req(MemReq r);
+    method ActionValue#(MemResp) resp;
 endinterface
 

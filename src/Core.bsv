@@ -3,7 +3,6 @@ import ProcTypes::*;
 import Scoreboard::*;
 import decoder::*;
 import execution::*;
-import CacheTypes::*;
 import MemTypes::*;
 import MemUtil::*;
 import Cache::*;
@@ -22,7 +21,7 @@ interface Core;
 endinterface
 
 
-module mkCore6S(Fifo#(2, DDR3_Req)  ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo, Core ifc);
+module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// CORE STATE ////////////
 
@@ -49,8 +48,7 @@ module mkCore6S(Fifo#(2, DDR3_Req)  ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFif
 
 	//////////// MEMORY ////////////
 
-	WideMem            memWrapper <- mkWideMemFromDDR3(ddr3ReqFifo, ddr3RespFifo);
-	Vector#(2,WideMem) memSplit   <- mkSplitWideMem(True, memWrapper);
+	Vector#(2,WideMem) memSplit   <- mkSplitWideMem(True, mem);
 	Cache              l1I        <- mkNullCache(memSplit[0]);
 	Cache              l1D        <- mkNullCache(memSplit[1]);
 

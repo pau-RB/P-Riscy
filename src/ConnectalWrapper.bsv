@@ -12,10 +12,7 @@ endinterface
 
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
-   Fifo#(2, DDR3_Req)  ddr3ReqFifo <- mkCFFifo();
-   Fifo#(2, DDR3_Resp) ddr3RespFifo <- mkCFFifo();
-
-   Core dut <- mkCore6S(ddr3ReqFifo,ddr3RespFifo);
+   Core dut <- mkCore6S(?);
 
    rule relayMessage;
 	     CommitReport cmr <- dut.getCMR();

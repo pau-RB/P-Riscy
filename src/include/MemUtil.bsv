@@ -1,7 +1,6 @@
 import Types::*;
 import ProcTypes::*;
 import MemTypes::*;
-import CacheTypes::*;
 import Fifo::*;
 import Vector::*;
 import Memory::*;
@@ -49,52 +48,6 @@ function WideMemReq toWideMemReq( MemReq req );
             };
 endfunction
 
-function DDR3_Req toDDR3Req( MemReq req );
-    Bool write = (req.op == St);
-    CacheWordSelect wordSelect = truncate(req.addr >> 2);
-    DDR3ByteEn byteen = wordEnToByteEn( 1 << wordSelect );
-	if( req.op == Ld ) begin
-		byteen = 0;
-	end
-    DDR3Addr addr = truncate( req.addr >> valueOf(TLog#(DDR3DataBytes)) );
-    DDR3Data data = replicateWord(req.data);
-    return DDR3_Req {
-                write:      (req.op == St),
-                byteen:     byteen,
-                address:    addr,
-                data:       data
-            };
-endfunction
-
-module mkWideMemFromDDR3(   Fifo#(2, DDR3_Req) ddr3ReqFifo,
-                            Fifo#(2, DDR3_Resp) ddr3RespFifo,
-                            WideMem ifc );
-    method Action req( WideMemReq x );
-        Bool write_en = (x.write_en != 0);
-        Bit#(DDR3DataBytes) byte_en = wordEnToByteEn(x.write_en);
-		if( write_en == False ) begin
-			byte_en = 0;
-		end
-        // x.addr is byte aligned and ddr3 addresses are aligned to DDR3Data sized blocks
-        DDR3Addr addr = truncate(x.addr >> valueOf(TLog#(DDR3DataBytes)));
-
-        DDR3_Req ddr3_req = DDR3_Req {
-                                write:      write_en,
-                                byteen:     byte_en,
-                                address:    addr,
-                                data:       pack(x.data)
-                            };
-        ddr3ReqFifo.enq( ddr3_req );
-        $display("mkWideMemFromDDR3::req : wideMemReq.addr = 0x%0x, ddr3Req.address = 0x%0x, ddr3Req.byteen = 0x%0x", x.addr, ddr3_req.address, ddr3_req.byteen);
-    endmethod
-    method ActionValue#(WideMemResp) resp;
-        let x = ddr3RespFifo.first;
-        ddr3RespFifo.deq;
-        $display("mkWideMemFromDDR3::resp : data = 0x%0x", x.data);
-        return unpack(x.data);
-    endmethod
-endmodule
-
 module mkSplitWideMem(  Bool initDone, WideMem mem,
                         Vector#(n, WideMem) ifc );
 
@@ -102,7 +55,7 @@ module mkSplitWideMem(  Bool initDone, WideMem mem,
     Fifo#(TAdd#(n,1), Bit#(TLog#(n))) reqSource <- mkCFFifo;
     Vector#(n, Fifo#(2, WideMemResp)) respFifos <- replicateM(mkCFFifo);
 
-    rule doDDR3Req(initDone);
+    rule doWideMemReq(initDone);
         Maybe#(Bit#(TLog#(n))) req_index = tagged Invalid;
         for( Integer i = 0 ; i < valueOf(n) ; i = i+1 ) begin
             if( !isValid(req_index) && reqFifos[i].notEmpty ) begin
@@ -122,7 +75,7 @@ module mkSplitWideMem(  Bool initDone, WideMem mem,
         end
     endrule
 
-    rule doDDR3Resp(initDone);
+    rule doWideMemResp(initDone);
         let resp <- mem.resp;
 
         let source = reqSource.first;
