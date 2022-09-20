@@ -5,7 +5,3 @@ endinterface
 interface ToHost;
 	method Action print(Bit#(32) word);
 endinterface
-
-interface ConnectalMemoryInitialization;
-  method Action done();
-endinterface

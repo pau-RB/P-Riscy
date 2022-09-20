@@ -1,7 +1,6 @@
 CONNECTALDIR ?= connectal
 S2H_INTERFACES = \
-	FromHost:ConnectalWrapper.connectProc\
-	ConnectalMemoryInitialization:ConnectalWrapper.initProc
+	FromHost:ConnectalWrapper.connectProc
 H2S_INTERFACES = \
 	ConnectalWrapper:ToHost
 BSVFILES += \
