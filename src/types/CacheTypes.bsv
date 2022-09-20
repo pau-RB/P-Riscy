@@ -19,14 +19,6 @@ typedef struct{
     CacheLine            data;      // Vector#(CacheLineWords, Data)
 } WideMemReq deriving(Eq,Bits);
 
-
-typedef struct{
-    MemOp op;
-    Addr  addr;
-    Data  data;
-} MemReq deriving(Eq, Bits, FShow);
-
-
 typedef CacheLine WideMemResp;
 interface WideMem;
     method Action req(WideMemReq r);
