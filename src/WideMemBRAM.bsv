@@ -2,6 +2,7 @@ import Types::*;
 import MemTypes::*;
 import BRAM::*;
 
+(* synthesize *)
 module mkWideMemBRAM(WideMem);
 
 	BRAM_Configure cfg = defaultValue;
