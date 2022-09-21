@@ -95,7 +95,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 		let decInst = decode(inst);
 		let pc      = dToken.pc;
-		let rfToken = RFToken{inst: decInst, pc: pc, epoch: dToken.epoch};
+		let rfToken = RFToken{inst: decInst, pc: pc, epoch: dToken.epoch, rawInst: inst};
 
 		regfetchQ.enq(rfToken);
 
@@ -117,7 +117,7 @@ module mkCore6S(WideMem mem, Core ifc);
 			
 			let arg1    = rf.rd1(fromMaybe(?, decInst.src1));
 			let arg2    = rf.rd2(fromMaybe(?, decInst.src2));
-			let eToken  = ExecToken{inst: decInst, arg1: arg1, arg2: arg2, pc: rfToken.pc, epoch: rfToken.epoch};
+			let eToken  = ExecToken{inst: decInst, arg1: arg1, arg2: arg2, pc: rfToken.pc, epoch: rfToken.epoch, rawInst: rfToken.rawInst};
 
 			sb.insert(decInst.dst);
 			regfetchQ.deq();
@@ -135,7 +135,7 @@ module mkCore6S(WideMem mem, Core ifc);
 		let eToken = executeQ.first(); executeQ.deq();
 
 		let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4, ?);
-		let mToken   = MemToken{inst: execInst, pc:eToken.pc, epoch: eToken.epoch};
+		let mToken   = MemToken{inst: execInst, pc:eToken.pc, epoch: eToken.epoch, rawInst: eToken.rawInst};
 
 		memoryQ.enq(mToken);
 
@@ -158,7 +158,7 @@ module mkCore6S(WideMem mem, Core ifc);
         	    l1D.req(MemReq{op: St, addr: execInst.addr, data: execInst.data});
         	end
 		
-			let wToken   = WBToken{inst: execInst, pc: mToken.pc, epoch: mToken.epoch};
+			let wToken   = WBToken{inst: execInst, pc: mToken.pc, epoch: mToken.epoch,  rawInst: mToken.rawInst};
 
 			wrbackQ.enq(wToken);
 
@@ -194,14 +194,14 @@ module mkCore6S(WideMem mem, Core ifc);
 			if(commitInst.iType == J ||commitInst.iType == Jr || commitInst.iType == Br) begin
 				if(commitInst.brTaken) begin
 					commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
-									iType:wToken.inst.iType, res: commitInst.addr});
+									iType:wToken.inst.iType, res: commitInst.addr, rawInst: wToken.rawInst});
 				end else begin
 					commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
-									iType:wToken.inst.iType, res: '0});
+									iType:wToken.inst.iType, res: '0, rawInst: wToken.rawInst});
 				end
 			end else begin
 				commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
-									iType:wToken.inst.iType, res: commitInst.data});
+									iType:wToken.inst.iType, res: commitInst.data, rawInst: wToken.rawInst});
 			end
 
 		end

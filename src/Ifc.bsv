@@ -3,5 +3,5 @@ interface FromHost;
 endinterface
 
 interface ToHost;
-	method Action print(Bit#(32) cycle, Bit#(32) pc, Bit#(32) iType, Bit#(32) res);
+	method Action print(Bit#(32) cycle, Bit#(32) pc, Bit#(32) inst, Bit#(32) res, Bit#(32) rawInst);
 endinterface

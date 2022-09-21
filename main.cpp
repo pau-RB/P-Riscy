@@ -16,6 +16,7 @@
 
 #include "FromHost.h"
 #include "ToHost.h"
+#include "interpreter.h"
 
 using namespace std;
 
@@ -70,22 +71,14 @@ class ToHost: public ToHostWrapper
             }
         }
 
-        std::string uint_to_hex(uint32_t w) {
-            static const char* digits = "0123456789ABCDEF";
-            std::string rc(8,'0');
-            for (size_t i=0, j=(8-1)*4 ; i<8; ++i,j-=4)
-                rc[i] = digits[(w>>j) & 0x0f];
-            return rc;
-        }
-
     public:
-        virtual void print ( const uint32_t cycle, const uint32_t pc, const uint32_t iType, const uint32_t res ){
+        virtual void print ( const uint32_t cycle, const uint32_t pc, const uint32_t iType, const uint32_t res, const uint32_t rawInst){
             string phrase = " cycle:          | pc:          | iType:          | res:           ";
             overwrite(phrase, std::to_string(cycle),  8, 8 );
             overwrite(phrase,    uint_to_hex(pc   ), 23, 8 );
             overwrite(phrase,     printIType(iType), 41, 8 );
             overwrite(phrase,    uint_to_hex(res  ), 57, 8 );
-            printf("%s\n", phrase.c_str());
+            printf("%s | %s\n", phrase.c_str(), interpreter(rawInst).c_str());
         }
     
     ToHost(unsigned int id) : ToHostWrapper(id){}

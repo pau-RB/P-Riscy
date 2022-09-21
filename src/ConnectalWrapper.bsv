@@ -20,7 +20,7 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
    rule relayMessage;
 	     CommitReport cmr <- dut.getCMR();
         Data iType = zeroExtend(pack(cmr.iType));
-        ind.print(cmr.cycle, cmr.pc, iType, cmr.res);
+        ind.print(cmr.cycle, cmr.pc, iType, cmr.res, cmr.rawInst);
    endrule
 
    interface FromHost connectProc;

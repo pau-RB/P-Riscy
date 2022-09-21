@@ -171,6 +171,7 @@ typedef struct {
 	DecodedInst inst;
 	Addr        pc;
 	Bool        epoch;
+	Data        rawInst;
 } RFToken deriving (Bits, Eq);
 
 typedef struct {
@@ -179,18 +180,21 @@ typedef struct {
 	Data        arg2;
 	Addr        pc;
 	Bool        epoch;
+	Data        rawInst;
 } ExecToken deriving (Bits, Eq);
 
 typedef struct {
 	ExecInst    inst;
 	Addr        pc;
 	Bool        epoch;
+	Data        rawInst;
 } MemToken deriving (Bits, Eq);
 
 typedef struct {
 	ExecInst    inst;
 	Addr        pc;
 	Bool        epoch;
+	Data        rawInst;
 } WBToken deriving (Bits, Eq);
 
 typedef struct {
@@ -203,6 +207,7 @@ typedef struct {
 	Addr  pc;
 	IType iType;
 	Data  res;
+	Data  rawInst;
 } CommitReport deriving (Bits, Eq);
 
 function Bool dataHazard(Maybe#(RIndx) src1, Maybe#(RIndx) src2, Maybe#(RIndx) dst);
