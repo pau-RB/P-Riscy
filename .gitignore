@@ -1,2 +1,3 @@
 build/*.bo
 verilator/
+TMP/report.txt

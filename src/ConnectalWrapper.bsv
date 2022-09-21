@@ -1,6 +1,7 @@
 import Ifc::*;
 import Core::*; 
 import Types::*;
+import ProcTypes::*;
 import MemTypes::*;
 import Memory::*;
 import WideMemBRAM::*;
@@ -18,7 +19,8 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
    rule relayMessage;
 	     CommitReport cmr <- dut.getCMR();
-        ind.print(cmr.pc);
+        Data iType = zeroExtend(pack(cmr.iType));
+        ind.print(cmr.cycle, cmr.pc, iType, cmr.res);
    endrule
 
    interface FromHost connectProc;

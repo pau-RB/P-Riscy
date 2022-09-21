@@ -70,16 +70,12 @@ module mkCore6S(WideMem mem, Core ifc);
 	rule do_fetch if (coreStarted);
 
 		if (wbEpoch[0] == feEpoch) begin
-
-			$display("0x%0x FETCH", pc);
 			
 			l1I.req(MemReq{op: Ld, addr: pc, data: ?});
 			decodeQ.enq(DecToken{pc: pc, epoch: feEpoch});
 			pc <= pc+4;
 		
 		end else begin
-
-			$display("REDIRECT");
 			
 			let redirect = redirectQ.first(); redirectQ.deq();
 			feEpoch <= redirect.epoch;
@@ -101,8 +97,6 @@ module mkCore6S(WideMem mem, Core ifc);
 		let pc      = dToken.pc;
 		let rfToken = RFToken{inst: decInst, pc: pc, epoch: dToken.epoch};
 
-		$display("0x%0x DECODE", pc);
-
 		regfetchQ.enq(rfToken);
 
 	endrule
@@ -117,13 +111,9 @@ module mkCore6S(WideMem mem, Core ifc);
 
 		if (rfToken.epoch != wbEpoch[0]) begin
 
-			$display("RFS DROP");
-
 			regfetchQ.deq();
 
 		end else if (!sb.search1(decInst.src1) && !sb.search2(decInst.src2)) begin
-
-			$display("0x%0x REG FETCH", rfToken.pc);
 			
 			let arg1    = rf.rd1(fromMaybe(?, decInst.src1));
 			let arg2    = rf.rd2(fromMaybe(?, decInst.src2));
@@ -147,8 +137,6 @@ module mkCore6S(WideMem mem, Core ifc);
 		let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, ?, ?);
 		let mToken   = MemToken{inst: execInst, pc:eToken.pc, epoch: eToken.epoch};
 
-		$display("0x%0x EXECUTE", eToken.pc);
-
 		memoryQ.enq(mToken);
 
 	endrule
@@ -161,8 +149,6 @@ module mkCore6S(WideMem mem, Core ifc);
 		let mToken   = memoryQ.first(); memoryQ.deq();
 
 		let execInst = mToken.inst;
-
-		$display("0x%0x MEM", mToken.pc);
 
 		if (mToken.epoch == wbEpoch[1]) begin
 
@@ -189,8 +175,6 @@ module mkCore6S(WideMem mem, Core ifc);
 
 		if (wToken.epoch == wbEpoch[0])  begin
 
-			$display("0x%0x WB %d", wToken.pc, wToken.inst.iType);
-
 			let commitInst = wToken.inst;
 			sb.remove();
 
@@ -207,7 +191,8 @@ module mkCore6S(WideMem mem, Core ifc);
 				wbEpoch[0] <= !wbEpoch[0];
 			end
 
-			commitReportQ.enq(CommitReport{pc: commitInst.addr, res: commitInst.data, cycle: numCycles});
+			commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
+								iType:wToken.inst.iType, res: commitInst.data});
 
 		end
 

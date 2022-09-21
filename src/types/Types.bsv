@@ -23,9 +23,3 @@ typedef Bit#(DataSz) Data;
 
 typedef 32 InstSz;
 typedef Bit#(InstSz) Instruction;
-
-typedef struct {
-	Addr pc;
-	Data res;
-	Data cycle;
-} CommitReport deriving (Bits, Eq);

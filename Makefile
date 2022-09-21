@@ -23,3 +23,12 @@ include $(CONNECTALDIR)/Makefile.connectal
 
 clean:
 	rm -rf ./verilator/*
+
+build:
+	make build.verilator
+
+sim:
+	rm -rf TMP/report.txt && ./verilator/bin/ubuntu.exe >> TMP/report.txt
+
+less:
+	less TMP/report.txt
