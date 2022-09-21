@@ -134,7 +134,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 		let eToken = executeQ.first(); executeQ.deq();
 
-		let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, ?, ?);
+		let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4, ?);
 		let mToken   = MemToken{inst: execInst, pc:eToken.pc, epoch: eToken.epoch};
 
 		memoryQ.enq(mToken);
@@ -186,13 +186,23 @@ module mkCore6S(WideMem mem, Core ifc);
 			end
 
 			if(commitInst.brTaken) begin
-				redirectQ.enq(ContToken{pc: commitInst.data, epoch:!wToken.epoch});
+				redirectQ.enq(ContToken{pc: commitInst.addr, epoch:!wToken.epoch});
 				sb.clear();
 				wbEpoch[0] <= !wbEpoch[0];
 			end
 
-			commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
-								iType:wToken.inst.iType, res: commitInst.data});
+			if(commitInst.iType == J ||commitInst.iType == Jr || commitInst.iType == Br) begin
+				if(commitInst.brTaken) begin
+					commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
+									iType:wToken.inst.iType, res: commitInst.addr});
+				end else begin
+					commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
+									iType:wToken.inst.iType, res: '0});
+				end
+			end else begin
+				commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
+									iType:wToken.inst.iType, res: commitInst.data});
+			end
 
 		end
 
