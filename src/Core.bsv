@@ -23,6 +23,11 @@ endinterface
 
 module mkCore6S(WideMem mem, Core ifc);
 
+	//////////// CORE DEBUG ////////////
+
+	Bool wb_DEBUG = True;
+
+
 	//////////// CORE STATE ////////////
 
 	Reg#(Addr)       pc        <- mkRegU;
@@ -191,17 +196,21 @@ module mkCore6S(WideMem mem, Core ifc);
 				wbEpoch[0] <= !wbEpoch[0];
 			end
 
-			if(commitInst.iType == J ||commitInst.iType == Jr || commitInst.iType == Br) begin
-				if(commitInst.brTaken) begin
-					commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
-									iType:wToken.inst.iType, res: commitInst.addr, rawInst: wToken.rawInst});
+			if (wb_DEBUG == True) begin
+
+				if(commitInst.iType == J ||commitInst.iType == Jr || commitInst.iType == Br) begin
+					if(commitInst.brTaken) begin
+						commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
+										iType:wToken.inst.iType, res: commitInst.addr, rawInst: wToken.rawInst});
+					end else begin
+						commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
+										iType:wToken.inst.iType, res: '0, rawInst: wToken.rawInst});
+					end
 				end else begin
 					commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
-									iType:wToken.inst.iType, res: '0, rawInst: wToken.rawInst});
+										iType:wToken.inst.iType, res: commitInst.data, rawInst: wToken.rawInst});
 				end
-			end else begin
-				commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
-									iType:wToken.inst.iType, res: commitInst.data, rawInst: wToken.rawInst});
+
 			end
 
 		end
