@@ -190,7 +190,7 @@ module mkCore6S(WideMem mem, Core ifc);
 				rf.wr(fromMaybe(?, commitInst.dst), commitInst.data);
 			end
 
-			if(commitInst.brTaken) begin
+			if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
 				redirectQ.enq(ContToken{pc: commitInst.addr, epoch:!wToken.epoch});
 				sb.clear();
 				wbEpoch[0] <= !wbEpoch[0];
