@@ -73,6 +73,15 @@ std::string uint_to_hex(uint32_t w) {
     return rc;
 }
 
+
+std::string int_to_hex(int32_t w) {
+    static const char* digits = "0123456789ABCDEF";
+    std::string rc(8,'0');
+    for (size_t i=0, j=(8-1)*4 ; i<8; ++i,j-=4)
+        rc[i] = digits[(w>>j) & 0x0f];
+    return rc;
+}
+
 std::string interpreter(uint32_t uinst) {
 
 	Inst inst;
@@ -90,10 +99,10 @@ std::string interpreter(uint32_t uinst) {
 
 
 	int32_t immI    = (inst.s&0xfff00000)>>20;
-	int32_t immS    = (((inst.s&0xfe000000)<<0)|((inst.s&0x00000f80)<<20))>>27;
-	int32_t immB    = (((inst.s&0x80000000)<<0)|((inst.s&0x00000080)<<6)|((inst.s&0x7e000000)<<1)|((inst.s&0x00000f00)<<20))>>19;
+	int32_t immS    = (((inst.s&0xfe000000)<<0)|((inst.s&0x00000f80)<<13))>>27;
+	int32_t immB    = (((inst.s&0x80000000)<<0)|((inst.s&0x00000080)<<23)|((inst.s&0x7e000000)>>1)|((inst.s&0x00000f00)<<12))>>19;
 	int32_t immU    = (inst.s&0xfffff000);
-	int32_t immJ    = (((inst.s&0x80000000)<<0)|((inst.s&0x000ff000)<<12)|((inst.s&0x00100000)<<11)|((inst.s&0x7e000000)<<1)|((inst.s&0x01e00000)<<7))>>11;
+	int32_t immJ    = (((inst.s&0x80000000)<<0)|((inst.s&0x000ff000)<<11)|((inst.s&0x00100000)<<2)|((inst.s&0x7e000000)>>10)|((inst.s&0x01e00000)>>9))>>11;
 
 	switch (opcode) {
 		case opOpImm:
@@ -110,7 +119,7 @@ std::string interpreter(uint32_t uinst) {
 				default:     ret = "unsupport "+uint_to_hex(inst.u);
 			}
 			ret = ret+" r"+std::to_string(rd)+" = r"+std::to_string(rs1)+" ";
-			ret = ret+((funct3==fnSLL || funct3==fnSR) ? ("0x" + uint_to_hex(immI&0x1f)) : ("0x" + uint_to_hex(immI)));
+			ret = ret+((funct3==fnSLL || funct3==fnSR) ? ("0x" + int_to_hex(immI&0x1f)) : ("0x" + int_to_hex(immI)));
 			return ret;
 
 		case opOp:
@@ -130,16 +139,16 @@ std::string interpreter(uint32_t uinst) {
 			return ret;
 
 		case opLui:
-			return "lui r"+std::to_string(rd)+" 0x"+uint_to_hex(immU);
+			return "lui r"+std::to_string(rd)+" 0x"+int_to_hex(immU);
 
 		case opAuipc:
-			return "auipc r"+std::to_string(rd)+" 0x"+uint_to_hex(immU);
+			return "auipc r"+std::to_string(rd)+" 0x"+int_to_hex(immU);
 
 		case opJal:
-			return "jal r"+std::to_string(rd)+" 0x"+uint_to_hex(immJ);
+			return "jal r"+std::to_string(rd)+" 0x"+int_to_hex(immJ);
 
 		case opJalr:
-			return "jalr r"+std::to_string(rd)+" [r"+std::to_string(rs1)+" 0x"+uint_to_hex(immI)+"]";
+			return "jalr r"+std::to_string(rd)+" [r"+std::to_string(rs1)+" 0x"+int_to_hex(immI)+"]";
 
 		case opBranch:
 
@@ -152,18 +161,18 @@ std::string interpreter(uint32_t uinst) {
 				case fnBGEU: ret = "bgeu"; break;
 				default:     ret = "unsupport branch 0x"+uint_to_hex(inst.u);
 			}
-			ret = ret+" r"+std::to_string(rs1)+" r"+std::to_string(rs2)+" 0x"+uint_to_hex(immB);
+			ret = ret+" r"+std::to_string(rs1)+" r"+std::to_string(rs2)+" 0x"+int_to_hex(immB);
 			return ret;
 
 		case opLoad:
 
 			ret = (funct3==fnLW) ? "lw" : ("unsupport Load 0x"+uint_to_hex(inst.u));
-			ret = ret+" r"+std::to_string(rd)+" = [r"+std::to_string(rs1)+" 0x"+uint_to_hex(immI)+"]";
+			ret = ret+" r"+std::to_string(rd)+" = [r"+std::to_string(rs1)+" 0x"+int_to_hex(immI)+"]";
 			return ret;
 
 		case opStore:
 			ret = (funct3==fnSW) ? "sw" : ("unsupport Store 0x"+uint_to_hex(inst.u));
-			ret = ret+" [r"+std::to_string(rs1)+" 0x"+uint_to_hex(immS)+"] = r"+std::to_string(rs2);
+			ret = ret+" [r"+std::to_string(rs1)+" 0x"+int_to_hex(immS)+"] = r"+std::to_string(rs2);
 			return ret;
 
 		case opMiscMem:
