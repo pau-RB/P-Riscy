@@ -20,7 +20,6 @@ interface Core;
 
 endinterface
 
-
 module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// CORE DEBUG ////////////
@@ -43,12 +42,13 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// PIPELINE ////////////
 
-	FIFO#(DecToken)  decodeQ   <- mkFIFO;
-	FIFO#(RFToken)   regfetchQ <- mkFIFO;
-	FIFO#(ExecToken) executeQ  <- mkFIFO;
-	FIFO#(MemToken)  memoryQ   <- mkFIFO;
-	FIFO#(WBToken)   wrbackQ   <- mkFIFO;
-	FIFO#(ContToken) redirectQ <- mkFIFO;
+	Fifo#(4,ContToken) redirectQ <- mkBypassFifo();
+	Fifo#(1,DecToken)  decodeQ   <- mkStageFifo();
+	Fifo#(1,RFToken)   regfetchQ <- mkStageFifo();
+
+	Fifo#(4,ExecToken) executeQ  <- mkCFFifo();
+	Fifo#(1,MemToken)  memoryQ   <- mkStageFifo();
+	Fifo#(1,WBToken)   wrbackQ   <- mkStageFifo();
 
 
 	//////////// MEMORY ////////////
@@ -74,17 +74,17 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	rule do_fetch if (coreStarted);
 
-		if (wbEpoch[0] == feEpoch) begin
-			
-			l1I.req(MemReq{op: Ld, addr: pc, data: ?});
-			decodeQ.enq(DecToken{pc: pc, epoch: feEpoch});
-			pc <= pc+4;
-		
-		end else begin
+		if (redirectQ.notEmpty) begin
 			
 			let redirect = redirectQ.first(); redirectQ.deq();
 			feEpoch <= redirect.epoch;
 			pc <= redirect.pc;
+
+		end else begin
+
+			l1I.req(MemReq{op: Ld, addr: pc, data: ?});
+			decodeQ.enq(DecToken{pc: pc, epoch: feEpoch});
+			pc <= pc+4;
 
 		end
 
@@ -109,26 +109,18 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// REG FETCH ////////////
 
-	rule do_regfetch;
+	rule do_regfetch if (!sb.search1(regfetchQ.first().inst.src1) && !sb.search2(regfetchQ.first().inst.src2));
 
 		let rfToken = regfetchQ.first();
 		let decInst = rfToken.inst;
-
-		if (rfToken.epoch != wbEpoch[0]) begin
-
-			regfetchQ.deq();
-
-		end else if (!sb.search1(decInst.src1) && !sb.search2(decInst.src2)) begin
 			
-			let arg1    = rf.rd1(fromMaybe(?, decInst.src1));
-			let arg2    = rf.rd2(fromMaybe(?, decInst.src2));
-			let eToken  = ExecToken{inst: decInst, arg1: arg1, arg2: arg2, pc: rfToken.pc, epoch: rfToken.epoch, rawInst: rfToken.rawInst};
+		let arg1    = rf.rd1(fromMaybe(?, decInst.src1));
+		let arg2    = rf.rd2(fromMaybe(?, decInst.src2));
+		let eToken  = ExecToken{inst: decInst, arg1: arg1, arg2: arg2, pc: rfToken.pc, epoch: rfToken.epoch, rawInst: rfToken.rawInst};
 
-			sb.insert(decInst.dst);
-			regfetchQ.deq();
-			executeQ.enq(eToken);
-
-		end
+		sb.insert(decInst.dst);
+		regfetchQ.deq();
+		executeQ.enq(eToken);
 
 	endrule
 
@@ -155,7 +147,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 		let execInst = mToken.inst;
 
-		if (mToken.epoch == wbEpoch[1]) begin
+		//if (mToken.epoch == wbEpoch[1]) begin
 
 			if(execInst.iType == Ld) begin
         	    l1D.req(MemReq{op: Ld, addr: execInst.addr, data: ?});
@@ -167,7 +159,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 			wrbackQ.enq(wToken);
 
-		end
+		//end
 
 	endrule
 
@@ -176,12 +168,11 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	rule do_wb;
 
-		let wToken     = wrbackQ.first(); wrbackQ.deq();
+		let wToken = wrbackQ.first(); wrbackQ.deq(); sb.remove();
 
 		if (wToken.epoch == wbEpoch[0])  begin
 
 			let commitInst = wToken.inst;
-			sb.remove();
 
 			if(commitInst.iType == Ld) begin
 				Data res <- l1D.resp();
@@ -192,7 +183,6 @@ module mkCore6S(WideMem mem, Core ifc);
 
 			if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
 				redirectQ.enq(ContToken{pc: commitInst.addr, epoch:!wToken.epoch});
-				sb.clear();
 				wbEpoch[0] <= !wbEpoch[0];
 			end
 

@@ -261,6 +261,39 @@ module mkCFFifo( Fifo#(n, t) ) provisos (Bits#(t,tSz));
     endmethod
 endmodule
 
+
+/////////////////
+// Pipeline Stage (1 element pipeline FIFO)
+
+module mkStageFifo( Fifo#(1, t) ) provisos (Bits#(t,tSz));
+    // t is data type of fifo
+    Reg#(t)       data  <- mkRegU();
+    Ehr#(3, Bool) valid <- mkEhr(False);
+
+    method Bool notFull = !valid[1];
+
+    method Action enq(t x) if( !valid[1] );
+        valid[1] <= True;
+        data     <= x;
+    endmethod
+
+    method Bool notEmpty = valid[0];
+
+    method Action deq if( valid[0] );
+        // Tell later stages a dequeue was requested
+        valid[0] <= False;
+    endmethod
+
+    method t first if( valid[0] );
+        return data;
+    endmethod
+
+    method Action clear;
+        valid[2] <= False;
+    endmethod
+endmodule
+
+
 ////////////////////////////////
 // instances of ToGet and ToPut
 

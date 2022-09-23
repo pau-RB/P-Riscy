@@ -79,6 +79,7 @@ class ToHost: public ToHostWrapper
             overwrite(phrase,     printIType(iType), 41, 8 );
             overwrite(phrase,    uint_to_hex(res  ), 57, 8 );
             printf("%s | %s\n", phrase.c_str(), interpreter(rawInst).c_str());
+            fflush(stdout);
         }
     
     ToHost(unsigned int id) : ToHostWrapper(id){}
