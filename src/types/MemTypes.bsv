@@ -48,4 +48,5 @@ endinterface
 
 //////////// BRAM ////////////
 
-typedef Bit#(12) WMBAddr;
+typedef 12 WMBAddrSz;
+typedef Bit#(WMBAddrSz) WMBAddr;

@@ -1,26 +1,18 @@
 import Types::*;
 import MemTypes::*;
-import BRAM::*;
+import MemUtil::*;
+import BRAMCore::*;
 
-(* synthesize *)
 module mkWideMemBRAM(WideMem);
 
-	BRAM_Configure cfg = defaultValue;
-	cfg.loadFormat = Hex ("mem.vmh");
-	BRAM1Port#(WMBAddr, CacheLine) bram <- mkBRAM1Server(cfg);
+	BRAM_PORT_BE#(WMBAddr, CacheLine, CacheLineBytes) bram <- mkBRAMCore1BELoad(valueOf(TExp#(WMBAddrSz)), False, "mem.vmh", False);
 
 	method Action req(WideMemReq r);
-		bram.portA.request.put( BRAMRequest{
-			write: (r.write_en != 0), 
-			responseOnWrite: False, 
-			address: truncate(r.addr >> valueOf(TLog#(CacheLineBytes))), 
-			datain: r.data 
-		} );
+		bram.put(wordEnToByteEn(r.write_en), truncate(r.addr >> valueOf(TLog#(CacheLineBytes))), r.data);
 	endmethod
     
     method ActionValue#(CacheLine) resp;
-    	let d <- bram.portA.response.get;
-        return d;
+    	return bram.read;
     endmethod
 
 endmodule
