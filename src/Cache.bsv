@@ -43,20 +43,33 @@ typedef struct {
 	Maybe#(CacheEntry) e;
 } PendingReqEntry deriving(Eq, Bits);
 
+typedef struct {
+	CacheIndex i;
+	CacheEntry e;
+} MetacacheEntry deriving(Eq, Bits);
+
 module mkReadCache(WideMem mem, Cache ifc);
 
 	BRAM_DUAL_PORT#(CacheIndex, Maybe#(CacheEntry)) bram       <- mkBRAMCore2(valueOf(CacheRows), False);
+	Reg#(Maybe#(MetacacheEntry))                    metacache  <- mkReg(tagged Invalid);
 	Fifo#(1,MemReq)                                 bramReq    <- mkStageFifo();
 	Fifo#(4,PendingReqEntry)                        pendingReq <- mkBypassFifo();
 
+
 	rule do_read_BRAM;
 
-		let e = bram.b.read;
-		let r = bramReq.first(); bramReq.deq();
-		pendingReq.enq(PendingReqEntry{r: r, e: e});
+		Maybe#(CacheEntry) e = bram.b.read;
+		MemReq             r = bramReq.first(); bramReq.deq();
+
+		if(isValid(metacache) && {fromMaybe(?,metacache).e.tag, fromMaybe(?,metacache).i} == truncateLSB(r.addr)) begin
+			e = tagged Valid fromMaybe(?, metacache).e;
+		end
+
 		if(!isValid(e) || fromMaybe(?,e).tag != truncateLSB(r.addr)) begin
 			mem.req(toWideMemReq(r));
 		end
+
+		pendingReq.enq(PendingReqEntry{r: r, e: e});
 
 	endrule
 
@@ -84,11 +97,13 @@ module mkReadCache(WideMem mem, Cache ifc);
 			
 			CacheLine       line <- mem.resp();
 
-			CacheTag        tag  = truncateLSB(r.addr);
-			CacheEntry      ne   = CacheEntry{tag: tag, data: line};
-			Addr            addr = r.addr;
+			CacheTag        tag   = truncateLSB(r.addr);
+			CacheIndex      index = truncate(r.addr >> valueOf(TLog#(CacheLineBytes)));
+			CacheEntry      ne    = CacheEntry{tag: tag, data: line};
+			Addr            addr  = r.addr;
 
-			bram.a.put(True, truncate(addr >> valueOf(TLog#(CacheLineBytes))), tagged Valid ne);
+			bram.a.put(True, index, tagged Valid ne);
+			metacache <= tagged Valid MetacacheEntry{e: ne, i: index};
 			
 			CacheWordSelect wordSelect =  truncate(addr >> 2);
 			return line[wordSelect];
