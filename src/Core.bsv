@@ -162,19 +162,18 @@ module mkCore6S(WideMem mem, Core ifc);
 
 		let execInst = mToken.inst;
 
-		//if (mToken.epoch == wbEpoch[1]) begin
-
+		if (mToken.epoch == wbEpoch[1]) begin
+			// Prevent instruction from requesting MEM operations if epoch is changed
 			if(execInst.iType == Ld) begin
-        	    l1D.req(MemReq{op: Ld, addr: execInst.addr, data: ?});
-        	end else if(execInst.iType == St) begin
-        	    l1D.req(MemReq{op: St, addr: execInst.addr, data: execInst.data});
-        	end
-		
-			let wToken   = WBToken{inst: execInst, pc: mToken.pc, epoch: mToken.epoch,  rawInst: mToken.rawInst};
+    		    l1D.req(MemReq{op: Ld, addr: execInst.addr, data: ?});
+    		end else if(execInst.iType == St) begin
+    		    l1D.req(MemReq{op: St, addr: execInst.addr, data: execInst.data});
+    		end
+    	end
+	
+		let wToken   = WBToken{inst: execInst, pc: mToken.pc, epoch: mToken.epoch,  rawInst: mToken.rawInst};
 
-			wrbackQ.enq(wToken);
-
-		//end
+		wrbackQ.enq(wToken);
 
 	endrule
 
