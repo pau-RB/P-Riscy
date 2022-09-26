@@ -54,7 +54,7 @@ module mkCore6S(WideMem mem, Core ifc);
 	//////////// MEMORY ////////////
 
 	Vector#(2,WideMem) memSplit   <- mkSplitWideMem(True, mem);
-	Cache              l1I        <- mkNullCache(memSplit[0]);
+	Cache              l1I        <- mkReadCache(memSplit[0]);
 	Cache              l1D        <- mkNullCache(memSplit[1]);
 
 
@@ -73,6 +73,8 @@ module mkCore6S(WideMem mem, Core ifc);
 	//////////// FETCH ////////////
 
 	rule do_fetch if (coreStarted);
+
+		$display("FETCH %d : %h",numCycles, pc);
 
 		if (redirectQ.notEmpty) begin
 			
@@ -94,6 +96,8 @@ module mkCore6S(WideMem mem, Core ifc);
 	//////////// DECODE ////////////
 
 	rule do_decode;
+
+		$display("DECODE %d : %h",numCycles, decodeQ.first().pc);
 
 		let dToken = decodeQ.first(); decodeQ.deq();
 		let inst   <-l1I.resp();

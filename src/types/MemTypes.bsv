@@ -33,6 +33,11 @@ typedef Bit#( TLog#(CacheLineWords) ) CacheWordSelect;
 typedef Vector#(CacheLineWords, Data) CacheLine;
 
 typedef struct{
+    CacheTag  tag;
+    CacheLine data;
+} CacheEntry deriving(Eq,Bits);
+
+typedef struct{
     Bit#(CacheLineWords) write_en;  // Word write enable
     Addr                 addr;
     CacheLine            data;      // Vector#(CacheLineWords, Data)
