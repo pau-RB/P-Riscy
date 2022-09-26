@@ -24,14 +24,16 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// CORE DEBUG ////////////
 
-	Bool wb_DEBUG = True;
+	Bool wb_ext_DEBUG = False; // CAN AFFECT PERFORMANCE
+	Bool wb_DEBUG     = True;
+	Bool perf_DEBUG   = False;
 
 
 	//////////// CORE STATE ////////////
 
 	Reg#(Addr)       pc        <- mkRegU;
-	RFile            rf        <- mkRFile;
-	Scoreboard#(5)   sb        <- mkBypassScoreboard;
+	RFile            rf        <- mkBypassRFile;
+	Scoreboard#(8)   sb        <- mkPipelineScoreboard;
 
 
 	//////////// EPOCH ////////////
@@ -42,11 +44,11 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// PIPELINE ////////////
 
-	Fifo#(4,ContToken) redirectQ <- mkBypassFifo();
+	Fifo#(2,ContToken) redirectQ <- mkBypassFifo();
 	Fifo#(1,DecToken)  decodeQ   <- mkStageFifo();
 	Fifo#(1,RFToken)   regfetchQ <- mkStageFifo();
 
-	Fifo#(4,ExecToken) executeQ  <- mkCFFifo();
+	Fifo#(2,ExecToken) executeQ  <- mkCFFifo();
 	Fifo#(1,MemToken)  memoryQ   <- mkStageFifo();
 	Fifo#(1,WBToken)   wrbackQ   <- mkStageFifo();
 
@@ -67,14 +69,25 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	rule cntCycles if (coreStarted);
 		numCycles <= numCycles+1;
+
+		if (perf_DEBUG == True) begin
+			$display("0x%h || F 0x%h | D 0x%h | R 0x%h | E 0x%h | M 0x%h | W 0x%h",
+				numCycles,
+				pc,
+				(decodeQ.notEmpty   == True? decodeQ.first().pc   : 0),
+				(regfetchQ.notEmpty == True? regfetchQ.first().pc : 0),
+				(executeQ.notEmpty  == True? executeQ.first().pc  : 0),
+				(memoryQ.notEmpty   == True? memoryQ.first().pc   : 0),
+				(wrbackQ.notEmpty   == True? wrbackQ.first().pc   : 0)
+				);
+		end
+
 	endrule
 
 
 	//////////// FETCH ////////////
 
 	rule do_fetch if (coreStarted);
-
-		$display("FETCH %d : %h",numCycles, pc);
 
 		if (redirectQ.notEmpty) begin
 			
@@ -96,8 +109,6 @@ module mkCore6S(WideMem mem, Core ifc);
 	//////////// DECODE ////////////
 
 	rule do_decode;
-
-		$display("DECODE %d : %h",numCycles, decodeQ.first().pc);
 
 		let dToken = decodeQ.first(); decodeQ.deq();
 		let inst   <-l1I.resp();
@@ -190,7 +201,7 @@ module mkCore6S(WideMem mem, Core ifc);
 				wbEpoch[0] <= !wbEpoch[0];
 			end
 
-			if (wb_DEBUG == True) begin
+			if (wb_ext_DEBUG == True) begin
 
 				if(commitInst.iType == J ||commitInst.iType == Jr || commitInst.iType == Br) begin
 					if(commitInst.brTaken) begin
@@ -203,6 +214,20 @@ module mkCore6S(WideMem mem, Core ifc);
 				end else begin
 					commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
 										iType:wToken.inst.iType, res: commitInst.data, rawInst: wToken.rawInst});
+				end
+
+			end
+
+			if (wb_DEBUG == True) begin
+
+				if(commitInst.iType == J ||commitInst.iType == Jr || commitInst.iType == Br) begin
+					if(commitInst.brTaken) begin
+						$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, commitInst.addr, showInst(wToken.rawInst));
+					end else begin
+						$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, 0, showInst(wToken.rawInst));
+					end
+				end else begin
+					$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, commitInst.data, showInst(wToken.rawInst));
 				end
 
 			end
