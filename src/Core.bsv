@@ -44,7 +44,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// PIPELINE ////////////
 
-	Fifo#(2,ContToken) redirectQ <- mkBypassFifo();
+	Fifo#(2,Redirect) redirectQ <- mkBypassFifo();
 	Fifo#(1,DecToken)  decodeQ   <- mkStageFifo();
 	Fifo#(1,RFToken)   regfetchQ <- mkStageFifo();
 
@@ -93,7 +93,7 @@ module mkCore6S(WideMem mem, Core ifc);
 			
 			let redirect = redirectQ.first(); redirectQ.deq();
 			feEpoch <= redirect.epoch;
-			pc <= redirect.pc;
+			pc <= redirect.nextPc;
 
 		end else begin
 
@@ -196,7 +196,8 @@ module mkCore6S(WideMem mem, Core ifc);
 			end
 
 			if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
-				redirectQ.enq(ContToken{pc: commitInst.addr, epoch:!wToken.epoch});
+				redirectQ.enq(Redirect{pc: wToken.pc, epoch:!wToken.epoch, nextPc: commitInst.addr,
+									   brType: commitInst.iType, taken: commitInst.brTaken, mispredict: commitInst.mispredict});
 				wbEpoch[0] <= !wbEpoch[0];
 			end
 

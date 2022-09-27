@@ -78,14 +78,6 @@ typedef enum {
 typedef void Exception;
 
 typedef struct {
-    Addr pc;
-    Addr nextPc;
-    IType brType;
-    Bool taken;
-    Bool mispredict;
-} Redirect deriving (Bits, Eq, FShow);
-
-typedef struct {
     IType            iType;
     AluFunc          aluFunc;
     BrFunc           brFunc;
@@ -177,9 +169,13 @@ typedef struct {
 } WBToken deriving (Bits, Eq);
 
 typedef struct {
-	Addr        pc;
-	Bool        epoch;
-} ContToken deriving (Bits, Eq);
+    Addr pc;
+    Bool epoch;
+    Addr nextPc;
+    IType brType;
+    Bool taken;
+    Bool mispredict;
+} Redirect deriving (Bits, Eq, FShow);
 
 typedef struct {
 	Data  cycle;
