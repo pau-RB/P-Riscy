@@ -145,9 +145,19 @@ function DecodedInst decode(Instruction inst);
 			dInst.imm  = tagged Valid immB;
 		end
 
-		opLoad: begin // only support LW
-			dInst.iType = funct3 == fnLW ? Ld : Unsupported;
+		opLoad: begin
+			dInst.iType = Ld;
 			dInst.aluFunc = Add; // calc effective addr
+			case(funct3)
+				fnLW:  dInst.ldFunc = LW;
+				fnLB:  dInst.ldFunc = LB;
+				fnLH:  dInst.ldFunc = LH;
+				fnLBU: dInst.ldFunc = LBU;
+				fnLHU: dInst.ldFunc = LHU;
+				default: begin
+					dInst.iType = Unsupported;
+				end
+			endcase
 			dInst.brFunc = NT;
 			dInst.dst  = tagged Valid rd;
 			dInst.src1 = tagged Valid rs1;
@@ -155,9 +165,17 @@ function DecodedInst decode(Instruction inst);
 			dInst.imm = tagged Valid immI;
 		end
 
-		opStore: begin // only support SW
-			dInst.iType = funct3 == fnSW ? St : Unsupported;
+		opStore: begin
+			dInst.iType = St;
 			dInst.aluFunc = Add; // calc effective addr
+			case(funct3)
+				fnSW:  dInst.stFunc = SW;
+				fnSB:  dInst.stFunc = SB;
+				fnSH:  dInst.stFunc = SH;
+				default: begin
+					dInst.iType = Unsupported;
+				end
+			endcase
 			dInst.brFunc = NT;
 			dInst.dst = tagged Invalid;
 			dInst.src1 = tagged Valid rs1;

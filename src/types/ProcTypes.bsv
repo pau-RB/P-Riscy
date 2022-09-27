@@ -35,9 +35,6 @@ Opcode opJalr    = 7'b1100111;
 Opcode opJal     = 7'b1101111;
 Opcode opSystem  = 7'b1110011;
 
-// LR, SC, FENCE not implemented
-// LB(U), LH(U), SB, SH not implemented
-
 // SCALL, SBREAK not implemented
 
 typedef enum {
@@ -50,6 +47,20 @@ typedef enum {
 	Br, 
 	Auipc
 } IType deriving(Bits, Eq, FShow);
+
+typedef enum {
+	LB,
+	LH,
+	LW,
+	LBU,
+	LHU
+} LoadFunc deriving(Bits, Eq, FShow);
+
+typedef enum {
+	SB,
+	SH,
+	SW
+} StoreFunc deriving(Bits, Eq, FShow);
 
 typedef enum {
 	Eq, 
@@ -81,6 +92,8 @@ typedef struct {
     IType            iType;
     AluFunc          aluFunc;
     BrFunc           brFunc;
+    LoadFunc         ldFunc;
+    StoreFunc        stFunc;
     Maybe#(RIndx)    dst;
     Maybe#(RIndx)    src1;
     Maybe#(RIndx)    src2;
@@ -89,6 +102,8 @@ typedef struct {
 
 typedef struct {
     IType            iType;
+    LoadFunc         ldFunc;
+    StoreFunc        stFunc;
     Maybe#(RIndx)    dst;
     Data             data;
     Addr             addr;
@@ -115,14 +130,14 @@ Bit#(3) fnBLTU  = 3'b110;
 Bit#(3) fnBGEU  = 3'b111;
 // Load
 Bit#(3) fnLW    = 3'b010;
-//Bit#(3) fnLB    = 3'b000;
-//Bit#(3) fnLH    = 3'b001;
-//Bit#(3) fnLBU   = 3'b100;
-//Bit#(3) fnLHU   = 3'b101;
+Bit#(3) fnLB    = 3'b000;
+Bit#(3) fnLH    = 3'b001;
+Bit#(3) fnLBU   = 3'b100;
+Bit#(3) fnLHU   = 3'b101;
 // Store
 Bit#(3) fnSW    = 3'b010;
-//Bit#(3) fnSB    = 3'b000;
-//Bit#(3) fnSH    = 3'b001;
+Bit#(3) fnSB    = 3'b000;
+Bit#(3) fnSH    = 3'b001;
 // Amo
 Bit#(5) fnLR    = 5'b00010;
 Bit#(5) fnSC    = 5'b00011;
@@ -274,7 +289,11 @@ function Fmt showInst(Instruction inst);
 
 		opLoad: begin
 			ret = case(funct3)
-				fnLW: $format("lw");
+				fnLW:  $format("lw");
+				fnLB:  $format("lb");
+				fnLH:  $format("lh");
+				fnLBU: $format("lbu");
+				fnLHU: $format("lhu");
 				default: $format("unsupport Load 0x%0x", inst);
 			endcase;
 			ret = ret + $format(" r%d = [r%d 0x%0x]", rd, rs1, immI);
@@ -283,6 +302,8 @@ function Fmt showInst(Instruction inst);
 		opStore: begin
 			ret = case(funct3)
 				fnSW: $format("sw");
+				fnSB: $format("sb");
+				fnSH: $format("sh");
 				default: $format("unsupport Store 0x%0x", inst);
 			endcase;
 			ret = ret + $format(" [r%d 0x%0x] = r%d", rs1, immS, rs2);

@@ -74,6 +74,8 @@ function ExecInst exec(DecodedInst dInst, Data rVal1, Data rVal2, Addr pc, Addr 
   
   // set eInst
   eInst.iType = dInst.iType;
+  eInst.ldFunc = dInst.ldFunc;
+  eInst.stFunc = dInst.stFunc;
   eInst.dst = dInst.dst;
   
   eInst.data = 

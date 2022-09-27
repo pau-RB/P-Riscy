@@ -153,19 +153,32 @@ std::string interpreter(uint32_t uinst) {
 				case fnBLTU: ret = "bltu"; break;
 				case fnBGE:  ret = "bge"; break;
 				case fnBGEU: ret = "bgeu"; break;
-				default:     ret = "unsupport branch 0x"+uint_to_hex(inst.u);
+				default:     return "unsupport branch 0x"+uint_to_hex(inst.u);
 			}
 			ret = ret+" r"+std::to_string(rs1)+" r"+std::to_string(rs2)+" 0x"+int_to_hex(immB);
 			return ret;
 
 		case opLoad:
 
-			ret = (funct3==fnLW) ? "lw" : ("unsupport Load 0x"+uint_to_hex(inst.u));
+			switch (funct3) {
+				case fnLW:  ret = "lw"; break;
+				case fnLB:  ret = "lb"; break;
+				case fnLH:  ret = "lh"; break;
+				case fnLBU: ret = "lbu"; break;
+				case fnLHU: ret = "lhu"; break;
+				default:    return "unsupport Load 0x"+uint_to_hex(inst.u);
+			}
 			ret = ret+" r"+std::to_string(rd)+" = [r"+std::to_string(rs1)+" 0x"+int_to_hex(immI)+"]";
 			return ret;
 
 		case opStore:
-			ret = (funct3==fnSW) ? "sw" : ("unsupport Store 0x"+uint_to_hex(inst.u));
+
+			switch (funct3) {
+				case fnSW:  ret = "sw"; break;
+				case fnSB:  ret = "sb"; break;
+				case fnSH:  ret = "sh"; break;
+				default:    return "unsupport Store 0x"+uint_to_hex(inst.u);
+			}
 			ret = ret+" [r"+std::to_string(rs1)+" 0x"+int_to_hex(immS)+"] = r"+std::to_string(rs2);
 			return ret;
 
