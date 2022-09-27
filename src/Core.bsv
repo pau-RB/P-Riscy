@@ -146,7 +146,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 		let eToken = executeQ.first(); executeQ.deq();
 
-		let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4, ?);
+		let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
 		let mToken   = MemToken{inst: execInst, pc:eToken.pc, epoch: eToken.epoch, rawInst: eToken.rawInst};
 
 		memoryQ.enq(mToken);

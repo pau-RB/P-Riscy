@@ -49,12 +49,6 @@
 #define fnFENCE  0b000
 #define fnFENCEI 0b001
 // System
-#define fnCSRRW   0b001
-#define fnCSRRS   0b010
-#define fnCSRRC   0b011
-#define fnCSRRWI  0b101
-#define fnCSRRSI  0b110
-#define fnCSRRCI  0b111
 #define fnPRIV    0b000
 #define privSCALL 0x000
 
@@ -181,29 +175,9 @@ std::string interpreter(uint32_t uinst) {
 		case opAmo:
 			return "unsupport Amo 0x"+uint_to_hex(inst.u);
 
-		/*
 		case opSystem:
-			case (funct3)
-				fnCSRRW, fnCSRRS: begin //fnCSRRC, fnCSRRWI, fnCSRRSI, fnCSRRCI: begin
-					ret = case(funct3)
-						fnCSRRW: $format("csrrw");
-						fnCSRRS: $format("csrrs");
-					endcase;
-					ret = ret + $format(" r%d csr0x%0x r%d", rd, immI[11:0], rs1);
-				end
-
-				fnPRIV: begin
-					ret = case (truncate(immI))
-						//privSCALL: $format("scall");
-						default: $format("unsupport System PRIV 0x%0x", inst);
-					endcase;
-				end
-
-				default: begin
-					ret = $format("unsupport System 0x%0x", inst);
-				end
-			endcase
-		*/
+			
+			return "unsupport System 0x"+uint_to_hex(inst.u);
 
 		default:
 			return "unsupport "+uint_to_hex(inst.u);

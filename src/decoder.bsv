@@ -58,7 +58,6 @@ function DecodedInst decode(Instruction inst);
 			dInst.dst  = tagged Valid rd;
 			dInst.src1 = tagged Valid rs1;
 			dInst.src2 = tagged Invalid;
-			dInst.csr = tagged Invalid;
 			dInst.imm = tagged Valid immI;
 		end
 
@@ -82,7 +81,6 @@ function DecodedInst decode(Instruction inst);
 			dInst.dst  = tagged Valid rd;
 			dInst.src1 = tagged Valid rs1;
 			dInst.src2 = tagged Valid rs2;
-			dInst.csr = tagged Invalid;
 			dInst.imm  = tagged Invalid;
 		end
 
@@ -93,7 +91,6 @@ function DecodedInst decode(Instruction inst);
 			dInst.dst = tagged Valid rd;
 			dInst.src1 = tagged Valid 0;
 			dInst.src2 = tagged Invalid;
-			dInst.csr = tagged Invalid;
 			dInst.imm = tagged Valid immU;
 		end
 
@@ -104,7 +101,6 @@ function DecodedInst decode(Instruction inst);
 			dInst.dst = tagged Valid rd;
 			dInst.src1 = tagged Invalid;
 			dInst.src2 = tagged Invalid;
-			dInst.csr = tagged Invalid;
 			dInst.imm = tagged Valid immU;
 		end
 
@@ -115,7 +111,6 @@ function DecodedInst decode(Instruction inst);
 			dInst.dst = tagged Valid rd;
 			dInst.src1 = tagged Invalid;
 			dInst.src2 = tagged Invalid;
-			dInst.csr = tagged Invalid;
 			dInst.imm = tagged Valid immJ;
 		end
 
@@ -126,7 +121,6 @@ function DecodedInst decode(Instruction inst);
 			dInst.dst = tagged Valid rd;
 			dInst.src1 = tagged Valid rs1;
 			dInst.src2 = tagged Invalid;
-			dInst.csr = tagged Invalid;
 			dInst.imm = tagged Valid immI;
 		end
 
@@ -148,7 +142,6 @@ function DecodedInst decode(Instruction inst);
 			dInst.dst  = tagged Invalid;
 			dInst.src1 = tagged Valid rs1;
 			dInst.src2 = tagged Valid rs2;
-			dInst.csr = tagged Invalid;
 			dInst.imm  = tagged Valid immB;
 		end
 
@@ -159,7 +152,6 @@ function DecodedInst decode(Instruction inst);
 			dInst.dst  = tagged Valid rd;
 			dInst.src1 = tagged Valid rs1;
 			dInst.src2 = tagged Invalid;
-			dInst.csr = tagged Invalid;
 			dInst.imm = tagged Valid immI;
 		end
 
@@ -170,31 +162,18 @@ function DecodedInst decode(Instruction inst);
 			dInst.dst = tagged Invalid;
 			dInst.src1 = tagged Valid rs1;
 			dInst.src2 = tagged Valid rs2;
-			dInst.csr = tagged Invalid;
 			dInst.imm = tagged Valid immS;
 		end
 
 		// LR SC FENCE not implemented
 
 		opSystem: begin
-			// CSRRC(I) CSRRWI CSRRSI SCALL not implemented
-			case (funct3)
-				fnCSRRW: begin
-					// only support rd = 0 (no read of csr)
-					dInst.iType = rd == 0 ? Csrw : Unsupported;
-				end
-				fnCSRRS: begin
-					// only support rs1 = 0 (no write to csr)
-					dInst.iType = rs1 == 0 ? Csrr : Unsupported;
-				end
-				default: dInst.iType =  Unsupported;
-			endcase
+			dInst.iType =  Unsupported;
 			dInst.aluFunc = ?;
 			dInst.brFunc = NT;
 			dInst.dst = tagged Valid rd;
 			dInst.src1 = tagged Valid rs1;
 			dInst.src2 = tagged Invalid;
-			dInst.csr = tagged Valid truncate(immI);
 			dInst.imm  = tagged Invalid;
 		end
 
@@ -205,7 +184,6 @@ function DecodedInst decode(Instruction inst);
 			dInst.dst = tagged Invalid;
 			dInst.src1 = tagged Invalid;
 			dInst.src2 = tagged Invalid;
-			dInst.csr = tagged Invalid;
 			dInst.imm = tagged Invalid;
 		end
 	endcase

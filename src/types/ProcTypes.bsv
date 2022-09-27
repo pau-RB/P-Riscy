@@ -35,19 +35,8 @@ Opcode opJalr    = 7'b1100111;
 Opcode opJal     = 7'b1101111;
 Opcode opSystem  = 7'b1110011;
 
-// CSR index
-typedef Bit#(12) CsrIndx;
-CsrIndx csrInstret = 12'hc02;
-CsrIndx csrCycle   = 12'hc00;
-CsrIndx csrMhartid = 12'hf10;
-CsrIndx csrMtohost = 12'h780;
-
 // LR, SC, FENCE not implemented
 // LB(U), LH(U), SB, SH not implemented
-
-// For CSR, only following two are implemented 
-// CSRR rd csr (i.e. CSRRS rd csr x0)
-// CSRW csr rs1 (i.e. CSRRW x0 csr rs1)
 
 // SCALL, SBREAK not implemented
 
@@ -56,11 +45,9 @@ typedef enum {
 	Alu, 
 	Ld, 
 	St, 
-	J, 
+	J,  
 	Jr, 
 	Br, 
-	Csrr, 
-	Csrw, 
 	Auipc
 } IType deriving(Bits, Eq, FShow);
 
@@ -105,14 +92,12 @@ typedef struct {
     Maybe#(RIndx)    dst;
     Maybe#(RIndx)    src1;
     Maybe#(RIndx)    src2;
-	Maybe#(CsrIndx)  csr;
     Maybe#(Data)     imm;
 } DecodedInst deriving(Bits, Eq, FShow);
 
 typedef struct {
     IType            iType;
     Maybe#(RIndx)    dst;
-	Maybe#(CsrIndx)  csr;
     Data             data;
     Addr             addr;
     Bool             mispredict;
@@ -153,12 +138,6 @@ Bit#(5) fnSC    = 5'b00011;
 Bit#(3) fnFENCE  = 3'b000;
 //Bit#(3) fnFENCEI = 3'b001;
 // System
-Bit#(3) fnCSRRW  = 3'b001;
-Bit#(3) fnCSRRS  = 3'b010;
-//Bit#(3) fnCSRRC  = 3'b011;
-//Bit#(3) fnCSRRWI = 3'b101;
-//Bit#(3) fnCSRRSI = 3'b110;
-//Bit#(3) fnCSRRCI = 3'b111;
 Bit#(3) fnPRIV   = 3'b000;
 Bit#(12) privSCALL    = 12'h000;
 
@@ -327,14 +306,6 @@ function Fmt showInst(Instruction inst);
 
 		opSystem: begin
 			case (funct3)
-				fnCSRRW, fnCSRRS: begin //fnCSRRC, fnCSRRWI, fnCSRRSI, fnCSRRCI: begin
-					ret = case(funct3)
-						fnCSRRW: $format("csrrw");
-						fnCSRRS: $format("csrrs");
-					endcase;
-					ret = ret + $format(" r%d csr0x%0x r%d", rd, immI[11:0], rs1);
-				end
-
 				fnPRIV: begin
 					ret = case (truncate(immI))
 						//privSCALL: $format("scall");

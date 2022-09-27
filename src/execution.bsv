@@ -65,7 +65,7 @@ function Addr brAddrCalc(Addr pc, Data val, IType iType, Data imm, Bool taken);
 endfunction
 
 (* noinline *)
-function ExecInst exec(DecodedInst dInst, Data rVal1, Data rVal2, Addr pc, Addr ppc, Data csrVal);
+function ExecInst exec(DecodedInst dInst, Data rVal1, Data rVal2, Addr pc, Addr ppc);
   ExecInst eInst = ?;
 
   // do ALU operation: use imm instead of rs2 if imm is valid (consider LW and SW)
@@ -75,12 +75,8 @@ function ExecInst exec(DecodedInst dInst, Data rVal1, Data rVal2, Addr pc, Addr 
   // set eInst
   eInst.iType = dInst.iType;
   eInst.dst = dInst.dst;
-  eInst.csr = dInst.csr;
   
-  eInst.data = dInst.iType == Csrr ?
-                 csrVal :
-			   dInst.iType == Csrw ?
-			     rVal1 :
+  eInst.data = 
                dInst.iType==St ?
                  rVal2 :
                (dInst.iType==J || dInst.iType == Jr) ?
