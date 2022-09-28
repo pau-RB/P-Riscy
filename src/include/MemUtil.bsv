@@ -5,36 +5,59 @@ import Fifo::*;
 import Vector::*;
 import Memory::*;
 
-function Bit#(TMul#(n,4)) wordEnToByteEn( Bit#(n) word_en );
-    Bit#(TMul#(n,4)) byte_en;
-    for( Integer i = 0 ; i < valueOf(n) ; i = i+1 ) begin
-        for( Integer j = 0 ; j < 4 ; j = j+1 ) begin
-            byte_en[ 4*i + j ] = word_en[i];
-        end
-    end
-    return byte_en;
+function Data extendLoad( Data value, Addr addr, LoadFunc func );
+
+    Bit#(32) wordValue = value;
+    
+    Bit#(2)  halfsel   = addr[1:0] & 2'b10;
+    Bit#(16) halfValue = truncate( value >> halfsel );
+
+    Bit#(2)  bytesel   = addr[1:0] & 2'b11;
+    Bit#(8)  byteValue = truncate( value >> bytesel );
+
+    case(func)
+        LB:  return signExtend(byteValue);
+        LH:  return signExtend(halfValue);
+        LW:  return signExtend(wordValue);
+        LBU: return zeroExtend(byteValue);
+        LHU: return zeroExtend(halfValue);
+        default: return value;
+    endcase
+
 endfunction
 
-function Bit#(wordSize) selectWord( Bit#(TMul#(numWords,wordSize)) line, Bit#(TLog#(numWords)) sel ) provisos ( Add#( a__, TLog#(numWords), TLog#(TMul#(numWords,wordSize))) );
-    Bit#(TLog#(TMul#(numWords,wordSize))) index_offset = zeroExtend(sel) * fromInteger(valueOf(wordSize));
-    return line[ index_offset + fromInteger(valueOf(wordSize)-1) : index_offset ];
-endfunction
+function WideMemReq toWideMemReadReq( MemReq req );
 
-// 0100 -> 01000100
-function Bit#(TMul#(wordSize,numWords)) replicateWord( Bit#(wordSize) word ) provisos ( Add#( a__, wordSize, TMul#(wordSize,numWords)) );
-    Bit#(TMul#(wordSize,numWords)) x = 0;
-    for( Integer i = 0 ; i < valueOf(numWords) ; i = i+1 ) begin
-        x[ valueOf(wordSize)*(i+1) - 1 : valueOf(wordSize)*(i) ] = word;
+    Addr addr = req.addr;
+    for( Integer i = 0 ; i < valueOf(TLog#(CacheLineBytes)) ; i = i+1 ) begin
+        addr[i] = 0;
     end
-    return x;
+    CacheLine data = replicate( req.data );
+
+    return WideMemReq {
+                write_en: '0,
+                addr: addr,
+                data: data
+            };
+
 endfunction
 
 function WideMemReq toWideMemReq( MemReq req );
-    Bit#(CacheLineWords) write_en = 0;
-    CacheWordSelect wordsel = truncate( req.addr >> 2 );
+    
+    Bit#(CacheLineBytes) write_en = 0;
+
+    CacheByteSelect wordsel = truncate( req.addr & 32'hfffffffc );
+    CacheByteSelect halfsel = truncate( req.addr & 32'hfffffffe );
+    CacheByteSelect bytesel = truncate( req.addr & 32'hffffffff );
+
     if( req.op == St ) begin
-        write_en = 1 << wordsel;
+        case(req.func)
+            SB:  write_en = 'b1111 << wordsel;
+            SH:  write_en = 'b11 << halfsel;
+            SW:  write_en = 'b1 << bytesel;
+        endcase
     end
+
     Addr addr = req.addr;
     for( Integer i = 0 ; i < valueOf(TLog#(CacheLineBytes)) ; i = i+1 ) begin
         addr[i] = 0;
@@ -46,6 +69,7 @@ function WideMemReq toWideMemReq( MemReq req );
                 addr: addr,
                 data: data
             };
+
 endfunction
 
 module mkSplitWideMem(  Bool initDone, WideMem mem,

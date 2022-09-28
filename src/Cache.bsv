@@ -66,7 +66,7 @@ module mkReadCache(WideMem mem, Cache ifc);
 		end
 
 		if(!isValid(e) || fromMaybe(?,e).tag != truncateLSB(r.addr)) begin
-			mem.req(toWideMemReq(r));
+			mem.req(toWideMemReadReq(r));
 		end
 
 		pendingReq.enq(PendingReqEntry{r: r, e: e});

@@ -1,16 +1,19 @@
 import Types::*;
 import Memory::*;
 import Vector::*;
+import ProcTypes::*;
+
 
 
 //////////// LOCAL DATA-BASED MEMORY ////////////
 
-typedef enum{Ld, St} MemOp deriving(Eq, Bits, FShow);
+typedef enum{Ld, St}  MemOp  deriving(Eq, Bits, FShow);
 
 typedef struct{
-    MemOp op;
-    Addr  addr;
-    Data  data;
+    MemOp     op;
+    Addr      addr;
+    Data      data;
+    StoreFunc func;
 } MemReq deriving(Eq, Bits, FShow);
 
 typedef Data MemResp;
@@ -29,6 +32,7 @@ typedef 8 CacheRows; // small size to improve compile times
 
 typedef Bit#( TSub#(TSub#(TSub#(AddrSz, 2), TLog#(CacheRows)), TLog#(CacheLineWords)) ) CacheTag;
 typedef Bit#( TLog#(CacheRows) ) CacheIndex;
+typedef Bit#( TLog#(CacheLineBytes) ) CacheByteSelect;
 typedef Bit#( TLog#(CacheLineWords) ) CacheWordSelect;
 typedef Vector#(CacheLineWords, Data) CacheLine;
 
@@ -38,7 +42,7 @@ typedef struct{
 } CacheEntry deriving(Eq,Bits);
 
 typedef struct{
-    Bit#(CacheLineWords) write_en;  // Word write enable
+    Bit#(CacheLineBytes) write_en;  // Byte write enable
     Addr                 addr;
     CacheLine            data;      // Vector#(CacheLineWords, Data)
 } WideMemReq deriving(Eq,Bits);

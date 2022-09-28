@@ -97,7 +97,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 		end else begin
 
-			l1I.req(MemReq{op: Ld, addr: pc, data: ?});
+			l1I.req(MemReq{op: Ld, addr: pc, data: ?, func: ?});
 			decodeQ.enq(DecToken{pc: pc, epoch: feEpoch});
 			pc <= pc+4;
 
@@ -165,9 +165,9 @@ module mkCore6S(WideMem mem, Core ifc);
 		if (mToken.epoch == wbEpoch[1]) begin
 			// Prevent instruction from requesting MEM operations if epoch is changed
 			if(execInst.iType == Ld) begin
-    		    l1D.req(MemReq{op: Ld, addr: execInst.addr, data: ?});
+    		    l1D.req(MemReq{op: Ld, addr: execInst.addr, data: ?, func: ?});
     		end else if(execInst.iType == St) begin
-    		    l1D.req(MemReq{op: St, addr: execInst.addr, data: execInst.data});
+    		    l1D.req(MemReq{op: St, addr: execInst.addr, data: execInst.data, func: execInst.stFunc});
     		end
     	end
 	
@@ -190,7 +190,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 			if(commitInst.iType == Ld) begin
 				Data res <- l1D.resp();
-        	    rf.wr(fromMaybe(?, commitInst.dst), res);
+        	    rf.wr(fromMaybe(?, commitInst.dst), extendLoad(res, commitInst.addr, commitInst.ldFunc));
         	end else if(isValid(commitInst.dst)) begin
 				rf.wr(fromMaybe(?, commitInst.dst), commitInst.data);
 			end
