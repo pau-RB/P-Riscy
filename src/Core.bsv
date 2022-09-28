@@ -24,8 +24,8 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// CORE DEBUG ////////////
 
-	Bool wb_ext_DEBUG = True;
-	Bool wb_DEBUG     = False;
+	Bool wb_ext_DEBUG = False;
+	Bool wb_DEBUG     = True;
 	Bool perf_DEBUG   = False;
 
 
@@ -48,7 +48,7 @@ module mkCore6S(WideMem mem, Core ifc);
 	Fifo#(1,DecToken)  decodeQ   <- mkStageFifo();
 	Fifo#(1,RFToken)   regfetchQ <- mkStageFifo();
 
-	Fifo#(2,ExecToken) executeQ  <- mkCFFifo();
+	Fifo#(2,ExecToken) executeQ  <- mkPipelineFifo();
 	Fifo#(1,MemToken)  memoryQ   <- mkStageFifo();
 	Fifo#(1,WBToken)   wrbackQ   <- mkStageFifo();
 
