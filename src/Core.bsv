@@ -24,8 +24,8 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// CORE DEBUG ////////////
 
-	Bool wb_ext_DEBUG = False; // CAN AFFECT PERFORMANCE
-	Bool wb_DEBUG     = True;
+	Bool wb_ext_DEBUG = True;
+	Bool wb_DEBUG     = False;
 	Bool perf_DEBUG   = False;
 
 
