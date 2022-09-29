@@ -189,8 +189,8 @@ function DecodedInst decode(Instruction inst);
 			dInst.iType =  Unsupported;
 			dInst.aluFunc = ?;
 			dInst.brFunc = NT;
-			dInst.dst = tagged Valid rd;
-			dInst.src1 = tagged Valid rs1;
+			dInst.dst = tagged Invalid;
+			dInst.src1 = tagged Invalid;
 			dInst.src2 = tagged Invalid;
 			dInst.imm  = tagged Invalid;
 		end
