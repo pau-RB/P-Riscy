@@ -43,6 +43,7 @@ module mkReadCache(WideMem mem, Cache ifc);
 	BRAM_PORT#(CacheIndex, Maybe#(CacheEntry)) bram     <- mkBRAMCore1(valueOf(CacheRows), False);
 	Fifo#(1,MemReq)                            bramReq  <- mkStageFifo();
 	Fifo#(1,MemReq)                            memReq   <- mkStageFifo();
+	Fifo#(1,Data)                              memResp  <- mkStageFifo();
 	Fifo#(1,Data)                              response <- mkBypassFifo();
 
 
@@ -78,7 +79,13 @@ module mkReadCache(WideMem mem, Cache ifc);
 
 		// Fordward response
 		CacheWordSelect wordSelect = truncate(addr >> 2);
-		response.enq(line[wordSelect]);
+		memResp.enq(line[wordSelect]);
+
+	endrule
+
+	rule do_forward_MEM if(memResp.notEmpty());
+
+		response.enq(memResp.first()); memResp.deq();
 
 	endrule
 
