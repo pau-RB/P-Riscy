@@ -6,6 +6,9 @@ import Fifo::*;
 import BRAMCore::*;
 import Vector::*;
 
+
+//////////// ZERO Cache ////////////
+// It always returns 0
 module mkZeroCache(WideMem mem, Cache ifc);
 
 	FIFO#(Addr) pendingReq <- mkFIFO;
@@ -21,6 +24,9 @@ module mkZeroCache(WideMem mem, Cache ifc);
 
 endmodule
 
+
+//////////// NULL Cache ////////////
+// It always misses and fordwards to memory
 module mkNullCache(WideMem mem, Cache ifc);
 
 	FIFO#(Addr) pendingReq <- mkFIFO;
@@ -39,13 +45,17 @@ module mkNullCache(WideMem mem, Cache ifc);
 
 endmodule
 
+
+//////////// READ ONLY ////////////
+// Direct map, blocking
 module mkReadCache(WideMem mem, Cache ifc);
 
 	BRAM_PORT#(CacheIndex, Maybe#(CacheEntry)) bram     <- mkBRAMCore1(valueOf(CacheRows), False);
-	Fifo#(1,MemReq)                            bramReq  <- mkStageFifo();
-	Fifo#(1,MemReq)                            memReq   <- mkStageFifo();
-	Fifo#(1,Data)                              memResp  <- mkStageFifo();
-	Fifo#(1,Data)                              response <- mkBypassFifo();
+	
+	Fifo#(1,MemReq) bramReq  <- mkStageFifo();
+	Fifo#(1,MemReq) memReq   <- mkStageFifo();
+	Fifo#(1,Data)   memResp  <- mkStageFifo();
+	Fifo#(1,Data)   response <- mkBypassFifo();
 
 
 	rule do_read_BRAM if (bramReq.notEmpty());
@@ -106,6 +116,9 @@ module mkReadCache(WideMem mem, Cache ifc);
 
 endmodule
 
+
+//////////// READ/WRITE ////////////
+// Direct map, write allocate and wirte back
 typedef enum {Ready, Request, Load, Retry} CacheStatus deriving (Eq, Bits);
 
 module mkDirectCache(WideMem mem, Cache ifc);

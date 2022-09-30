@@ -6,6 +6,7 @@ import execution::*;
 import MemTypes::*;
 import MemUtil::*;
 import Cache::*;
+import WideMemSplit::*;
 import RFile::*;
 import Fifo::*;
 import FIFO::*;
