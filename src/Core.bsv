@@ -57,7 +57,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	Vector#(2,WideMem) memSplit   <- mkSplitWideMem(True, mem);
 	Cache              l1I        <- mkReadCache(memSplit[0]);
-	Cache              l1D        <- mkNullCache(memSplit[1]);
+	Cache              l1D        <- mkDirectCache(memSplit[1]);
 
 
 	//////////// EXT STATE ////////////
