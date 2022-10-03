@@ -92,11 +92,11 @@ std::string interpreter(uint32_t uinst) {
 	uint32_t aluSel = (inst.u&0x40000000)>>30;
 
 
-	int32_t immI    = (inst.s&0xfff00000)>>20;
-	int32_t immS    = (((inst.s&0xfe000000)<<0)|((inst.s&0x00000f80)<<13))>>27;
-	int32_t immB    = (((inst.s&0x80000000)<<0)|((inst.s&0x00000080)<<23)|((inst.s&0x7e000000)>>1)|((inst.s&0x00000f00)<<12))>>19;
+	int32_t immI    = inst.s>>20;
+	int32_t immS    = ((int32_t)(((inst.s&0xfe000000)<<0)|((inst.s&0x00000f80)<<13)))>>27;
+	int32_t immB    = ((int32_t)(((inst.s&0x80000000)<<0)|((inst.s&0x00000080)<<23)|((inst.s&0x7e000000)>>1)|((inst.s&0x00000f00)<<12)))>>19;
 	int32_t immU    = (inst.s&0xfffff000);
-	int32_t immJ    = (((inst.s&0x80000000)<<0)|((inst.s&0x000ff000)<<11)|((inst.s&0x00100000)<<2)|((inst.s&0x7e000000)>>10)|((inst.s&0x01e00000)>>9))>>11;
+	int32_t immJ    = ((int32_t)(((inst.s&0x80000000)<<0)|((inst.s&0x000ff000)<<11)|((inst.s&0x00100000)<<2)|((inst.s&0x7e000000)>>10)|((inst.s&0x01e00000)>>9)))>>11;
 
 	switch (opcode) {
 		case opOpImm:
