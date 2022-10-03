@@ -28,7 +28,7 @@ build:
 	make build.verilator
 
 sim:
-	rm -rf TMP/report.txt && ./verilator/bin/ubuntu.exe >> TMP/report.txt
+	rm -rf TMP/report.txt && ./verilator/bin/ubuntu.exe addi >> TMP/report.txt
 
 less:
 	less TMP/report.txt

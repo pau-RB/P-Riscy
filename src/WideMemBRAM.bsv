@@ -8,7 +8,6 @@ module mkWideMemBRAM(WideMem);
 	BRAM_Configure cfg = defaultValue;
 	cfg.memorySize = valueOf(TExp#(WMBAddrSz));
 	cfg.latency    = 2;
-	cfg.loadFormat = Hex ("mem.vmh");
 
 	BRAM1PortBE#(WMBAddr, CacheLine, CacheLineBytes) bram <- mkBRAM1ServerBE(cfg);
 

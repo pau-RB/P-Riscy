@@ -36,9 +36,9 @@ function Bit#(CacheLineBytes) writeEnReq (MemReq req);
 
     if( req.op == St ) begin
         case(req.func)
-            SB:  write_en = 'b1111 << wordsel;
+            SB:  write_en = 'b1    << bytesel;
             SH:  write_en = 'b11   << halfsel;
-            SW:  write_en = 'b1    << bytesel;
+            SW:  write_en = 'b1111 << wordsel;
         endcase
     end
 

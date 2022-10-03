@@ -1,4 +1,5 @@
 interface FromHost;
+	method Action setMem (Bit#(32) addr, Bit#(32) word);
 	method Action startPC(Bit#(32) pc);
 endinterface
 

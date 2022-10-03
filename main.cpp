@@ -13,10 +13,16 @@
 #include <fstream>
 #include <list>
 #include <signal.h>
+#include <unistd.h>
+#include <iostream>
 
 #include "FromHost.h"
 #include "ToHost.h"
 #include "interpreter.h"
+
+#define CacheLineWords 16
+#define CacheLineBytes 64
+#define WMBAddrSz 12
 
 using namespace std;
 
@@ -87,14 +93,34 @@ class ToHost: public ToHostWrapper
 
 static ToHost *ind = 0;
 int main(int argc, char * const *argv) {
-    printf("Start testbench:\n");
-    fflush(stdout);
+
+    string current_exec_name = argv[0];
+    vector<string> all_args;
+
+    if (argc > 1) {
+      all_args.assign(argv + 1, argv + argc);
+    }
+
+    printf("------ Start testbench ------\n"); fflush(stdout);
     connectalProc = new FromHostProxy(IfcNames_FromHostS2H);
     ind = new ToHost(IfcNames_ToHostH2S);
+
+    printf("------ Initializing memory ------\n"); fflush(stdout);
+    string test = all_args[0];
+    string path = "./vmh/"+ test +".riscv.vmh";
+    ifstream srcfile; srcfile.open(path,fstream::in|fstream::out|fstream::app);
+
+    uint32_t word;
+    string aux;
+    srcfile >> aux;
+    for (uint32_t addr = 0; addr < (1<<WMBAddrSz)*CacheLineBytes; addr=addr+4) {
+        srcfile >> std::hex >> word;
+        connectalProc->setMem(addr, word);
+    }
+
     connectalProc->startPC(0x200);
-    printf("Processor started");
-    fflush(stdout);
-    // Now the processor is running we are waiting for it to be done 
+    printf("------ Processor started! ------"); fflush(stdout);
+
     while (run != 0){}     
     return 0;
 }

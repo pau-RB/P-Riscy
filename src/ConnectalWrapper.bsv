@@ -14,8 +14,9 @@ endinterface
 
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
-   WideMem mem <- mkWideMemBRAM;
-   Core    dut <- mkCore6S(mem);
+   WideMem    mem     <- mkWideMemBRAM;
+   Core       dut     <- mkCore6S(mem);
+   Reg#(Bool) memInit <- mkReg(False);
 
    rule relayMessage;
 	     CommitReport cmr <- dut.getCMR();
@@ -25,9 +26,19 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
    interface FromHost connectProc;
 
-      method Action startPC(Bit#(32) startpc);
-        $display("Received software req to start pc\n");
-        $fflush(stdout);
+      method Action setMem (Bit#(32) addr, Bit#(32) word);
+         mem.req(toWideMemReq(MemReq{
+                     op:   St,
+                     addr: addr,
+                     data: word,
+                     func: SW
+                  }));
+         if(addr == 'h3fffc) begin
+            memInit <= True;
+         end
+      endmethod
+
+      method Action startPC(Bit#(32) startpc) if(memInit);
         dut.start(startpc);
       endmethod
 
