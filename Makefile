@@ -13,7 +13,7 @@ BSVPATH += / \
 CPPFILES += \
 	main.cpp
 
-#CONNECTALFLAGS += --mainclockperiod=20
+CONNECTALFLAGS += --mainclockperiod=50
 #CONNECTALFLAGS += --verilog=ddr3_v2_0/
 CONNECTALFLAGS += --bscflags " -show-schedule"
 #CONNECTALFLAGS += --cxxflags="-g -std=gnu++11"

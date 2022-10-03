@@ -19,15 +19,24 @@ interface Core;
 
 	method ActionValue#(CommitReport) getCMR();
 
+	method ActionValue#(Data) getMSG();
+
 endinterface
 
 module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// CORE DEBUG ////////////
 
-	Bool wb_ext_DEBUG = False;
-	Bool wb_DEBUG     = True;
-	Bool perf_DEBUG   = False;
+	// Connectal (FPGA)
+	Bool wb_ext_DEBUG  = True;
+	Bool msg_ext_DEBUG = True;
+
+	// Verilog (SIM)
+	Bool wb_DEBUG      = False;
+	Bool msg_DEBUG     = False;
+	Bool perf_DEBUG    = False;
+
+	Addr msg_ADDR      = 'h10000;
 
 
 	//////////// CORE STATE ////////////
@@ -45,7 +54,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// PIPELINE ////////////
 
-	Fifo#(2,Redirect) redirectQ <- mkBypassFifo();
+	Fifo#(2,Redirect)  redirectQ <- mkBypassFifo();
 	Fifo#(1,DecToken)  decodeQ   <- mkStageFifo();
 	Fifo#(1,RFToken)   regfetchQ <- mkStageFifo();
 
@@ -63,10 +72,11 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// EXT STATE ////////////
 
-	Reg#(Bool)          coreStarted   <- mkReg(False);
-	Reg#(Data)          numCommit     <- mkReg(0);
-	Reg#(Data)          numCycles     <- mkReg(0);
-	FIFO#(CommitReport) commitReportQ <- mkFIFO;
+	Reg#(Bool)            coreStarted    <- mkReg(False);
+	Reg#(Data)            numCommit      <- mkReg(0);
+	Reg#(Data)            numCycles      <- mkReg(0);
+	Fifo#(8,CommitReport) commitReportQ  <- mkPipelineFifo();
+	Fifo#(8,Data)         messageReportQ <- mkPipelineFifo();
 
 	rule cntCycles if (coreStarted);
 		numCycles <= numCycles+1;
@@ -219,6 +229,14 @@ module mkCore6S(WideMem mem, Core ifc);
 
 			end
 
+			if(msg_ext_DEBUG == True) begin
+				
+				if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
+					messageReportQ.enq(commitInst.data);
+				end
+
+			end
+
 			if (wb_DEBUG == True) begin
 
 				if(commitInst.iType == J ||commitInst.iType == Jr || commitInst.iType == Br) begin
@@ -229,6 +247,14 @@ module mkCore6S(WideMem mem, Core ifc);
 					end
 				end else begin
 					$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, commitInst.data, showInst(wToken.rawInst));
+				end
+
+			end
+
+			if(msg_DEBUG == True) begin
+				
+				if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
+					$display("MESSAGE: %h", commitInst.data);
 				end
 
 			end
@@ -245,12 +271,20 @@ module mkCore6S(WideMem mem, Core ifc);
 		coreStarted <= True;
 		pc          <= spc;
 		commitReportQ.clear();
+		messageReportQ.clear();
 
 	endmethod
 
 	method ActionValue#(CommitReport) getCMR();
 
 		let latest = commitReportQ.first(); commitReportQ.deq();
+		return latest;
+
+	endmethod
+
+	method ActionValue#(Data) getMSG();
+
+		let latest = messageReportQ.first(); messageReportQ.deq();
 		return latest;
 
 	endmethod

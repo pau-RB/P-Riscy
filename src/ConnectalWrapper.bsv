@@ -18,10 +18,15 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
    Core       dut     <- mkCore6S(mem);
    Reg#(Bool) memInit <- mkReg(False);
 
-   rule relayMessage;
+   rule relayCMR;
 	     CommitReport cmr <- dut.getCMR();
         Data iType = zeroExtend(pack(cmr.iType));
-        ind.print(cmr.cycle, cmr.pc, iType, cmr.res, cmr.rawInst);
+        ind.printCMR(cmr.cycle, cmr.pc, iType, cmr.res, cmr.rawInst);
+   endrule
+
+   rule relayMSG;
+        Data msg <- dut.getMSG();
+        ind.printMSG(msg);
    endrule
 
    interface FromHost connectProc;
