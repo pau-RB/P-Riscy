@@ -214,17 +214,48 @@ module mkCore6S(WideMem mem, Core ifc);
 
 			if (wb_ext_DEBUG == True) begin
 
-				if(commitInst.iType == J ||commitInst.iType == Jr || commitInst.iType == Br) begin
-					if(commitInst.brTaken) begin
-						commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
-										iType:wToken.inst.iType, res: commitInst.addr, rawInst: wToken.rawInst});
+				if(commitInst.iType == J || commitInst.iType == Jr || commitInst.iType == Br) begin
+					if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
+						commitReportQ.enq(CommitReport {cycle:   numCycles,
+														pc:      wToken.pc,
+														rawInst: wToken.rawInst,
+														iType:   commitInst.iType,
+														wbDst:   '0,
+														wbRes:   '0,
+														addr:    commitInst.addr});
 					end else begin
-						commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
-										iType:wToken.inst.iType, res: '0, rawInst: wToken.rawInst});
+						commitReportQ.enq(CommitReport {cycle:   numCycles,
+														pc:      wToken.pc,
+														rawInst: wToken.rawInst,
+														iType:   commitInst.iType,
+														wbDst:   '0,
+														wbRes:   '0,
+														addr:    '0});
 					end
+				end else if(commitInst.iType == Ld) begin
+					commitReportQ.enq(CommitReport {cycle:   numCycles,
+													pc:      wToken.pc,
+													rawInst: wToken.rawInst,
+													iType:   commitInst.iType,
+													wbDst:   fromMaybe('0,commitInst.dst),
+													wbRes:   commitInst.data,
+													addr:    commitInst.addr});
+				end else if(commitInst.iType == St) begin
+					commitReportQ.enq(CommitReport {cycle:   numCycles,
+													pc:      wToken.pc,
+													rawInst: wToken.rawInst,
+													iType:   commitInst.iType,
+													wbDst:   '0,
+													wbRes:   '0,
+													addr:    commitInst.addr});
 				end else begin
-					commitReportQ.enq(CommitReport{cycle: numCycles, pc: wToken.pc,
-										iType:wToken.inst.iType, res: commitInst.data, rawInst: wToken.rawInst});
+					commitReportQ.enq(CommitReport {cycle:   numCycles,
+													pc:      wToken.pc,
+													rawInst: wToken.rawInst,
+													iType:   commitInst.iType,
+													wbDst:   fromMaybe('0,commitInst.dst),
+													wbRes:   commitInst.data,
+													addr:    '0});
 				end
 
 			end

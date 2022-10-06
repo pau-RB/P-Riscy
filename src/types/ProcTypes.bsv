@@ -195,9 +195,11 @@ typedef struct {
 typedef struct {
 	Data  cycle;
 	Addr  pc;
-	IType iType;
-	Data  res;
 	Data  rawInst;
+	IType iType;
+	RIndx wbDst;   // 0 if no wb
+	Data  wbRes;   // ALU result
+	Addr  addr;    // nextpc for branch, addr for LSU
 } CommitReport deriving (Bits, Eq);
 
 function Bool dataHazard(Maybe#(RIndx) src1, Maybe#(RIndx) src2, Maybe#(RIndx) dst);

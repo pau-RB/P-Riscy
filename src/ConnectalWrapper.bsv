@@ -21,7 +21,8 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
    rule relayCMR;
 	     CommitReport cmr <- dut.getCMR();
         Data iType = zeroExtend(pack(cmr.iType));
-        ind.printCMR(cmr.cycle, cmr.pc, iType, cmr.res, cmr.rawInst);
+        Data wbDst = zeroExtend(pack(cmr.wbDst));
+        ind.printCMR(cmr.cycle, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
    endrule
 
    rule relayMSG;

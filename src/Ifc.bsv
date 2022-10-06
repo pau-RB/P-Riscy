@@ -4,6 +4,6 @@ interface FromHost;
 endinterface
 
 interface ToHost;
-	method Action printCMR(Bit#(32) cycle, Bit#(32) pc, Bit#(32) inst, Bit#(32) res, Bit#(32) rawInst);
+	method Action printCMR(Bit#(32) cycle, Bit#(32) pc, Bit#(32) rawInst, Bit#(32) iType, Bit#(32) wbDst, Bit#(32) wbRes, Bit#(32) addr);
 	method Action printMSG(Bit#(32) msg);
 endinterface

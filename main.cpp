@@ -78,12 +78,13 @@ class ToHost: public ToHostWrapper
         }
 
     public:
-        virtual void printCMR ( const uint32_t cycle, const uint32_t pc, const uint32_t iType, const uint32_t res, const uint32_t rawInst){
+        virtual void printCMR ( const uint32_t cycle, const uint32_t pc,  const uint32_t rawInst,
+                        const uint32_t iType, const uint32_t wbDst, const uint32_t wbRes,  const uint32_t raddr){
             string phrase = " cycle:          | pc:          | iType:          | res:           ";
             overwrite(phrase, std::to_string(cycle),  8, 8 );
             overwrite(phrase,    uint_to_hex(pc   ), 23, 8 );
             overwrite(phrase,     printIType(iType), 41, 8 );
-            overwrite(phrase,    uint_to_hex(res  ), 57, 8 );
+            overwrite(phrase,    uint_to_hex(wbRes), 57, 8 );
             printf("%s | %s\n", phrase.c_str(), interpreter(rawInst).c_str());
             fflush(stdout);
         }
@@ -126,7 +127,8 @@ int main(int argc, char * const *argv) {
     connectalProc->startPC(0x200);
     printf("------ Core started! ------\n"); fflush(stdout);
 
-    while (run != 0){}     
+    usleep(3000000);
+        
     return 0;
 }
 
