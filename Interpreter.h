@@ -1,4 +1,5 @@
 #include <string>
+#include "TestbenchTypes.h"
 
 
 // opcode
@@ -76,7 +77,53 @@ std::string int_to_hex(int32_t w) {
     return rc;
 }
 
-std::string interpreter(uint32_t uinst) {
+// Overwrite part of a base string
+void overwrite (std::string &base, const std::string &text, int position, int max) {
+    int base_size = base.size();
+    int text_size = text.size();
+
+    if(text_size < max) {
+        position += (max-text_size)/2;
+    }
+
+    for (int i = 0; i < text_size && i < max; ++i) {
+        if (position+i < base_size)
+            base[position+i] = text[i];
+        else
+            base += text[i]; 
+    }
+}
+
+// Prints the instruction type
+std::string printIType (const IType iType) {
+    switch (iType) {
+        case 0:
+            return "Unsup";
+        case 1:
+            return "Alu";
+        case 2:
+            return "Ld";
+        case 3:
+            return "St";
+        case 4:
+            return "J";
+        case 5:
+            return "Jr";
+        case 6:
+            return "Br";
+        case 7:
+            return "Csrr";
+        case 8:
+            return "Csrw";
+        case 9:
+            return "Auipc";
+        default:
+            return "???";
+    }
+}
+
+// Pretty print of an instruction
+std::string interpreter(const Data uinst) {
 
 	Inst inst;
 	inst.u = uinst;

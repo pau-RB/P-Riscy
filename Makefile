@@ -32,3 +32,6 @@ sim:
 
 less:
 	less TMP/report.txt
+
+spike:
+	g++ -I /usr/local/include/fesvr/ -I /usr/local/include/riscv/  -I /usr/local/include/softfloat/ CustomSpike.cc 

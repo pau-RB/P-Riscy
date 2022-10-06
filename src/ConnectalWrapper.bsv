@@ -20,14 +20,14 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
    rule relayCMR;
 	     CommitReport cmr <- dut.getCMR();
-        Data iType = zeroExtend(pack(cmr.iType));
-        Data wbDst = zeroExtend(pack(cmr.wbDst));
-        ind.printCMR(cmr.cycle, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
+        Bit#(8) iType = zeroExtend(pack(cmr.iType));
+        Bit#(8) wbDst = zeroExtend(pack(cmr.wbDst));
+        ind.reportCMR(cmr.cycle, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
    endrule
 
    rule relayMSG;
         Data msg <- dut.getMSG();
-        ind.printMSG(msg);
+        ind.reportMSG(msg);
    endrule
 
    interface FromHost connectProc;

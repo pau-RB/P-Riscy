@@ -198,7 +198,7 @@ typedef struct {
 	Data  rawInst;
 	IType iType;
 	RIndx wbDst;   // 0 if no wb
-	Data  wbRes;   // ALU result
+	Data  wbRes;   // ALU/Load result
 	Addr  addr;    // nextpc for branch, addr for LSU
 } CommitReport deriving (Bits, Eq);
 
