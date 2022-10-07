@@ -211,7 +211,19 @@ std::string interpreter(const Data uinst) {
 
 }
 
-void printCMR(const CommitReport cmr) {
+void printCMRSpike(const CommitReport cmr) {
+    std::string phrase = " cycle:          | pc:          | iType:          | res:           ";
+    overwrite(phrase, std::to_string(cmr.cycle),  8, 8 );
+    overwrite(phrase,    uint_to_hex(cmr.pc   ), 23, 8 );
+    overwrite(phrase,     printIType(cmr.iType), 41, 8 );
+    overwrite(phrase,    uint_to_hex(cmr.wbRes), 57, 8 );
+    printf("\033[1;33m");
+    printf("%s | %s\n", phrase.c_str(), interpreter(cmr.rawInst).c_str());
+    printf("\033[0m");
+    fflush(stdout);
+}
+
+void printCMRDut(const CommitReport cmr) {
     std::string phrase = " cycle:          | pc:          | iType:          | res:           ";
     overwrite(phrase, std::to_string(cmr.cycle),  8, 8 );
     overwrite(phrase,    uint_to_hex(cmr.pc   ), 23, 8 );

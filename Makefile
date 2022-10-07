@@ -12,12 +12,20 @@ BSVPATH += / \
 	$(CONNECTALDIR)/bsv
 CPPFILES += \
 	main.cpp \
-	Interpreter.cc
+	/home/pau/Desktop/RVTOOLS/riscv-isa-sim/build/isa_parser.o \
+	/home/pau/Desktop/RVTOOLS/riscv-isa-sim/build/libriscv.so  \
+	Interpreter.cc \
+	CustomSpike.cc
 
 CONNECTALFLAGS += --mainclockperiod=50
 #CONNECTALFLAGS += --verilog=ddr3_v2_0/
 CONNECTALFLAGS += --bscflags " -show-schedule"
-#CONNECTALFLAGS += --cxxflags="-g -std=gnu++11"
+CONNECTALFLAGS += --cxxflags="-std=gnu++11                                               \
+							  -Wno-unused-variable -Wno-unused-function                  \
+							  -I /home/pau/Desktop/RVTOOLS/riscv-isa-sim/                \
+							  -I /home/pau/Desktop/RVTOOLS/riscv-isa-sim/fesvr/          \
+							  -I /home/pau/Desktop/RVTOOLS/riscv-isa-sim/riscv/          \
+							  -I /home/pau/Desktop/RVTOOLS/riscv-isa-sim/softfloat/"
 
 include $(CONNECTALDIR)/Makefile.connectal
 
@@ -33,6 +41,9 @@ sim:
 
 less:
 	less TMP/report.txt
+
+color:
+	./verilator/bin/ubuntu.exe addi --color=always | less -r
 
 spike: Makefile CustomSpike.cc CustomSpike.h
 	g++                                                        \

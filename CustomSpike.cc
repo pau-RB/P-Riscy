@@ -19,7 +19,7 @@ CustomSpike::~CustomSpike() {
     free(mem);
 }
 
-CustomSpike::CustomSpike(const char* isa_string, const char* elf_file, size_t memory_sz):
+CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
 	isa("RV32I", "m"),
 	sout_(nullptr),
 	proc(&isa, DEFAULT_VARCH, this, 0, false, NULL, sout_)
@@ -31,7 +31,7 @@ CustomSpike::CustomSpike(const char* isa_string, const char* elf_file, size_t me
 	mem_sz = memory_sz;
     mem    = (char*) calloc(memory_sz, 1);
 
-    this->loadVMH("./vmh/addi.riscv.vmh");
+    this->loadVMH(elf_file);
     this->proc.set_mmu_capability(IMPL_MMU_SBARE);
     this->proc.get_state()->pc = StartPC;
     this->cycleCnt = 0;

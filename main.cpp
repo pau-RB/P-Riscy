@@ -18,13 +18,18 @@
 #include "FromHost.h"
 #include "ToHost.h"
 #include "TestbenchTypes.h"
+
+#include "TestbenchTypes.h"
 #include "Interpreter.h"
+#include "CustomSpike.h"
 
 using namespace std;
 
 static FromHostProxy *connectalProc= 0;
 volatile int run = 1;
 uint32_t print_int = 0;
+
+CustomSpike* spike;
 
 class ToHost: public ToHostWrapper 
 {   
@@ -42,7 +47,13 @@ class ToHost: public ToHostWrapper
             cmr.wbDst   = wbDst   ;
             cmr.wbRes   = wbRes   ;
             cmr.addr    = addr    ;
-            printCMR(cmr);
+            
+            // Print reference
+            printCMRSpike(spike->step());
+            // Print result
+            printCMRDut(cmr);
+            printf("\n");
+
         }
 
         virtual void reportMSG ( const uint32_t msg){
@@ -79,6 +90,9 @@ int main(int argc, char * const *argv) {
         srcfile >> std::hex >> word;
         connectalProc->setMem(addr, word);
     }
+
+    printf("------ Setup Spike ------\n"); fflush(stdout);
+    spike = new CustomSpike(path, MEM_MAX_ADDR);
 
     connectalProc->startPC(StartPC);
     printf("------ Core started! ------\n"); fflush(stdout);

@@ -3,6 +3,7 @@
 
 #include <string>
 #include "TestbenchTypes.h"
+#include <stdio.h> 
 
 
 // opcode
@@ -88,6 +89,8 @@ IType getIType(const Data uinst);
 // Pretty print of an instruction
 std::string interpreter(const Data uinst);
 
-void printCMR(const CommitReport cmr);
+void printCMRSpike(const CommitReport cmr);
+
+void printCMRDut(const CommitReport cmr);
 
 #endif

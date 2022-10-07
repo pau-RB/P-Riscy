@@ -8,7 +8,7 @@ class CustomSpike : public simif_t {
     public:
 
     	// class
-        CustomSpike(const char* isa_string, const char* elf_file, size_t memory_sz);
+        CustomSpike(const std::string elf_file, size_t memory_sz);
         ~CustomSpike();
 
         // simif_t
@@ -27,7 +27,7 @@ class CustomSpike : public simif_t {
         processor_t  proc;
         char*        mem;
         size_t       mem_sz;
-        
+
         Data         cycleCnt;
 
         void  loadVMH(std::string path);
