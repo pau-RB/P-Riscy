@@ -37,29 +37,55 @@ void overwrite (std::string &base, const std::string &text, int position, int ma
 // Prints the instruction type
 std::string printIType (const IType iType) {
     switch (iType) {
-        case 0:
+        case iTypeUnsup:
             return "Unsup";
-        case 1:
+        case iTypeAlu  :
             return "Alu";
-        case 2:
+        case iTypeLd   :
             return "Ld";
-        case 3:
+        case iTypeSt   :
             return "St";
-        case 4:
+        case iTypeJ    :
             return "J";
-        case 5:
+        case iTypeJr   :
             return "Jr";
-        case 6:
+        case iTypeBr   :
             return "Br";
-        case 7:
-            return "Csrr";
-        case 8:
-            return "Csrw";
-        case 9:
+        case iTypeAuipc:
             return "Auipc";
         default:
             return "???";
     }
+}
+
+// Get IType
+IType getIType(const Data uinst) {
+
+	uint32_t opcode = (uinst&0x0000007f);
+
+	switch (opcode) {
+		case opOpImm:
+			return iTypeAlu;
+		case opOp:
+			return iTypeAlu; 
+		case opLui:
+			return iTypeAlu;
+		case opAuipc:
+			return iTypeAuipc;
+		case opJal:
+			return iTypeJ;
+		case opJalr:
+			return iTypeJr;
+		case opBranch:
+			return iTypeBr;
+		case opLoad:
+			return iTypeLd;
+		case opStore:
+			return iTypeSt;
+		default:
+			return iTypeUnsup;
+	}
+
 }
 
 // Pretty print of an instruction

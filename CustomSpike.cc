@@ -56,17 +56,20 @@ CommitReport CustomSpike::step() {
 
 	CommitReport cmr;
 
+	// What instruction will I execute next?
 	cmr.cycle = this->cycleCnt;
 	cmr.pc    = this->proc.get_state()->pc;
-
 	try {
-        cmr.rawInst = (uint32_t) proc.get_mmu()->access_icache(cmr.pc)->data.insn.bits();
+		cmr.rawInst = (uint32_t) proc.get_mmu()->access_icache(cmr.pc)->data.insn.bits();
     } catch(...) {
         std::cout << "[ERROR] access_icache(0x" << std::hex << cmr.pc <<  ") failed even though there was no interrupt or exception for the current verification packet." << std::endl;
     }
+    cmr.iType = getIType(cmr.rawInst);
 
+    // Execute it
     proc.step(1); cycleCnt++;
 
+    // What is the result ?
     cmr.wbDst = (cmr.rawInst >> 7) & 0x1F;
     cmr.wbRes = this->proc.get_state()->XPR[cmr.wbDst & 0x1F];
     cmr.addr  = this->proc.get_state()->pc;

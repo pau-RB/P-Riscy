@@ -56,6 +56,15 @@
 #define fnPRIV    0b000
 #define privSCALL 0x000
 
+//Itypes
+#define iTypeUnsup 0
+#define iTypeAlu   1
+#define iTypeLd    2
+#define iTypeSt    3
+#define iTypeJ     4
+#define iTypeJr    5
+#define iTypeBr    6
+#define iTypeAuipc 7
 
 union Inst
 {
@@ -72,6 +81,9 @@ void overwrite (std::string &base, const std::string &text, int position, int ma
 
 // Prints the instruction type
 std::string printIType (const IType iType);
+
+// Get IType
+IType getIType(const Data uinst);
 
 // Pretty print of an instruction
 std::string interpreter(const Data uinst);
