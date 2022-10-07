@@ -14,7 +14,6 @@
 #include <list>
 #include <signal.h>
 #include <unistd.h>
-#include <iostream>
 
 #include "FromHost.h"
 #include "ToHost.h"
@@ -30,16 +29,6 @@ uint32_t print_int = 0;
 class ToHost: public ToHostWrapper 
 {   
     private:
-
-        void printCMR(const CommitReport cmr) {
-            string phrase = " cycle:          | pc:          | iType:          | res:           ";
-            overwrite(phrase, std::to_string(cmr.cycle),  8, 8 );
-            overwrite(phrase,    uint_to_hex(cmr.pc   ), 23, 8 );
-            overwrite(phrase,     printIType(cmr.iType), 41, 8 );
-            overwrite(phrase,    uint_to_hex(cmr.wbRes), 57, 8 );
-            printf("%s | %s\n", phrase.c_str(), interpreter(cmr.rawInst).c_str());
-            fflush(stdout);
-        }
 
     public:
 
@@ -86,12 +75,12 @@ int main(int argc, char * const *argv) {
     uint32_t word;
     string aux;
     srcfile >> aux;
-    for (uint32_t addr = 0; addr < (1<<WMBAddrSz)*CacheLineBytes; addr=addr+4) {
+    for (uint32_t addr = 0; addr < MEM_MAX_ADDR; addr=addr+4) {
         srcfile >> std::hex >> word;
         connectalProc->setMem(addr, word);
     }
 
-    connectalProc->startPC(0x200);
+    connectalProc->startPC(StartPC);
     printf("------ Core started! ------\n"); fflush(stdout);
 
     usleep(3000000);

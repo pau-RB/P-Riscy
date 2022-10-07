@@ -1,9 +1,12 @@
-#ifndef TESTBENCH_TYPES
-#define TESTBENCH_TYPES
+#ifndef _TESTBENCH_TYPES_H
+#define _TESTBENCH_TYPES_H
 
 #define CacheLineWords 16
 #define CacheLineBytes 64
 #define WMBAddrSz 12
+#define MEM_MAX_ADDR (1<<WMBAddrSz)*CacheLineBytes
+
+#define StartPC 0x200
 
 typedef uint32_t Data;
 typedef uint32_t Addr;

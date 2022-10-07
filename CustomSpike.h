@@ -1,0 +1,37 @@
+#ifndef _CUSTOM_SPIKE_H
+#define _CUSTOM_SPIKE_H
+
+#include "simif.h"
+#include "processor.h"
+
+class CustomSpike : public simif_t {
+    public:
+
+    	// class
+        CustomSpike(const char* isa_string, const char* elf_file, size_t memory_sz);
+        ~CustomSpike();
+
+        // simif_t
+        char* addr_to_mem(reg_t addr);
+        bool mmio_load(reg_t addr, size_t len, uint8_t* bytes);
+        bool mmio_store(reg_t addr, size_t len, const uint8_t* bytes);
+        void proc_reset(unsigned id) { /* do nothing */ }
+        const char* get_symbol(uint64_t addr);
+
+        // custom
+       	CommitReport step();
+
+    private:
+        isa_parser_t isa;
+        std::ostream sout_;
+        processor_t  proc;
+        char*        mem;
+        size_t       mem_sz;
+        
+        Data         cycleCnt;
+
+        void  loadVMH(std::string path);
+
+};
+
+#endif

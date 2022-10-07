@@ -11,7 +11,8 @@ BSVPATH += / \
 	src/types \
 	$(CONNECTALDIR)/bsv
 CPPFILES += \
-	main.cpp
+	main.cpp \
+	Interpreter.cc
 
 CONNECTALFLAGS += --mainclockperiod=50
 #CONNECTALFLAGS += --verilog=ddr3_v2_0/
@@ -33,5 +34,12 @@ sim:
 less:
 	less TMP/report.txt
 
-spike:
-	g++ -I /usr/local/include/fesvr/ -I /usr/local/include/riscv/  -I /usr/local/include/softfloat/ CustomSpike.cc 
+spike: Makefile CustomSpike.cc CustomSpike.h
+	g++                                                        \
+	-I /home/pau/Desktop/RVTOOLS/riscv-isa-sim/                \
+	-I /home/pau/Desktop/RVTOOLS/riscv-isa-sim/fesvr/          \
+	-I /home/pau/Desktop/RVTOOLS/riscv-isa-sim/riscv/          \
+	-I /home/pau/Desktop/RVTOOLS/riscv-isa-sim/softfloat/      \
+	/home/pau/Desktop/RVTOOLS/riscv-isa-sim/build/isa_parser.o \
+	/home/pau/Desktop/RVTOOLS/riscv-isa-sim/build/libriscv.so  \
+	Interpreter.cc CustomSpike.cc mainSpike.cc -o mainSpike.exe
