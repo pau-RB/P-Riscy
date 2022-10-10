@@ -18,10 +18,13 @@
 #include "FromHost.h"
 #include "ToHost.h"
 #include "TestbenchTypes.h"
-
-#include "TestbenchTypes.h"
-#include "Interpreter.h"
 #include "CustomSpike.h"
+#include "Tandem.h"
+#include "Interpreter.h"
+
+
+#define PRINT_COMMIT true
+
 
 using namespace std;
 
@@ -39,20 +42,30 @@ class ToHost: public ToHostWrapper
 
         virtual void reportCMR (const uint32_t cycle, const uint32_t pc,  const uint32_t rawInst,
                         const uint8_t iType, const uint8_t wbDst, const uint32_t wbRes,  const uint32_t addr) {
-            CommitReport cmr;
-            cmr.cycle   = cycle   ;
-            cmr.pc      = pc      ;
-            cmr.rawInst = rawInst ;
-            cmr.iType   = iType   ;
-            cmr.wbDst   = wbDst   ;
-            cmr.wbRes   = wbRes   ;
-            cmr.addr    = addr    ;
-            
-            // Print reference
-            printCMRSpike(spike->step());
-            // Print result
-            printCMRDut(cmr);
-            printf("\n");
+
+            // Get DUT commit
+            CommitReport cmrDut;
+
+            cmrDut.cycle   = cycle   ;
+            cmrDut.pc      = pc      ;
+            cmrDut.rawInst = rawInst ;
+            cmrDut.iType   = iType   ;
+            cmrDut.wbDst   = wbDst   ;
+            cmrDut.wbRes   = wbRes   ;
+            cmrDut.addr    = addr    ;
+
+            // Get Spike commit
+            CommitReport cmrSpike = spike->step();
+
+            // Print
+            if (PRINT_COMMIT) {
+                printCMRSpike(cmrSpike);
+                printCMRDut  (cmrDut);
+                printf("\n");
+            }
+
+            // Check
+            tandem_compare(cmrSpike, cmrDut);
 
         }
 

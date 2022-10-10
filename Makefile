@@ -10,18 +10,21 @@ BSVPATH += / \
 	src/include \
 	src/types \
 	$(CONNECTALDIR)/bsv
-CPPFILES += \
-	main.cpp \
+CPPFILES +=                          \
+	main.cpp                         \
 	riscv-isa-sim/build/isa_parser.o \
 	riscv-isa-sim/build/libriscv.so  \
-	Interpreter.cc \
-	CustomSpike.cc
+	testbench/CustomSpike.cc         \
+	testbench/Tandem.cc              \
+	testbench/Interpreter.cc
+	
 
 CONNECTALFLAGS += --mainclockperiod=50
 #CONNECTALFLAGS += --verilog=ddr3_v2_0/
 CONNECTALFLAGS += --bscflags " -show-schedule"
-CONNECTALFLAGS += --cxxflags="-std=gnu++11                                               \
-							  -Wno-unused-variable -Wno-unused-function                  \
+CONNECTALFLAGS += --cxxflags="-std=gnu++11                                    \
+							  -Wno-unused-variable -Wno-unused-function       \
+							  -I $(PWD)/testbench                             \
 							  -I $(PWD)/spike_install/include/                \
 							  -I $(PWD)/spike_install/include/fesvr/          \
 							  -I $(PWD)/spike_install/include/riscv/          \
