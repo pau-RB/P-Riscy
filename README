@@ -1,2 +1,40 @@
-YOu need to do:
+############### export BSC ###############
+
+Change to proper BSC installation directory
+
 export BLUESPECDIR=/opt/tools/bsc/bsc-2022.01-ubuntu-20.04/lib/
+export PATH=/opt/tools/bsc/latest/bin:$PATH
+
+
+
+############### Install SPIKE ###############
+
+1- Clone the spike repo
+
+	git clone https://github.com/riscv-software-src/riscv-isa-sim
+
+2- Create spike_install and build folders
+
+	mkdir spike_install
+
+	mkdir riscv-isa-sim/build
+
+	cd riscv-isa-sim/build
+
+3- Configure install
+
+	../configure --with-isa=RV32I --prefix=$PWD/../../spike_install
+
+4- Build and install:
+
+	make -j6
+
+	make install
+
+5- Default path for installation (if no --prefix is defined):
+	
+	/usr/local/bin/              -- spike binary
+
+	/usr/local/include/          -- C/C++ includes
+
+	/usr/local/lib/              -- .so libraruies

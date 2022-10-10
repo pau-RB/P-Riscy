@@ -1,4 +1,4 @@
 *.exe
 build/*.bo
 verilator/
-TMP/report.txt
+spike_install/
