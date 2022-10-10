@@ -3,8 +3,22 @@
 
 #include <string>
 #include "TestbenchTypes.h"
+#include "Interpreter.h"
 #include <stdio.h> 
 
-bool tandem_compare(CommitReport spike, CommitReport dut);
+enum tandem_mm{
+	correct,
+	unsup  ,
+	pc     ,
+	rawInst,
+	wbUnexp,
+	wbDst  ,
+	wbRes  ,
+	addr
+};
+
+void tandem_report(std::string msg);
+
+tandem_mm tandem_compare(CommitReport spike, CommitReport dut);
 
 #endif
