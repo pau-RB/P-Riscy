@@ -6,12 +6,15 @@ import execution::*;
 import MemTypes::*;
 import MemUtil::*;
 import Cache::*;
+import Stream::*;
 import WideMemSplit::*;
 import RFile::*;
 import Fifo::*;
 import FIFO::*;
 import Vector::*;
 import Ehr::*;
+
+
 
 interface Core;
 
@@ -41,21 +44,17 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// CORE STATE ////////////
 
-	Reg#(Addr)       pc        <- mkRegU;
 	RFile            rf        <- mkBypassRFile;
 	Scoreboard#(8)   sb        <- mkPipelineScoreboard;
 
 
 	//////////// EPOCH ////////////
 
-	Reg#(Bool)       feEpoch   <- mkReg(False);
 	Ehr#(2,Bool)     wbEpoch   <- mkEhr(False);
 
 
 	//////////// PIPELINE ////////////
 
-	Fifo#(2,Redirect)  redirectQ <- mkBypassFifo();
-	Fifo#(1,DecToken)  decodeQ   <- mkStageFifo();
 	Fifo#(1,RFToken)   regfetchQ <- mkStageFifo();
 
 	Fifo#(2,ExecToken) executeQ  <- mkPipelineFifo();
@@ -66,8 +65,12 @@ module mkCore6S(WideMem mem, Core ifc);
 	//////////// MEMORY ////////////
 
 	Vector#(2,WideMem) memSplit   <- mkSplitWideMem(True, mem);
-	Cache              l1I        <- mkReadCache(memSplit[0]);
 	Cache              l1D        <- mkDirectCache(memSplit[1]);
+
+
+	//////////// FRONTEND ////////////
+
+	Stream s0 <- mkStream(memSplit[0]);
 
 
 	//////////// EXT STATE ////////////
@@ -84,8 +87,8 @@ module mkCore6S(WideMem mem, Core ifc);
 		if (perf_DEBUG == True) begin
 			$display("0x%h || F 0x%h | D 0x%h | R 0x%h | E 0x%h | M 0x%h | W 0x%h",
 				numCycles,
-				pc,
-				(decodeQ.notEmpty   == True? decodeQ.first().pc   : 0),
+				s0.currentPC(),
+				32'b0, //(decodeQ.notEmpty   == True? decodeQ.first().pc   : 0),
 				(regfetchQ.notEmpty == True? regfetchQ.first().pc : 0),
 				(executeQ.notEmpty  == True? executeQ.first().pc  : 0),
 				(memoryQ.notEmpty   == True? memoryQ.first().pc   : 0),
@@ -96,33 +99,12 @@ module mkCore6S(WideMem mem, Core ifc);
 	endrule
 
 
-	//////////// FETCH ////////////
-
-	rule do_fetch if (coreStarted);
-
-		if (redirectQ.notEmpty) begin
-			
-			let redirect = redirectQ.first(); redirectQ.deq();
-			feEpoch <= redirect.epoch;
-			pc <= redirect.nextPc;
-
-		end else begin
-
-			l1I.req(MemReq{op: Ld, addr: pc, data: ?, func: ?});
-			decodeQ.enq(DecToken{pc: pc, epoch: feEpoch});
-			pc <= pc+4;
-
-		end
-
-	endrule
-
-
 	//////////// DECODE ////////////
 
 	rule do_decode;
 
-		let dToken = decodeQ.first(); decodeQ.deq();
-		let inst   <-l1I.resp();
+		let dToken  <- s0.fetch();
+		let inst    = dToken.inst;
 
 		let decInst = decode(inst);
 		let pc      = dToken.pc;
@@ -207,7 +189,7 @@ module mkCore6S(WideMem mem, Core ifc);
 			end
 
 			if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
-				redirectQ.enq(Redirect{pc: wToken.pc, epoch:!wToken.epoch, nextPc: commitInst.addr,
+				s0.redirect(Redirect{pc: wToken.pc, epoch:!wToken.epoch, nextPc: commitInst.addr,
 									   brType: commitInst.iType, taken: commitInst.brTaken, mispredict: commitInst.mispredict});
 				wbEpoch[0] <= !wbEpoch[0];
 			end
@@ -300,7 +282,7 @@ module mkCore6S(WideMem mem, Core ifc);
 	method Action start (Addr spc) if (!coreStarted);
 
 		coreStarted <= True;
-		pc          <= spc;
+		s0.start(spc);
 		commitReportQ.clear();
 		messageReportQ.clear();
 
