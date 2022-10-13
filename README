@@ -25,6 +25,8 @@ export PATH=/opt/tools/bsc/latest/bin:$PATH
 
 	../configure --with-isa=RV32I --prefix=$PWD/../../spike_install
 
+	[Maybe] --without-boost --without-boost-asio --without-boost-regex
+
 4- Build and install:
 
 	make -j6
