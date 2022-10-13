@@ -78,7 +78,7 @@ module mkStream (WideMem l1I, Stream ifc);
 		l0Ival  <= True;
 
 	endrule
-
+	
 
 	// 1 - Consider redirect
 
