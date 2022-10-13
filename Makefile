@@ -40,4 +40,4 @@ build:
 	make build.verilator
 
 sim:
-	./verilator/bin/ubuntu.exe addi --color=always | less -r
+	./verilator/bin/ubuntu.exe sw 10 --color=always | less -r

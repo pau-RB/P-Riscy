@@ -80,7 +80,7 @@ class ToHost: public ToHostWrapper
 static ToHost *ind = 0;
 int main(int argc, char * const *argv) {
 
-    string current_exec_name = argv[0];
+    string   current_exec_name = argv[0];
     vector<string> all_args;
 
     if (argc > 1) {
@@ -110,7 +110,9 @@ int main(int argc, char * const *argv) {
     connectalProc->startPC(StartPC);
     printf("------ Core started! ------\n"); fflush(stdout);
 
-    usleep(3000000);
+    uint32_t sim_time = std::stoi(all_args[1]);
+
+    usleep(sim_time*1000000);
 
     return 0;
 }
