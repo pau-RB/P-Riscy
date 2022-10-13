@@ -28,6 +28,9 @@ interface Stream;
 	method Action                 backendDry();
 	method Addr                   currentPC();
 
+	// Debug
+	method StreamStatus           currentState();
+
 endinterface
 
 // {Redirect, Fetch} < Thread control
@@ -136,6 +139,7 @@ module mkStream (WideMem l1I, Stream ifc);
 		end else begin
 			
 			// Fetch ghost
+			state[0] <= Dry;
 			inst.enq(DecToken{ inst:  ?,
 							   pc:    pc[0],
 							   ghost: True,
@@ -154,13 +158,13 @@ module mkStream (WideMem l1I, Stream ifc);
 	endmethod
 
 
-	method Action evict()         if(state[1] == Full);
-		state [1] <= Evict;
+	method Action evict()         if(state[0] == Full);
+		state [0] <= Evict;
 	endmethod
 
 
-	method Action backendDry()    if(state[1] == Dry);
-		state [1] <= Empty;
+	method Action backendDry()    if(state[0] == Dry);
+		state [0] <= Empty;
 	endmethod
 
 
@@ -177,6 +181,10 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	method Addr currentPC();
 		return pc[0];
+	endmethod
+
+	method StreamStatus currentState();
+		return state[0];
 	endmethod
 
 endmodule
