@@ -25,17 +25,13 @@
 
 #define PRINT_COMMIT true
 
-
 using namespace std;
 
-static FromHostProxy *connectalProc= 0;
-volatile int run = 1;
-uint32_t print_int = 0;
-
+// Custom spike
 CustomSpike* spike;
 
-class ToHost: public ToHostWrapper 
-{   
+class ToHost: public ToHostWrapper {
+
     private:
 
     public:
@@ -75,25 +71,16 @@ class ToHost: public ToHostWrapper
         }
     
     ToHost(unsigned int id) : ToHostWrapper(id){}
+
 };
 
-static ToHost *ind = 0;
-int main(int argc, char * const *argv) {
 
-    string   current_exec_name = argv[0];
-    vector<string> all_args;
+// Connectal proxy
+static FromHostProxy *connectalProc=0;
+static ToHost        *connectalHost=0;
 
-    if (argc > 1) {
-      all_args.assign(argv + 1, argv + argc);
-    }
+void initMem(string path) {
 
-    printf("------ Start testbench ------\n"); fflush(stdout);
-    connectalProc = new FromHostProxy(IfcNames_FromHostS2H);
-    ind = new ToHost(IfcNames_ToHostH2S);
-
-    printf("------ Initializing memory ------\n"); fflush(stdout);
-    string test = all_args[0];
-    string path = "./vmh/"+ test +".riscv.vmh";
     ifstream srcfile; srcfile.open(path,fstream::in|fstream::out|fstream::app);
 
     uint32_t word;
@@ -104,16 +91,36 @@ int main(int argc, char * const *argv) {
         connectalProc->setMem(addr, word);
     }
 
-    printf("------ Setup Spike ------\n"); fflush(stdout);
-    spike = new CustomSpike(path, MEM_MAX_ADDR);
+}
 
-    connectalProc->startPC(StartPC);
-    printf("------ Core started! ------\n"); fflush(stdout);
+
+int main(int argc, char * const *argv) {
+
+    string   current_exec_name = argv[0];
+    vector<string> all_args;
+
+    if (argc > 1) {
+      all_args.assign(argv + 1, argv + argc);
+    }
+
+    printf("------ Start testbench ------\n"); fflush(stdout);
+        connectalProc = new FromHostProxy(IfcNames_FromHostS2H);
+        connectalHost = new ToHost(IfcNames_ToHostH2S);
+
+    printf("------ Initializing memory ------\n"); fflush(stdout);
+        string test = all_args[0];
+        string path = "./vmh/"+ test +".riscv.vmh";
+        initMem(path);
+
+    printf("------ Setup Spike ------\n"); fflush(stdout);
+        spike = new CustomSpike(path, MEM_MAX_ADDR);
+
+    printf("------ Start core ------\n"); fflush(stdout);
+        connectalProc->startPC(StartPC);
 
     uint32_t sim_time = std::stoi(all_args[1]);
-
     usleep(sim_time*1000000);
 
     return 0;
+    
 }
-
