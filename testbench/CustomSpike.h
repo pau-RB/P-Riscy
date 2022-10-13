@@ -29,6 +29,7 @@ class CustomSpike : public simif_t {
         size_t       mem_sz;
 
         Data         cycleCnt;
+        Addr         lastMEM;
 
         void  loadVMH(std::string path);
 

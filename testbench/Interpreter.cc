@@ -216,7 +216,10 @@ void printCMRSpike(const CommitReport cmr) {
     overwrite(phrase, std::to_string(cmr.cycle),  8, 8 );
     overwrite(phrase,    uint_to_hex(cmr.pc   ), 23, 8 );
     overwrite(phrase,     printIType(cmr.iType), 41, 8 );
-    overwrite(phrase,    uint_to_hex(cmr.wbRes), 57, 8 );
+    if (cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
+    	overwrite(phrase,    uint_to_hex(cmr.addr), 57, 8 );
+    else
+    	overwrite(phrase,    uint_to_hex(cmr.wbRes), 57, 8 );
     printf("\033[1;33m");
     printf("%s | %s\n", phrase.c_str(), interpreter(cmr.rawInst).c_str());
     printf("\033[0m");
@@ -228,7 +231,10 @@ void printCMRDut(const CommitReport cmr) {
     overwrite(phrase, std::to_string(cmr.cycle),  8, 8 );
     overwrite(phrase,    uint_to_hex(cmr.pc   ), 23, 8 );
     overwrite(phrase,     printIType(cmr.iType), 41, 8 );
-    overwrite(phrase,    uint_to_hex(cmr.wbRes), 57, 8 );
+    if (cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
+    	overwrite(phrase,    uint_to_hex(cmr.addr), 57, 8 );
+    else
+    	overwrite(phrase,    uint_to_hex(cmr.wbRes), 57, 8 );
     printf("%s | %s\n", phrase.c_str(), interpreter(cmr.rawInst).c_str());
     fflush(stdout);
 }

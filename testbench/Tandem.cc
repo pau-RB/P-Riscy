@@ -8,6 +8,13 @@ void tandem_report(std::string msg) {
     printf("\033[0m");
 }
 
+void tandem_data(std::string msg, uint32_t data) {
+	printf("\033[1;31m");
+	printf(" --> ");
+    printf("%s: 0x%s\n", msg.c_str(), uint_to_hex(data).c_str());
+    printf("\033[0m");
+}
+
 tandem_mm tandem_compare(CommitReport spike, CommitReport dut) {
 
 	// Instrucion fetch and suport
@@ -26,15 +33,29 @@ tandem_mm tandem_compare(CommitReport spike, CommitReport dut) {
 		return tandem_mm::unsup;
 	}
 
+	// Load/Store
+	if(dut.iType == iTypeLd || dut.iType == iTypeSt) {
+		if(dut.addr != spike.addr) {
+			tandem_report("Ld/St addr mismatch!");
+			tandem_data("Spike addr", spike.addr);
+			tandem_data("Dut addr  ", dut.addr);
+			return tandem_mm::addr;
+		}
+	}
+
 	// Instruction WB
 	if(dut.iType == iTypeAlu || dut.iType == iTypeLd) {
 		// wb expected
 		if(dut.wbDst != spike.wbDst) {
 			tandem_report("Destination register mismatch!");
+			tandem_data("Spike dest", spike.wbDst);
+			tandem_data("Dut dest  ", dut.wbDst);
 			return tandem_mm::wbDst;
 		}
 		if(dut.wbRes != spike.wbRes && dut.wbDst != 0) {
 			tandem_report("Result mismatch!");
+			tandem_data("Spike result", spike.wbRes);
+			tandem_data("Dut result  ", dut.wbRes);
 			return tandem_mm::wbRes;
 		}
 	} else {
@@ -42,14 +63,6 @@ tandem_mm tandem_compare(CommitReport spike, CommitReport dut) {
 		if(dut.wbDst != 0) {
 			tandem_report("Unexpected register write!");
 			return tandem_mm::wbUnexp;
-		}
-	}
-
-	// Load/Store
-	if(dut.iType == iTypeLd || dut.iType == iTypeSt) {
-		if(dut.addr != spike.addr) {
-			tandem_report("Ld/St addr mismatch!");
-			return tandem_mm::addr;
 		}
 	}
 

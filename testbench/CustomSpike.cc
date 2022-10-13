@@ -35,6 +35,7 @@ CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
     this->proc.set_mmu_capability(IMPL_MMU_SBARE);
     this->proc.get_state()->pc = StartPC;
     this->cycleCnt = 0;
+    this->lastMEM  = 0;
 
 }
 
@@ -43,7 +44,13 @@ CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
 // If it return NULL, it will be considered as an MMIO region and will call
 // mmio_load/mmio_store to request the operaton to the sim.
 
-char* CustomSpike::addr_to_mem(reg_t addr) { return ((char*) mem) + addr; }
+char* CustomSpike::addr_to_mem(reg_t addr) {
+
+    lastMEM = addr;
+
+    return ((char*) mem) + addr;
+
+}
 
 bool CustomSpike::mmio_load(reg_t addr, size_t len, uint8_t* bytes) { return true; }
 
@@ -72,7 +79,7 @@ CommitReport CustomSpike::step() {
     // What is the result ?
     cmr.wbDst = (cmr.rawInst >> 7) & 0x1F;
     cmr.wbRes = this->proc.get_state()->XPR[cmr.wbDst & 0x1F];
-    cmr.addr  = this->proc.get_state()->pc;
+    cmr.addr  = ((cmr.iType == iTypeLd || cmr.iType == iTypeSt) ? lastMEM : this->proc.get_state()->pc);
     
     return cmr;
 

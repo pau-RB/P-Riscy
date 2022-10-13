@@ -220,9 +220,12 @@ module mkCore6S(WideMem mem, Core ifc);
 
 				numCommit <= numCommit+1;
 
+				Data loadRes = '0;
+
 				if(commitInst.iType == Ld) begin
-					Data res <- l1D.resp();
-	        	    rf.wr(fromMaybe(?, commitInst.dst), extendLoad(res, commitInst.addr, commitInst.ldFunc));
+					Data loadResRaw <- l1D.resp();
+					loadRes = extendLoad(loadRes, commitInst.addr, commitInst.ldFunc);
+	        	    rf.wr(fromMaybe(?, commitInst.dst), loadRes);
 	        	end else if(isValid(commitInst.dst)) begin
 					rf.wr(fromMaybe(?, commitInst.dst), commitInst.data);
 				end
@@ -259,7 +262,7 @@ module mkCore6S(WideMem mem, Core ifc);
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
 														wbDst:   fromMaybe('0,commitInst.dst),
-														wbRes:   commitInst.data,
+														wbRes:   loadRes,
 														addr:    commitInst.addr});
 					end else if(commitInst.iType == St) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
@@ -297,6 +300,8 @@ module mkCore6S(WideMem mem, Core ifc);
 						end else begin
 							$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, 0, showInst(wToken.rawInst));
 						end
+					end else if (commitInst.iType == Ld) begin
+						$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, loadRes, showInst(wToken.rawInst));
 					end else begin
 						$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, commitInst.data, showInst(wToken.rawInst));
 					end
