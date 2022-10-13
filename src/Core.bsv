@@ -7,18 +7,27 @@ import MemTypes::*;
 import MemUtil::*;
 import Cache::*;
 import Stream::*;
+import NTTX::*;
 import WideMemSplit::*;
 import RFile::*;
 import Fifo::*;
 import FIFO::*;
 import Vector::*;
 import Ehr::*;
+import FShow::*;
+
 
 
 
 interface Core;
 
 	method Action start(Addr spc);
+
+	method Action evict();
+
+	method Data getNumCommit();
+
+	method ActionValue#(ContToken) getContToken();
 
 	method ActionValue#(CommitReport) getCMR();
 
@@ -67,10 +76,14 @@ module mkCore6S(WideMem mem, Core ifc);
 	Vector#(2,WideMem) memSplit   <- mkSplitWideMem(True, mem);
 	Cache              l1D        <- mkDirectCache(memSplit[1]);
 
-
 	//////////// FRONTEND ////////////
 
 	Stream s0 <- mkStream(memSplit[0]);
+
+
+	//////////// NTTX ////////////
+
+	NTTX nttx <- mkNTTX();
 
 
 	//////////// EXT STATE ////////////
@@ -106,11 +119,28 @@ module mkCore6S(WideMem mem, Core ifc);
 		let dToken  <- s0.fetch();
 		let inst    = dToken.inst;
 
-		let decInst = decode(inst);
-		let pc      = dToken.pc;
-		let rfToken = RFToken{inst: decInst, pc: pc, epoch: dToken.epoch, rawInst: inst};
+		if(dToken.ghost) begin
+			DecodedInst decInst = DecodedInst{
+			                   		iType  : Ghost,
+			                   		aluFunc: ?,
+			                   		brFunc : NT,
+			                   		dst    : tagged Invalid,
+			                   		src1   : tagged Invalid,
+			                   		src2   : tagged Invalid,
+			                   		imm    : tagged Invalid};
 
-		regfetchQ.enq(rfToken);
+			Addr        pc      = dToken.pc;
+			RFToken     rfToken = RFToken{inst: decInst, pc: pc, epoch: dToken.epoch, rawInst: inst};
+			regfetchQ.enq(rfToken);
+
+		end else begin
+
+			DecodedInst decInst = decode(inst);
+			Addr        pc      = dToken.pc;
+			RFToken     rfToken = RFToken{inst: decInst, pc: pc, epoch: dToken.epoch, rawInst: inst};
+			regfetchQ.enq(rfToken);
+
+		end
 
 	endrule
 
@@ -181,23 +211,57 @@ module mkCore6S(WideMem mem, Core ifc);
 
 			let commitInst = wToken.inst;
 
-			if(commitInst.iType == Ld) begin
-				Data res <- l1D.resp();
-        	    rf.wr(fromMaybe(?, commitInst.dst), extendLoad(res, commitInst.addr, commitInst.ldFunc));
-        	end else if(isValid(commitInst.dst)) begin
-				rf.wr(fromMaybe(?, commitInst.dst), commitInst.data);
-			end
+			if(commitInst.iType == Ghost) begin
 
-			if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
-				s0.redirect(Redirect{pc: wToken.pc, epoch:!wToken.epoch, nextPc: commitInst.addr,
-									   brType: commitInst.iType, taken: commitInst.brTaken, mispredict: commitInst.mispredict});
-				wbEpoch[0] <= !wbEpoch[0];
-			end
+				nttx.evict(wToken.pc);
+				s0.backendDry();
 
-			if (wb_ext_DEBUG == True) begin
+			end else begin
 
-				if(commitInst.iType == J || commitInst.iType == Jr || commitInst.iType == Br) begin
-					if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
+				numCommit <= numCommit+1;
+
+				if(commitInst.iType == Ld) begin
+					Data res <- l1D.resp();
+	        	    rf.wr(fromMaybe(?, commitInst.dst), extendLoad(res, commitInst.addr, commitInst.ldFunc));
+	        	end else if(isValid(commitInst.dst)) begin
+					rf.wr(fromMaybe(?, commitInst.dst), commitInst.data);
+				end
+
+				if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
+					s0.redirect(Redirect{pc: wToken.pc, epoch:!wToken.epoch, nextPc: commitInst.addr,
+										   brType: commitInst.iType, taken: commitInst.brTaken, mispredict: commitInst.mispredict});
+					wbEpoch[0] <= !wbEpoch[0];
+				end
+
+				if (wb_ext_DEBUG == True) begin
+
+					if(commitInst.iType == J || commitInst.iType == Jr || commitInst.iType == Br) begin
+						if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
+							commitReportQ.enq(CommitReport {cycle:   numCycles,
+															pc:      wToken.pc,
+															rawInst: wToken.rawInst,
+															iType:   commitInst.iType,
+															wbDst:   '0,
+															wbRes:   '0,
+															addr:    commitInst.addr});
+						end else begin
+							commitReportQ.enq(CommitReport {cycle:   numCycles,
+															pc:      wToken.pc,
+															rawInst: wToken.rawInst,
+															iType:   commitInst.iType,
+															wbDst:   '0,
+															wbRes:   '0,
+															addr:    '0});
+						end
+					end else if(commitInst.iType == Ld) begin
+						commitReportQ.enq(CommitReport {cycle:   numCycles,
+														pc:      wToken.pc,
+														rawInst: wToken.rawInst,
+														iType:   commitInst.iType,
+														wbDst:   fromMaybe('0,commitInst.dst),
+														wbRes:   commitInst.data,
+														addr:    commitInst.addr});
+					end else if(commitInst.iType == St) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
 														pc:      wToken.pc,
 														rawInst: wToken.rawInst,
@@ -210,64 +274,41 @@ module mkCore6S(WideMem mem, Core ifc);
 														pc:      wToken.pc,
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
-														wbDst:   '0,
-														wbRes:   '0,
+														wbDst:   fromMaybe('0,commitInst.dst),
+														wbRes:   commitInst.data,
 														addr:    '0});
 					end
-				end else if(commitInst.iType == Ld) begin
-					commitReportQ.enq(CommitReport {cycle:   numCycles,
-													pc:      wToken.pc,
-													rawInst: wToken.rawInst,
-													iType:   commitInst.iType,
-													wbDst:   fromMaybe('0,commitInst.dst),
-													wbRes:   commitInst.data,
-													addr:    commitInst.addr});
-				end else if(commitInst.iType == St) begin
-					commitReportQ.enq(CommitReport {cycle:   numCycles,
-													pc:      wToken.pc,
-													rawInst: wToken.rawInst,
-													iType:   commitInst.iType,
-													wbDst:   '0,
-													wbRes:   '0,
-													addr:    commitInst.addr});
-				end else begin
-					commitReportQ.enq(CommitReport {cycle:   numCycles,
-													pc:      wToken.pc,
-													rawInst: wToken.rawInst,
-													iType:   commitInst.iType,
-													wbDst:   fromMaybe('0,commitInst.dst),
-													wbRes:   commitInst.data,
-													addr:    '0});
+
 				end
 
-			end
-
-			if(msg_ext_DEBUG == True) begin
-				
-				if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
-					messageReportQ.enq(commitInst.data);
-				end
-
-			end
-
-			if (wb_DEBUG == True) begin
-
-				if(commitInst.iType == J ||commitInst.iType == Jr || commitInst.iType == Br) begin
-					if(commitInst.brTaken) begin
-						$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, commitInst.addr, showInst(wToken.rawInst));
-					end else begin
-						$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, 0, showInst(wToken.rawInst));
+				if(msg_ext_DEBUG == True) begin
+					
+					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
+						messageReportQ.enq(commitInst.data);
 					end
-				end else begin
-					$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, commitInst.data, showInst(wToken.rawInst));
+
 				end
 
-			end
+				if (wb_DEBUG == True) begin
 
-			if(msg_DEBUG == True) begin
-				
-				if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
-					$display("MESSAGE: %h", commitInst.data);
+					if(commitInst.iType == J ||commitInst.iType == Jr || commitInst.iType == Br) begin
+						if(commitInst.brTaken) begin
+							$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, commitInst.addr, showInst(wToken.rawInst));
+						end else begin
+							$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, 0, showInst(wToken.rawInst));
+						end
+					end else begin
+						$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, commitInst.data, showInst(wToken.rawInst));
+					end
+
+				end
+
+				if(msg_DEBUG == True) begin
+					
+					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
+						$display("MESSAGE: %h", commitInst.data);
+					end
+
 				end
 
 			end
@@ -279,12 +320,35 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// INTERFACE ////////////
 
-	method Action start (Addr spc) if (!coreStarted);
+	method Action start (Addr spc);
 
-		coreStarted <= True;
 		s0.start(spc);
-		commitReportQ.clear();
-		messageReportQ.clear();
+		wbEpoch[1] <= False;
+
+		if(!coreStarted) begin
+			coreStarted <= True;
+			commitReportQ.clear();
+			messageReportQ.clear();	
+		end
+
+	endmethod
+
+	method Action evict();
+
+		s0.evict();
+
+	endmethod
+
+	method Data getNumCommit();
+
+		return numCommit;
+
+	endmethod
+
+	method ActionValue#(ContToken) getContToken();
+
+		let latest = nttx.first(); nttx.deq();
+		return latest;
 
 	endmethod
 

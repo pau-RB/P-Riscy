@@ -45,7 +45,8 @@ typedef enum {
 	J,  
 	Jr, 
 	Br, 
-	Auipc
+	Auipc,
+	Ghost
 } IType deriving(Bits, Eq, FShow);
 
 typedef enum {
@@ -193,6 +194,12 @@ typedef struct {
     Bool taken;
     Bool mispredict;
 } Redirect deriving (Bits, Eq, FShow);
+
+typedef struct {
+	Addr pc;
+	//Addr fp;
+	//??   RF;
+} ContToken deriving(Bits, Eq);
 
 typedef struct {
 	Data  cycle;
