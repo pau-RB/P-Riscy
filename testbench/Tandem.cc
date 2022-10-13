@@ -43,6 +43,16 @@ tandem_mm tandem_compare(CommitReport spike, CommitReport dut) {
 		}
 	}
 
+	// Br/J/Jr
+	if(dut.iType == iTypeBr || dut.iType == iTypeJ || dut.iType == iTypeJr) {
+		if(dut.addr != spike.addr) {
+			tandem_report("Br/J/Jr addr mismatch!");
+			tandem_data("Spike addr", spike.addr);
+			tandem_data("Dut addr  ", dut.addr);
+			return tandem_mm::addr;
+		}
+	}
+
 	// Instruction WB
 	if(dut.iType == iTypeAlu || dut.iType == iTypeLd) {
 		// wb expected

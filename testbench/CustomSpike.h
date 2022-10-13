@@ -3,6 +3,8 @@
 
 #include "simif.h"
 #include "processor.h"
+#include "LoadTracer.h"
+#include "StoreTracer.h"
 
 class CustomSpike : public simif_t {
     public:
@@ -29,7 +31,8 @@ class CustomSpike : public simif_t {
         size_t       mem_sz;
 
         Data         cycleCnt;
-        Addr         lastMEM;
+        loadTracer   lt;
+        storeTracer  st;
 
         void  loadVMH(std::string path);
 

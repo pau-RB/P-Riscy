@@ -7,6 +7,8 @@
 // Testbench
 #include "TestbenchTypes.h"
 #include "Interpreter.h"
+#include "LoadTracer.h"
+#include "StoreTracer.h"
 #include "CustomSpike.h"
 
 // Spike
@@ -22,7 +24,9 @@ CustomSpike::~CustomSpike() {
 CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
 	isa("RV32I", "m"),
 	sout_(nullptr),
-	proc(&isa, DEFAULT_VARCH, this, 0, false, NULL, sout_)
+	proc(&isa, DEFAULT_VARCH, this, 0, false, NULL, sout_),
+    lt(),
+    st()
 			// processor_t(isa, varch, sim, id, halt_on_reset, log_file, sout_);
 {
 
@@ -35,7 +39,8 @@ CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
     this->proc.set_mmu_capability(IMPL_MMU_SBARE);
     this->proc.get_state()->pc = StartPC;
     this->cycleCnt = 0;
-    this->lastMEM  = 0;
+    this->proc.get_mmu()->register_memtracer(&(this->lt));
+    this->proc.get_mmu()->register_memtracer(&(this->st));
 
 }
 
@@ -44,13 +49,7 @@ CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
 // If it return NULL, it will be considered as an MMIO region and will call
 // mmio_load/mmio_store to request the operaton to the sim.
 
-char* CustomSpike::addr_to_mem(reg_t addr) {
-
-    lastMEM = addr;
-
-    return ((char*) mem) + addr;
-
-}
+char* CustomSpike::addr_to_mem(reg_t addr) { return ((char*) mem) + addr; }
 
 bool CustomSpike::mmio_load(reg_t addr, size_t len, uint8_t* bytes) { return true; }
 
@@ -79,7 +78,15 @@ CommitReport CustomSpike::step() {
     // What is the result ?
     cmr.wbDst = (cmr.rawInst >> 7) & 0x1F;
     cmr.wbRes = this->proc.get_state()->XPR[cmr.wbDst & 0x1F];
-    cmr.addr  = ((cmr.iType == iTypeLd || cmr.iType == iTypeSt) ? lastMEM : this->proc.get_state()->pc);
+
+    if(cmr.iType == iTypeLd)
+        cmr.addr = this->lt.get_last_access();
+    else if(cmr.iType == iTypeSt)
+        cmr.addr = this->st.get_last_access();
+    else if(cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
+        cmr.addr = this->proc.get_state()->pc;
+    else
+        cmr.addr = 0;
     
     return cmr;
 

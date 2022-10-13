@@ -224,7 +224,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 				if(commitInst.iType == Ld) begin
 					Data loadResRaw <- l1D.resp();
-					loadRes = extendLoad(loadRes, commitInst.addr, commitInst.ldFunc);
+					loadRes = extendLoad(loadResRaw, commitInst.addr, commitInst.ldFunc);
 	        	    rf.wr(fromMaybe(?, commitInst.dst), loadRes);
 	        	end else if(isValid(commitInst.dst)) begin
 					rf.wr(fromMaybe(?, commitInst.dst), commitInst.data);
@@ -239,23 +239,13 @@ module mkCore6S(WideMem mem, Core ifc);
 				if (wb_ext_DEBUG == True) begin
 
 					if(commitInst.iType == J || commitInst.iType == Jr || commitInst.iType == Br) begin
-						if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
-							commitReportQ.enq(CommitReport {cycle:   numCycles,
-															pc:      wToken.pc,
-															rawInst: wToken.rawInst,
-															iType:   commitInst.iType,
-															wbDst:   '0,
-															wbRes:   '0,
-															addr:    commitInst.addr});
-						end else begin
-							commitReportQ.enq(CommitReport {cycle:   numCycles,
-															pc:      wToken.pc,
-															rawInst: wToken.rawInst,
-															iType:   commitInst.iType,
-															wbDst:   '0,
-															wbRes:   '0,
-															addr:    '0});
-						end
+						commitReportQ.enq(CommitReport {cycle:   numCycles,
+														pc:      wToken.pc,
+														rawInst: wToken.rawInst,
+														iType:   commitInst.iType,
+														wbDst:   '0,
+														wbRes:   '0,
+														addr:    commitInst.addr});
 					end else if(commitInst.iType == Ld) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
 														pc:      wToken.pc,
@@ -295,11 +285,7 @@ module mkCore6S(WideMem mem, Core ifc);
 				if (wb_DEBUG == True) begin
 
 					if(commitInst.iType == J ||commitInst.iType == Jr || commitInst.iType == Br) begin
-						if(commitInst.brTaken) begin
-							$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, commitInst.addr, showInst(wToken.rawInst));
-						end else begin
-							$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, 0, showInst(wToken.rawInst));
-						end
+						$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, commitInst.addr, showInst(wToken.rawInst));
 					end else if (commitInst.iType == Ld) begin
 						$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, loadRes, showInst(wToken.rawInst));
 					end else begin
