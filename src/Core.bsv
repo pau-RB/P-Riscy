@@ -15,76 +15,21 @@ import FIFO::*;
 import Vector::*;
 import Ehr::*;
 import FShow::*;
-
-
-
+import Config::*;
 
 interface Core;
 
-	method Action start(Addr spc);
+	method Action start(FrontID feID, Addr spc);
+	method Action evict(FrontID feID);
+	method Data   getNumCommit();
 
-	method Action evict();
-
-	method Data getNumCommit();
-
-	method ActionValue#(ContToken) getContToken();
-
+	method ActionValue#(ContToken)    getContToken();
 	method ActionValue#(CommitReport) getCMR();
-
-	method ActionValue#(Data) getMSG();
+	method ActionValue#(Data)         getMSG();
 
 endinterface
 
 module mkCore6S(WideMem mem, Core ifc);
-
-	//////////// CORE DEBUG ////////////
-
-	// Connectal (FPGA)
-	Bool wb_ext_DEBUG  = True;
-	Bool msg_ext_DEBUG = True;
-
-	// Verilog (SIM)
-	Bool wb_DEBUG      = False;
-	Bool msg_DEBUG     = False;
-	Bool perf_DEBUG    = False;
-
-	Addr msg_ADDR      = 'h10000;
-
-
-	//////////// CORE STATE ////////////
-
-	RFile            rf        <- mkBypassRFile;
-	Scoreboard#(8)   sb        <- mkPipelineScoreboard;
-
-
-	//////////// EPOCH ////////////
-
-	Ehr#(2,Bool)     wbEpoch   <- mkEhr(False);
-
-
-	//////////// PIPELINE ////////////
-
-	Fifo#(1,RFToken)   regfetchQ <- mkStageFifo();
-
-	Fifo#(2,ExecToken) executeQ  <- mkPipelineFifo();
-	Fifo#(1,MemToken)  memoryQ   <- mkStageFifo();
-	Fifo#(1,WBToken)   wrbackQ   <- mkStageFifo();
-
-
-	//////////// MEMORY ////////////
-
-	Vector#(2,WideMem) memSplit   <- mkSplitWideMem(True, mem);
-	Cache              l1D        <- mkDirectCache(memSplit[1]);
-
-	//////////// FRONTEND ////////////
-
-	Stream s0 <- mkStream(memSplit[0]);
-
-
-	//////////// NTTX ////////////
-
-	NTTX nttx <- mkNTTX();
-
 
 	//////////// EXT STATE ////////////
 
@@ -94,107 +39,173 @@ module mkCore6S(WideMem mem, Core ifc);
 	Fifo#(8,CommitReport) commitReportQ  <- mkPipelineFifo();
 	Fifo#(8,Data)         messageReportQ <- mkPipelineFifo();
 
-	rule cntCycles if (coreStarted);
-		numCycles <= numCycles+1;
 
-		if (perf_DEBUG == True) begin
-			$display("0x%h || F 0x%h | D 0x%h | R 0x%h | E 0x%h | M 0x%h | W 0x%h",
-				numCycles,
-				s0.currentPC(),
-				32'b0, //(decodeQ.notEmpty   == True? decodeQ.first().pc   : 0),
-				(regfetchQ.notEmpty == True? regfetchQ.first().pc : 0),
-				(executeQ.notEmpty  == True? executeQ.first().pc  : 0),
-				(memoryQ.notEmpty   == True? memoryQ.first().pc   : 0),
-				(wrbackQ.notEmpty   == True? wrbackQ.first().pc   : 0)
-				);
-		end
+	//////////// MEMORY ////////////
 
-	endrule
+	Vector#(TAdd#(FrontWidth,1), WideMem) memSplit   <- mkSplitWideMem(True, mem);
+	Cache                                 l1D        <- mkDirectCache(memSplit[valueOf(FrontWidth)]);
+
+
+	//////////// FETCH ////////////
+
+	Vector#(FrontWidth, Stream) stream;
+
+	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
+		stream[i] <- mkStream(memSplit[i]);
+	end
 
 
 	//////////// DECODE ////////////
 
-	rule do_decode;
+	Vector#(FrontWidth,  Fifo#(1,RFToken)) regfetchQ <- replicateM(mkStageFifo());
 
-		let dToken  <- s0.fetch();
-		let inst    = dToken.inst;
+	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
 
-		if(dToken.ghost) begin
-			DecodedInst decInst = DecodedInst{
-			                   		iType  : Ghost,
-			                   		aluFunc: ?,
-			                   		brFunc : NT,
-			                   		dst    : tagged Invalid,
-			                   		src1   : tagged Invalid,
-			                   		src2   : tagged Invalid,
-			                   		imm    : tagged Invalid};
+		rule do_decode;
 
-			Addr        pc      = dToken.pc;
-			RFToken     rfToken = RFToken{inst: decInst, pc: pc, epoch: dToken.epoch, rawInst: inst};
-			regfetchQ.enq(rfToken);
+			let dToken  <- stream[i].fetch();
+			let inst    = dToken.inst;
 
-		end else begin
+			if(dToken.ghost) begin
+				DecodedInst decInst = DecodedInst{
+				                   		iType  : Ghost,
+				                   		aluFunc: ?,
+				                   		ldFunc : ?,
+				                   		stFunc : ?,
+				                   		brFunc : NT,
+				                   		dst    : tagged Invalid,
+				                   		src1   : tagged Invalid,
+				                   		src2   : tagged Invalid,
+				                   		imm    : tagged Invalid};
 
-			DecodedInst decInst = decode(inst);
-			Addr        pc      = dToken.pc;
-			RFToken     rfToken = RFToken{inst: decInst, pc: pc, epoch: dToken.epoch, rawInst: inst};
-			regfetchQ.enq(rfToken);
+				Addr        pc      = dToken.pc;
+				RFToken     rfToken = RFToken{
+										inst   : decInst,
+										pc     : pc,
+										epoch  : dToken.epoch,
+										rawInst: inst};
 
-		end
+				regfetchQ[i].enq(rfToken);
 
-	endrule
+			end else begin
+
+				DecodedInst decInst = decode(inst);
+
+				Addr        pc      = dToken.pc;
+				RFToken     rfToken = RFToken{
+										inst   : decInst,
+										pc     : pc,
+										epoch  : dToken.epoch,
+										rawInst: inst};
+
+				regfetchQ[i].enq(rfToken);
+
+			end
+
+		endrule
+
+	end
 
 
 	//////////// REG FETCH ////////////
 
-	rule do_regfetch if (!sb.search1(regfetchQ.first().inst.src1) && !sb.search2(regfetchQ.first().inst.src2));
+	Vector#(FrontWidth, RFile             ) rf       <- replicateM(mkBypassRFile       );
+	Vector#(FrontWidth, Scoreboard#(8)    ) sb       <- replicateM(mkPipelineScoreboard);
+	Vector#(FrontWidth, Fifo#(2,ExecToken)) executeQ <- replicateM(mkPipelineFifo()    );
 
-		let rfToken = regfetchQ.first();
-		let decInst = rfToken.inst;
-			
-		let arg1    = rf.rd1(fromMaybe(?, decInst.src1));
-		let arg2    = rf.rd2(fromMaybe(?, decInst.src2));
-		let eToken  = ExecToken{inst: decInst, arg1: arg1, arg2: arg2, pc: rfToken.pc, epoch: rfToken.epoch, rawInst: rfToken.rawInst};
+	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
 
-		sb.insert(decInst.dst);
-		regfetchQ.deq();
-		executeQ.enq(eToken);
+		rule do_regfetch if (!sb[i].search1(regfetchQ[i].first().inst.src1) && !sb[i].search2(regfetchQ[i].first().inst.src2));
 
-	endrule
+			let rfToken = regfetchQ[i].first();
+			let decInst = rfToken.inst;
+				
+			let arg1    = rf[i].rd1(fromMaybe(?, decInst.src1));
+			let arg2    = rf[i].rd2(fromMaybe(?, decInst.src2));
+			let eToken  = ExecToken{
+							inst   : decInst,
+							arg1   : arg1,
+							arg2   : arg2,
+							pc     : rfToken.pc,
+							feID   : fromInteger(i),
+							epoch  : rfToken.epoch,
+							rawInst: rfToken.rawInst};
+
+			sb[i].insert(decInst.dst);
+			regfetchQ[i].deq();
+			executeQ[i].enq(eToken);
+
+		endrule
+
+	end
 
 
 	//////////// EXECUTE ////////////
 
+	Fifo#(1,MemToken) memoryQ <- mkStageFifo();
+	Reg#(FrontID)     rrfeID  <- mkReg(0);
+
 	rule do_execute;
 
-		let eToken = executeQ.first(); executeQ.deq();
+		FrontID hart = rrfeID; rrfeID <= rrfeID+1;
 
-		let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
-		let mToken   = MemToken{inst: execInst, pc:eToken.pc, epoch: eToken.epoch, rawInst: eToken.rawInst};
+		if (executeQ[hart].notEmpty()) begin
 
-		memoryQ.enq(mToken);
+			let eToken = executeQ[hart].first(); executeQ[hart].deq();
+
+			let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
+			let mToken   = MemToken{
+							inst   : execInst,
+							pc     : eToken.pc,
+							feID   : eToken.feID,
+							epoch  : eToken.epoch,
+							rawInst: eToken.rawInst};
+
+			memoryQ.enq(mToken);
+		end
 
 	endrule
 
  
 	//////////// MEMORY ////////////
 
+	Vector#(FrontWidth, Ehr#(2,Bool)) wbEpoch <- replicateM(mkEhr(False));
+
+	Fifo#(1,WBToken)   wrbackQ   <- mkStageFifo();
+
 	rule do_mem;
 
 		let mToken   = memoryQ.first(); memoryQ.deq();
-
 		let execInst = mToken.inst;
+		let feID     = mToken.feID;
 
-		if (mToken.epoch == wbEpoch[1]) begin
+		if (mToken.epoch == wbEpoch[feID][1]) begin
 			// Prevent instruction from requesting MEM operations if epoch is changed
 			if(execInst.iType == Ld) begin
-    		    l1D.req(MemReq{op: Ld, addr: execInst.addr, data: ?, func: ?});
+
+    		    l1D.req(MemReq{
+    		    			op  : Ld,
+    		    			addr: execInst.addr,
+    		    			data: ?,
+    		    			func: ?});
+
     		end else if(execInst.iType == St) begin
-    		    l1D.req(MemReq{op: St, addr: execInst.addr, data: execInst.data, func: execInst.stFunc});
+
+    		    l1D.req(MemReq{
+    		    			op  : St,
+    		    			addr: execInst.addr,
+    		    			data: execInst.data,
+    		    			func: execInst.stFunc});
+
     		end
     	end
 	
-		let wToken   = WBToken{inst: execInst, pc: mToken.pc, epoch: mToken.epoch,  rawInst: mToken.rawInst};
+		let wToken   = WBToken{
+							inst: execInst,
+							pc: mToken.pc,
+							feID: mToken.feID,
+							epoch: mToken.epoch,
+							rawInst: mToken.rawInst};
 
 		wrbackQ.enq(wToken);
 
@@ -203,18 +214,23 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// WRBACK ////////////
 
+	NTTX nttx <- mkNTTX();
+
 	rule do_wb;
 
-		let wToken = wrbackQ.first(); wrbackQ.deq(); sb.remove();
+		let wToken = wrbackQ.first(); wrbackQ.deq();
+		let feID   = wToken.feID;
 
-		if (wToken.epoch == wbEpoch[0])  begin
+		sb[feID].remove();
+
+		if (wToken.epoch == wbEpoch[feID][0])  begin
 
 			let commitInst = wToken.inst;
 
 			if(commitInst.iType == Ghost) begin
 
-				nttx.evict(wToken.pc);
-				s0.backendDry();
+				nttx.evict(feID, wToken.pc);
+				stream[feID].backendDry();
 
 			end else begin
 
@@ -225,21 +241,27 @@ module mkCore6S(WideMem mem, Core ifc);
 				if(commitInst.iType == Ld) begin
 					Data loadResRaw <- l1D.resp();
 					loadRes = extendLoad(loadResRaw, commitInst.addr, commitInst.ldFunc);
-	        	    rf.wr(fromMaybe(?, commitInst.dst), loadRes);
+	        	    rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
 	        	end else if(isValid(commitInst.dst)) begin
-					rf.wr(fromMaybe(?, commitInst.dst), commitInst.data);
+					rf[feID].wr(fromMaybe(?, commitInst.dst), commitInst.data);
 				end
 
 				if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
-					s0.redirect(Redirect{pc: wToken.pc, epoch:!wToken.epoch, nextPc: commitInst.addr,
-										   brType: commitInst.iType, taken: commitInst.brTaken, mispredict: commitInst.mispredict});
-					wbEpoch[0] <= !wbEpoch[0];
+					stream[feID].redirect(Redirect{
+											pc        : wToken.pc,
+											epoch     :!wToken.epoch,
+											nextPc    : commitInst.addr,
+										   	brType    : commitInst.iType,
+										   	taken     : commitInst.brTaken,
+										   	mispredict: commitInst.mispredict});
+					wbEpoch[feID][0] <= !wbEpoch[feID][0];
 				end
 
 				if (wb_ext_DEBUG == True) begin
 
 					if(commitInst.iType == J || commitInst.iType == Jr || commitInst.iType == Br) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
+														feID:    feID,
 														pc:      wToken.pc,
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
@@ -248,6 +270,7 @@ module mkCore6S(WideMem mem, Core ifc);
 														addr:    commitInst.addr});
 					end else if(commitInst.iType == Ld) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
+														feID:    feID,
 														pc:      wToken.pc,
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
@@ -256,6 +279,7 @@ module mkCore6S(WideMem mem, Core ifc);
 														addr:    commitInst.addr});
 					end else if(commitInst.iType == St) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
+														feID:    feID,
 														pc:      wToken.pc,
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
@@ -264,6 +288,7 @@ module mkCore6S(WideMem mem, Core ifc);
 														addr:    commitInst.addr});
 					end else begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
+														feID:    feID,
 														pc:      wToken.pc,
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
@@ -308,13 +333,32 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	endrule
 
+	//////////// PERFORMANCE CNT ////////////
+
+	rule cntCycles if (coreStarted);
+		numCycles <= numCycles+1;
+
+		if (perf_DEBUG == True) begin
+			$display("0x%h || F 0x%h | D 0x%h | R 0x%h | E 0x%h | M 0x%h | W 0x%h",
+				numCycles,
+				stream[0].currentPC(),
+				32'b0, //(decodeQ.notEmpty   == True? decodeQ.first().pc   : 0),
+				(regfetchQ[0].notEmpty == True? regfetchQ[0].first().pc : 0),
+				(executeQ[0].notEmpty  == True? executeQ[0].first().pc  : 0),
+				(memoryQ.notEmpty   == True? memoryQ.first().pc   : 0),
+				(wrbackQ.notEmpty   == True? wrbackQ.first().pc   : 0)
+				);
+		end
+
+	endrule
+
 
 	//////////// INTERFACE ////////////
 
-	method Action start (Addr spc);
+	method Action start (FrontID feID, Addr spc);
 
-		s0.start(spc);
-		wbEpoch[1] <= False;
+		stream [feID].start(spc);
+		wbEpoch[feID][1] <= False;
 
 		if(!coreStarted) begin
 			coreStarted <= True;
@@ -324,9 +368,9 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	endmethod
 
-	method Action evict();
+	method Action evict(FrontID feID);
 
-		s0.evict();
+		stream[feID].evict();
 
 	endmethod
 

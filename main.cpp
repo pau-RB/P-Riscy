@@ -36,8 +36,9 @@ class ToHost: public ToHostWrapper {
 
     public:
 
-        virtual void reportCMR (const uint32_t cycle, const uint32_t pc,  const uint32_t rawInst,
-                        const uint8_t iType, const uint8_t wbDst, const uint32_t wbRes,  const uint32_t addr) {
+        virtual void reportCMR (const uint32_t cycle, const uint8_t feID, const uint32_t pc,
+                                const uint32_t rawInst, const uint8_t iType, const uint8_t wbDst,
+                                const uint32_t wbRes,  const uint32_t addr) {
 
             // Get DUT commit
             CommitReport cmrDut;
@@ -50,17 +51,21 @@ class ToHost: public ToHostWrapper {
             cmrDut.wbRes   = wbRes   ;
             cmrDut.addr    = addr    ;
 
-            // Get Spike commit
-            CommitReport cmrSpike = spike->step();
+            if (feID == 0) {
 
-            // Check
-            tandem_compare(cmrSpike, cmrDut);
+                // Get Spike commit
+                CommitReport cmrSpike = spike->step();
 
-            // Print
-            if (PRINT_COMMIT) {
-                printCMRSpike(cmrSpike);
-                printCMRDut  (cmrDut);
-                printf("\n");
+                // Check
+                tandem_compare(cmrSpike, cmrDut);
+
+                // Print
+                if (PRINT_COMMIT) {
+                    printCMRSpike(cmrSpike);
+                    printCMRDut  (cmrDut);
+                    printf("\n");
+                }
+
             }
 
         }
@@ -116,7 +121,10 @@ int main(int argc, char * const *argv) {
         spike = new CustomSpike(path, MEM_MAX_ADDR);
 
     printf("------ Start core ------\n"); fflush(stdout);
-        connectalProc->startPC(StartPC);
+        connectalProc->startPC(0,StartPC);
+        connectalProc->startPC(1,StartPC);
+        connectalProc->startPC(2,StartPC);
+        connectalProc->startPC(3,StartPC);
 
     uint32_t sim_time = std::stoi(all_args[1]);
     usleep(sim_time*1000000);

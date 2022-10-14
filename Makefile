@@ -21,7 +21,8 @@ CPPFILES +=                          \
 
 CONNECTALFLAGS += --mainclockperiod=50
 #CONNECTALFLAGS += --verilog=ddr3_v2_0/
-CONNECTALFLAGS += --bscflags " -show-schedule"
+CONNECTALFLAGS += --bscflags="-show-schedule"
+CONNECTALFLAGS += --bscflags="+RTS -K250000000 -RTS"
 CONNECTALFLAGS += --cxxflags="-std=gnu++11                                    \
 							  -Wno-unused-variable -Wno-unused-function       \
 							  -I $(PWD)/testbench                             \

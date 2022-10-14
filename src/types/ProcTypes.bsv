@@ -15,6 +15,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 import Types::*;
+import Config::*;
 import FShow::*;
 
 // general purpose reg index
@@ -168,6 +169,7 @@ typedef struct {
 	Data        arg1;
 	Data        arg2;
 	Addr        pc;
+	FrontID     feID;
 	Bool        epoch;
 	Data        rawInst;
 } ExecToken deriving (Bits, Eq);
@@ -175,6 +177,7 @@ typedef struct {
 typedef struct {
 	ExecInst    inst;
 	Addr        pc;
+	FrontID     feID;
 	Bool        epoch;
 	Data        rawInst;
 } MemToken deriving (Bits, Eq);
@@ -182,33 +185,36 @@ typedef struct {
 typedef struct {
 	ExecInst    inst;
 	Addr        pc;
+	FrontID     feID;
 	Bool        epoch;
 	Data        rawInst;
 } WBToken deriving (Bits, Eq);
 
 typedef struct {
-    Addr pc;
-    Bool epoch;
-    Addr nextPc;
+    Addr  pc;
+    Bool  epoch;
+    Addr  nextPc;
     IType brType;
-    Bool taken;
-    Bool mispredict;
+    Bool  taken;
+    Bool  mispredict;
 } Redirect deriving (Bits, Eq, FShow);
 
 typedef struct {
-	Addr pc;
+	FrontID feID;
+	Addr    pc;
 	//Addr fp;
 	//??   RF;
 } ContToken deriving(Bits, Eq);
 
 typedef struct {
-	Data  cycle;
-	Addr  pc;
-	Data  rawInst;
-	IType iType;
-	RIndx wbDst;   // 0 if no wb
-	Data  wbRes;   // ALU/Load result
-	Addr  addr;    // nextpc for branch, addr for LSU
+	Data    cycle;
+	FrontID feID;
+	Addr    pc;
+	Data  	rawInst;
+	IType 	iType;
+	RIndx 	wbDst;   // 0 if no wb
+	Data  	wbRes;   // ALU/Load result
+	Addr  	addr;    // nextpc for branch, addr for LSU
 } CommitReport deriving (Bits, Eq);
 
 function Bool dataHazard(Maybe#(RIndx) src1, Maybe#(RIndx) src2, Maybe#(RIndx) dst);
