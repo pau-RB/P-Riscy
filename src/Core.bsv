@@ -1,21 +1,32 @@
-import Types::*;
-import ProcTypes::*;
-import Scoreboard::*;
-import decoder::*;
-import execution::*;
-import MemTypes::*;
-import MemUtil::*;
-import Cache::*;
-import Stream::*;
-import NTTX::*;
-import WideMemSplit::*;
-import RFile::*;
-import Fifo::*;
-import FIFO::*;
-import Vector::*;
-import Ehr::*;
 import FShow::*;
 import Config::*;
+
+// types
+import Types::*;
+import ProcTypes::*;
+import MemTypes::*;
+
+// include
+import Fifo::*;
+import Vector::*;
+import Ehr::*;
+
+// mem
+import MemUtil::*;
+import Cache::*;
+import WideMemSplit::*;
+
+// front
+import Decoder::*;
+import Stream::*;
+
+// back
+import Scoreboard::*;
+import RFile::*;
+import Execution::*;
+import NTTX::*;
+
+
 
 interface Core;
 

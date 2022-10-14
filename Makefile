@@ -5,10 +5,13 @@ H2S_INTERFACES = \
 	ConnectalWrapper:ToHost
 BSVFILES += \
 	src/Ifc.bsv
-BSVPATH += / \
-	src/ \
+BSVPATH += /    \
+	src/        \
 	src/include \
-	src/types \
+	src/types   \
+	src/memory  \
+	src/front   \
+	src/back    \
 	$(CONNECTALDIR)/bsv
 CPPFILES +=                          \
 	main.cpp                         \
