@@ -212,29 +212,45 @@ std::string interpreter(const Data uinst) {
 }
 
 void printCMRSpike(const CommitReport cmr) {
-    std::string phrase = " cycle:          | pc:          | iType:          | res:           ";
-    overwrite(phrase, std::to_string(cmr.cycle),  8, 8 );
-    overwrite(phrase,    uint_to_hex(cmr.pc   ), 23, 8 );
-    overwrite(phrase,     printIType(cmr.iType), 41, 8 );
+
+    std::string phrase = " [id:     ] cycle:          | pc:          | iType:          | res:           ";
+    std::string res;
+
     if (cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
-    	overwrite(phrase,    uint_to_hex(cmr.addr), 57, 8 );
+    	res = uint_to_hex(cmr.addr);
     else
-    	overwrite(phrase,    uint_to_hex(cmr.wbRes), 57, 8 );
+    	res = uint_to_hex(cmr.wbRes);
+
+    overwrite(phrase, std::to_string(cmr.feID ),  6, 3 );
+    overwrite(phrase, std::to_string(cmr.cycle), 19, 8 );
+    overwrite(phrase,    uint_to_hex(cmr.pc   ), 34, 8 );
+    overwrite(phrase,     printIType(cmr.iType), 52, 8 );
+    overwrite(phrase,                res       , 68, 8 );
+
     printf("\033[1;33m");
     printf("%s | %s\n", phrase.c_str(), interpreter(cmr.rawInst).c_str());
-    printf("\033[0m");
     fflush(stdout);
+    printf("\033[0m");
+
 }
 
 void printCMRDut(const CommitReport cmr) {
-    std::string phrase = " cycle:          | pc:          | iType:          | res:           ";
-    overwrite(phrase, std::to_string(cmr.cycle),  8, 8 );
-    overwrite(phrase,    uint_to_hex(cmr.pc   ), 23, 8 );
-    overwrite(phrase,     printIType(cmr.iType), 41, 8 );
+
+    std::string phrase = "            cycle:          | pc:          | iType:          | res:           ";
+    std::string res;
+
     if (cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
-    	overwrite(phrase,    uint_to_hex(cmr.addr), 57, 8 );
+    	res = uint_to_hex(cmr.addr);
     else
-    	overwrite(phrase,    uint_to_hex(cmr.wbRes), 57, 8 );
+    	res = uint_to_hex(cmr.wbRes);
+
+    overwrite(phrase, std::to_string(cmr.feID ),  6, 3 );
+    overwrite(phrase, std::to_string(cmr.cycle), 19, 8 );
+    overwrite(phrase,    uint_to_hex(cmr.pc   ), 34, 8 );
+    overwrite(phrase,     printIType(cmr.iType), 52, 8 );
+    overwrite(phrase,                res       , 68, 8 );
+
     printf("%s | %s\n", phrase.c_str(), interpreter(cmr.rawInst).c_str());
     fflush(stdout);
+
 }

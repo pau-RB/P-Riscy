@@ -44,6 +44,7 @@ class ToHost: public ToHostWrapper {
             CommitReport cmrDut;
 
             cmrDut.cycle   = cycle   ;
+            cmrDut.feID    = feID    ;
             cmrDut.pc      = pc      ;
             cmrDut.rawInst = rawInst ;
             cmrDut.iType   = iType   ;
