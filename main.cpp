@@ -52,21 +52,17 @@ class ToHost: public ToHostWrapper {
             cmrDut.wbRes   = wbRes   ;
             cmrDut.addr    = addr    ;
 
-            if (feID == 0) {
+            // Get Spike commit
+            CommitReport cmrSpike = spike->step(feID);
 
-                // Get Spike commit
-                CommitReport cmrSpike = spike->step();
+            // Check
+            tandem_compare(cmrSpike, cmrDut);
 
-                // Check
-                tandem_compare(cmrSpike, cmrDut);
-
-                // Print
-                if (PRINT_COMMIT) {
-                    printCMRSpike(cmrSpike);
-                    printCMRDut  (cmrDut);
-                    printf("\n");
-                }
-
+            // Print
+            if (PRINT_COMMIT) {
+                printCMRSpike(cmrSpike);
+                printCMRDut  (cmrDut);
+                printf("\n");
             }
 
         }

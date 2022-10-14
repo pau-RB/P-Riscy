@@ -244,7 +244,6 @@ void printCMRDut(const CommitReport cmr) {
     else
     	res = uint_to_hex(cmr.wbRes);
 
-    overwrite(phrase, std::to_string(cmr.feID ),  6, 3 );
     overwrite(phrase, std::to_string(cmr.cycle), 19, 8 );
     overwrite(phrase,    uint_to_hex(cmr.pc   ), 34, 8 );
     overwrite(phrase,     printIType(cmr.iType), 52, 8 );

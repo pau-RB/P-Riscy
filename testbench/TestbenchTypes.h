@@ -8,6 +8,8 @@
 
 #define StartPC 0x200
 
+#define FrontWidth 4
+
 typedef uint32_t Data;
 typedef uint32_t Addr;
 typedef uint8_t  FrontID;

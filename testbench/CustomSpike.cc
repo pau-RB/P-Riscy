@@ -24,23 +24,30 @@ CustomSpike::~CustomSpike() {
 CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
 	isa("RV32I", "m"),
 	sout_(nullptr),
-	proc(&isa, DEFAULT_VARCH, this, 0, false, NULL, sout_),
     lt(),
     st()
-			// processor_t(isa, varch, sim, id, halt_on_reset, log_file, sout_);
 {
 
 	sout_.rdbuf(std::cerr.rdbuf()); // debug output goes to stderr by default
+
+    for (FrontID i = 0; i < FrontWidth; ++i) {
+        proc.push_back(new processor_t(&isa, DEFAULT_VARCH, this, 0, false, NULL, sout_));
+                    // processor_t(isa, varch, sim, id, halt_on_reset, log_file, sout_);
+    }
 
 	mem_sz = memory_sz;
     mem    = (char*) calloc(memory_sz, 1);
 
     this->loadVMH(elf_file);
-    this->proc.set_mmu_capability(IMPL_MMU_SBARE);
-    this->proc.get_state()->pc = StartPC;
+
+    for(int i = 0; i < FrontWidth; ++i) {
+        this->proc[i]->set_mmu_capability(IMPL_MMU_SBARE);
+        this->proc[i]->get_state()->pc = StartPC;
+        this->proc[i]->get_mmu()->register_memtracer(&(this->lt));
+        this->proc[i]->get_mmu()->register_memtracer(&(this->st));
+    }
+
     this->cycleCnt = 0;
-    this->proc.get_mmu()->register_memtracer(&(this->lt));
-    this->proc.get_mmu()->register_memtracer(&(this->st));
 
 }
 
@@ -58,33 +65,34 @@ bool CustomSpike::mmio_store(reg_t addr, size_t len, const uint8_t* bytes) { ret
 const char* CustomSpike::get_symbol(uint64_t addr) { return ""; }
 
 
-CommitReport CustomSpike::step() {
+CommitReport CustomSpike::step(FrontID feID) {
 
 	CommitReport cmr;
 
 	// What instruction will I execute next?
 	cmr.cycle = this->cycleCnt;
-	cmr.pc    = this->proc.get_state()->pc;
+    cmr.feID  = feID;
+	cmr.pc    = this->proc[feID]->get_state()->pc;
 	try {
-		cmr.rawInst = (uint32_t) proc.get_mmu()->access_icache(cmr.pc)->data.insn.bits();
+		cmr.rawInst = (uint32_t) proc[feID]->get_mmu()->access_icache(cmr.pc)->data.insn.bits();
     } catch(...) {
         std::cout << "[ERROR] access_icache(0x" << std::hex << cmr.pc <<  ") failed even though there was no interrupt or exception for the current verification packet." << std::endl;
     }
     cmr.iType = getIType(cmr.rawInst);
 
     // Execute it
-    proc.step(1); cycleCnt++;
+    proc[feID]->step(1); cycleCnt++;
 
     // What is the result ?
     cmr.wbDst = (cmr.rawInst >> 7) & 0x1F;
-    cmr.wbRes = this->proc.get_state()->XPR[cmr.wbDst & 0x1F];
+    cmr.wbRes = this->proc[feID]->get_state()->XPR[cmr.wbDst & 0x1F];
 
     if(cmr.iType == iTypeLd)
         cmr.addr = this->lt.get_last_access();
     else if(cmr.iType == iTypeSt)
         cmr.addr = this->st.get_last_access();
     else if(cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
-        cmr.addr = this->proc.get_state()->pc;
+        cmr.addr = this->proc[feID]->get_state()->pc;
     else
         cmr.addr = 0;
     

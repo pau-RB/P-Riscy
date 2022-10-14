@@ -1,6 +1,8 @@
 #ifndef _CUSTOM_SPIKE_H
 #define _CUSTOM_SPIKE_H
 
+#include <vector>
+
 #include "simif.h"
 #include "processor.h"
 #include "LoadTracer.h"
@@ -21,12 +23,13 @@ class CustomSpike : public simif_t {
         const char* get_symbol(uint64_t addr);
 
         // custom
-       	CommitReport step();
+       	CommitReport step(FrontID feID);
 
     private:
         isa_parser_t isa;
         std::ostream sout_;
-        processor_t  proc;
+        std::vector<processor_t*> proc;
+
         char*        mem;
         size_t       mem_sz;
 
