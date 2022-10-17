@@ -356,10 +356,18 @@ module mkCore6S(WideMem mem, Core ifc);
 	rule cntCycles if (coreStarted && perf_DEBUG == True);
 		numCycles <= numCycles+1;
 
+		FrontID hart = rrfeID;
+		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+			if(!executeQ[hart].notEmpty()) begin
+				hart = hart+1;
+			end
+		end
+
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 
-			if(i == 0) $write("0x%h ", numCycles);
-			else       $write("           ");
+			     if(i == 0) $write("%d ", numCycles);
+			else if(i == 1) $write("%d ", numCommit);
+			else            $write("           ");
 
 			case (stream[i].currentState())
 				Full :   $write("|| Full  ");
@@ -370,10 +378,13 @@ module mkCore6S(WideMem mem, Core ifc);
 				default: $write("||       ");
 			endcase
 
-			$write("| F 0x%h |", stream[i].currentPC()   );
+			if(stream   [i].isl0Ihit) $write("h "); else $write("m ");
+			if(stream   [i].currentState() != Empty) $write("| F 0x%h |", stream[i].currentPC()); else $write("| F            |");
 			if(stream   [i].notEmpty) $write(" D 0x%h |", stream   [i].firstPC() ); else $write(" D            |");
 			if(regfetchQ[i].notEmpty) $write(" R 0x%h |", regfetchQ[i].first().pc); else $write(" R            |");
-			if(executeQ [i].notEmpty) $write(" E 0x%h |", executeQ [i].first().pc); else $write(" E            |");
+			if(executeQ [i].notEmpty && hart == fromInteger(i)) $write(" E 0x%h |", executeQ [i].first().pc);
+			else if(executeQ [i].notEmpty) $write("%c[2;97m E 0x%h %c[0;0m|", 27, executeQ [i].first().pc, 27);
+			else $write(" E            |");
 			
 			if(memoryQ.notEmpty && (memoryQ.first().feID == fromInteger(i))) $write(" M 0x%h |",  memoryQ.first().pc); else $write("              |");
 			
@@ -387,7 +398,7 @@ module mkCore6S(WideMem mem, Core ifc);
 			$display("");
 		end
 
-		$write("---------------------------------------------------------------------------------------------------------------\n");
+		$write("----------------------------------------------------------------------------------------------------------------\n");
 
 	endrule
 

@@ -32,6 +32,7 @@ interface Stream;
 	method StreamStatus           currentState();
 	method Addr                   firstPC();
 	method Bool                   notEmpty();
+	method Bool                   isl0Ihit();
 
 endinterface
 
@@ -199,6 +200,10 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	method Bool notEmpty();
 		return  inst.notEmpty();
+	endmethod
+
+	method Bool isl0Ihit();
+		return  l0Ihit;
 	endmethod
 
 endmodule
