@@ -30,6 +30,8 @@ interface Stream;
 
 	// Debug
 	method StreamStatus           currentState();
+	method Addr                   firstPC();
+	method Bool                   notEmpty();
 
 endinterface
 
@@ -38,7 +40,7 @@ endinterface
 module mkStream (WideMem l1I, Stream ifc);
 
 	Ehr#(2,StreamStatus)   state     <- mkEhr(Empty);
-	Ehr#(2,Addr)           pc        <- mkEhr(?);
+	Ehr#(2,Addr)           pc        <- mkEhr('0);
 	Reg#(Bool)             epoch     <- mkReg(False);
 
 	Fifo#(1,DecToken)      inst      <- mkStageFifo();
@@ -185,6 +187,18 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	method StreamStatus currentState();
 		return state[0];
+	endmethod
+
+	method Addr firstPC();
+		if(inst.notEmpty()) begin
+			return inst.first().pc;
+		end else begin
+			return '0;
+		end
+	endmethod
+
+	method Bool notEmpty();
+		return  inst.notEmpty();
 	endmethod
 
 endmodule

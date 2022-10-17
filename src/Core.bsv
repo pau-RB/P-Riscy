@@ -47,8 +47,8 @@ module mkCore6S(WideMem mem, Core ifc);
 	Reg#(Bool)            coreStarted    <- mkReg(False);
 	Reg#(Data)            numCommit      <- mkReg(0);
 	Reg#(Data)            numCycles      <- mkReg(0);
-	Fifo#(8,CommitReport) commitReportQ  <- mkPipelineFifo();
-	Fifo#(8,Data)         messageReportQ <- mkPipelineFifo();
+	Fifo#(80,CommitReport) commitReportQ  <- mkPipelineFifo();
+	Fifo#(80,Data)         messageReportQ <- mkPipelineFifo();
 
 
 	//////////// MEMORY ////////////
@@ -353,20 +353,41 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// PERFORMANCE CNT ////////////
 
-	rule cntCycles if (coreStarted);
+	rule cntCycles if (coreStarted && perf_DEBUG == True);
 		numCycles <= numCycles+1;
 
-		if (perf_DEBUG == True) begin
-			$display("0x%h || F 0x%h | D 0x%h | R 0x%h | E 0x%h | M 0x%h | W 0x%h",
-				numCycles,
-				stream[0].currentPC(),
-				32'b0, //(decodeQ.notEmpty   == True? decodeQ.first().pc   : 0),
-				(regfetchQ[0].notEmpty == True? regfetchQ[0].first().pc : 0),
-				(executeQ[0].notEmpty  == True? executeQ[0].first().pc  : 0),
-				(memoryQ.notEmpty   == True? memoryQ.first().pc   : 0),
-				(wrbackQ.notEmpty   == True? wrbackQ.first().pc   : 0)
-				);
+		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+
+			if(i == 0) $write("0x%h ", numCycles);
+			else       $write("           ");
+
+			case (stream[i].currentState())
+				Full :   $write("|| Full  ");
+				Evict:   $write("|| Evict ");
+				Ghost:   $write("|| Ghost ");
+				Dry  :   $write("|| Dry   ");
+				Empty:   $write("|| Empty ");
+				default: $write("||       ");
+			endcase
+
+			$write("| F 0x%h |", stream[i].currentPC()   );
+			if(stream   [i].notEmpty) $write(" D 0x%h |", stream   [i].firstPC() ); else $write(" D            |");
+			if(regfetchQ[i].notEmpty) $write(" R 0x%h |", regfetchQ[i].first().pc); else $write(" R            |");
+			if(executeQ [i].notEmpty) $write(" E 0x%h |", executeQ [i].first().pc); else $write(" E            |");
+			
+			if(memoryQ.notEmpty && (memoryQ.first().feID == fromInteger(i))) $write(" M 0x%h |",  memoryQ.first().pc); else $write("              |");
+			
+			if(wrbackQ.notEmpty && (wrbackQ.first().feID == fromInteger(i))) $write(" W 0x%h | ", wrbackQ.first().pc); else $write("              |");
+			if(wrbackQ.notEmpty && (wrbackQ.first().feID == fromInteger(i))) begin
+				$write("%c[1;33m",27);
+				$write("", showInst(wrbackQ.first().rawInst));
+				$write("%c[0m",27); 
+			end
+
+			$display("");
 		end
+
+		$write("---------------------------------------------------------------------------------------------------------------\n");
 
 	endrule
 
