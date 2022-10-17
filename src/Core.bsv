@@ -160,6 +160,12 @@ module mkCore6S(WideMem mem, Core ifc);
 
 		FrontID hart = rrfeID; rrfeID <= rrfeID+1;
 
+		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+			if(!executeQ[hart].notEmpty()) begin
+				hart = hart+1;
+			end
+		end
+
 		if (executeQ[hart].notEmpty()) begin
 
 			let eToken = executeQ[hart].first(); executeQ[hart].deq();
@@ -173,6 +179,7 @@ module mkCore6S(WideMem mem, Core ifc);
 							rawInst: eToken.rawInst};
 
 			memoryQ.enq(mToken);
+
 		end
 
 	endrule

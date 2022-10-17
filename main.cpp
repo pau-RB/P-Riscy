@@ -118,10 +118,8 @@ int main(int argc, char * const *argv) {
         spike = new CustomSpike(path, MEM_MAX_ADDR);
 
     printf("------ Start core ------\n"); fflush(stdout);
-        connectalProc->startPC(0,StartPC);
-        connectalProc->startPC(1,StartPC);
-        connectalProc->startPC(2,StartPC);
-        connectalProc->startPC(3,StartPC);
+        for(int i = 0; i < FrontWidth; ++i)
+            connectalProc->startPC(i,StartPC);
 
     uint32_t sim_time = std::stoi(all_args[1]);
     usleep(sim_time*1000000);
