@@ -6,8 +6,11 @@ import MemTypes::*;
 import Memory::*;
 import WideMemBRAM::*;
 import MemUtil::*;
+import CacheTypes::*;
 import Fifo::*;
 import Config::*;
+import Vector::*;
+
 
 interface ConnectalWrapper;
    interface FromHost connectProc;
@@ -15,9 +18,10 @@ endinterface
 
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
-   WideMem    mem     <- mkWideMemBRAM;
-   Core       dut     <- mkCore6S(mem);
-   Reg#(Bool) memInit <- mkReg(False);
+   WideMem                   mem        <- mkWideMemBRAM;
+   Core                      dut        <- mkCore6S(mem);
+   Reg#(Bool)                memInit    <- mkReg(False);
+   Fifo#(MTQ_LEN, ContToken) mainTokenQ <- mkBypassFifo();
 
    rule relayCMR;
 
@@ -33,6 +37,20 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
         Data msg <- dut.getMSG();
         ind.reportMSG(msg);
+
+   endrule
+
+   rule getContToken;
+
+      let t <- dut.getContToken();
+      mainTokenQ.enq(t);
+
+   endrule
+
+   rule putContToken;
+
+      let t = mainTokenQ.first(); mainTokenQ.deq();
+      dut.start(t);
 
    endrule
 
@@ -55,7 +73,11 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
       method Action startPC(Bit#(8) feID, Bit#(32) startpc) if(memInit);
 
-         dut.start(truncate(feID), startpc);
+         mainTokenQ.enq(ContToken{
+                           feID: truncate(feID),
+                           pc  : startpc,
+                           rfL : replicate('0),
+                           rfH : replicate('0)  });
 
       endmethod
 

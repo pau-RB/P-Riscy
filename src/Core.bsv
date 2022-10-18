@@ -3,8 +3,10 @@ import Config::*;
 
 // types
 import Types::*;
-import ProcTypes::*;
 import MemTypes::*;
+import ProcTypes::*;
+import CacheTypes::*;
+
 
 // include
 import Fifo::*;
@@ -30,7 +32,7 @@ import NTTX::*;
 
 interface Core;
 
-	method Action start(FrontID feID, Addr spc);
+	method Action start(ContToken token);
 	method Action evict(FrontID feID);
 	method Data   getNumCommit();
 
@@ -44,11 +46,11 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// EXT STATE ////////////
 
-	Reg#(Bool)            coreStarted    <- mkReg(False);
-	Reg#(Data)            numCommit      <- mkReg(0);
-	Reg#(Data)            numCycles      <- mkReg(0);
-	Fifo#(80,CommitReport) commitReportQ  <- mkPipelineFifo();
-	Fifo#(80,Data)         messageReportQ <- mkPipelineFifo();
+	Reg#(Bool)                  coreStarted    <- mkReg(False);
+	Reg#(Data)                  numCommit      <- mkReg(0);
+	Reg#(Data)                  numCycles      <- mkReg(0);
+	Fifo#(THQ_LEN,CommitReport) commitReportQ  <- mkPipelineFifo();
+	Fifo#(THQ_LEN,Data)         messageReportQ <- mkPipelineFifo();
 
 
 	//////////// MEMORY ////////////
@@ -232,7 +234,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// WRBACK ////////////
 
-	NTTX nttx <- mkNTTX();
+	NTTX nttx <- mkNTTX(rf);
 
 	rule do_wb;
 
@@ -410,10 +412,12 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// INTERFACE ////////////
 
-	method Action start (FrontID feID, Addr spc);
+	method Action start (ContToken token);
 
-		stream [feID].start(spc);
-		wbEpoch[feID][1] <= False;
+		stream [token.feID].start(token.pc);
+		rf     [token.feID].setL(token.rfL);
+		rf     [token.feID].setH(token.rfH);
+		wbEpoch[token.feID][1] <= False;
 
 		if(!coreStarted) begin
 			coreStarted <= True;

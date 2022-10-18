@@ -4,6 +4,10 @@ import MemTypes::*;
 import Config::*;
 import Fifo::*;
 import Ehr::*;
+import RFile::*;
+import Vector::*;
+
+
 
 interface NTTX;
 
@@ -13,12 +17,16 @@ interface NTTX;
 
 endinterface
 
-module mkNTTX (NTTX ifc);
+module mkNTTX (Vector#(FrontWidth, RFile) rf, NTTX ifc);
 
 	Fifo#(2,ContToken) out <- mkBypassFifo();
 
 	method Action evict(FrontID feID, Addr pc);
-		out.enq(ContToken{feID: feID, pc:pc});
+		out.enq(ContToken{
+					feID: feID,
+					pc  : pc,
+					rfL : rf[feID].getL(),
+					rfH : rf[feID].getH() });
 	endmethod
 
 	method Action deq();

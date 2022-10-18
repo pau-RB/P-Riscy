@@ -19,48 +19,80 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 import Types::*;
 import ProcTypes::*;
+import MemTypes::*;
 import Vector::*;
 import Ehr::*;
 import ConfigReg::*;
 
 interface RFile;
-    method Action wr( RIndx rindx, Data data );
-    method Data rd1( RIndx rindx );
-    method Data rd2( RIndx rindx );
+
+    // Batch access
+    method Action setL( CacheLine data );
+    method Action setH( CacheLine data );
+
+    // Individual access
+    method Action wr ( RIndx rindx, Data data );
+    method Data   rd1( RIndx rindx );
+    method Data   rd2( RIndx rindx );
+
+    // Batch access
+    method CacheLine getL();
+    method CacheLine getH();
+
 endinterface
 
-(* synthesize *)
-module mkRFile( RFile );
-    Vector#(32, Reg#(Data)) rfile <- replicateM(mkReg(0));
 
-    function Data read(RIndx rindx);
-        return rfile[rindx];
-    endfunction
-
-    method Action wr( RIndx rindx, Data data );
-        if(rindx!=0) begin
-            rfile[rindx] <= data;
-        end
-    endmethod
-
-    method Data rd1( RIndx rindx ) = read(rindx);
-    method Data rd2( RIndx rindx ) = read(rindx);
-endmodule
-
+// get < write < read < set
 (* synthesize *)
 module mkBypassRFile( RFile );
-    Vector#(32, Ehr#(2,Data)) rfile <- replicateM(mkEhr(0));
+
+    Vector#(32, Ehr#(4,Data)) rfile <- replicateM(mkEhr(0));
 
     function Data read(RIndx rindx);
-        return rfile[rindx][1];
+        if(rindx != 0)
+            return rfile[rindx][2];
+        else
+            return '0;
     endfunction
 
+    // Batch access
+    method Action setL ( CacheLine data );
+        for (Integer i = 0; i < valueOf(CacheLineWords); i=i+1) begin
+            rfile[i][3] <= data[i];
+        end
+    endmethod
+
+    method Action setH ( CacheLine data );
+        for (Integer i = 0; i < valueOf(CacheLineWords); i=i+1) begin
+            rfile[valueOf(CacheLineWords)+i][3] <= data[i];
+        end
+    endmethod
+
+    // Individual access
     method Action wr( RIndx rindx, Data data );
         if(rindx!=0) begin
-            rfile[rindx][0] <= data;
+            rfile[rindx][1] <= data;
         end
     endmethod
 
     method Data rd1( RIndx rindx ) = read(rindx);
     method Data rd2( RIndx rindx ) = read(rindx);
+
+    // Batch access
+    method CacheLine getL ();
+        CacheLine data;
+        for (Integer i = 0; i < valueOf(CacheLineWords); i=i+1) begin
+            data[i] = rfile[i][0];
+        end
+        return data;
+    endmethod
+
+    method CacheLine getH ();
+        CacheLine data;
+        for (Integer i = 0; i < valueOf(CacheLineWords); i=i+1) begin
+            data[i] = rfile[valueOf(CacheLineWords)+i][0];
+        end
+        return data;
+    endmethod
+
 endmodule

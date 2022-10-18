@@ -15,6 +15,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 import Types::*;
+import MemTypes::*;
 import Config::*;
 import FShow::*;
 
@@ -200,10 +201,10 @@ typedef struct {
 } Redirect deriving (Bits, Eq, FShow);
 
 typedef struct {
-	FrontID feID;
-	Addr    pc;
-	//Addr fp;
-	//??   RF;
+	FrontID   feID;
+	Addr      pc;
+	CacheLine rfL;
+	CacheLine rfH;
 } ContToken deriving(Bits, Eq);
 
 typedef struct {

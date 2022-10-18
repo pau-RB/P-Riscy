@@ -10,8 +10,12 @@ Bool msg_DEBUG     = False;
 Bool perf_DEBUG    = False;
 
 // MSG relay
-Addr msg_ADDR      = 'h10000;
-Addr max_ADDR      = 'h3fffc;
+typedef  80 THQ_LEN;
+Addr     msg_ADDR  = 'h10000;
+Addr     max_ADDR  = 'h3fffc;
+
+// Main Token Queue
+typedef 10 MTQ_LEN;
 
 // Core width
 typedef 4 FrontWidth;

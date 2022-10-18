@@ -1,5 +1,6 @@
 import Types::*;
 import MemTypes::*;
+import CacheTypes::*;
 import MemUtil::*;
 import FIFO::*;
 import Fifo::*;

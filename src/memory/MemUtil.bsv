@@ -1,9 +1,11 @@
 import Types::*;
 import ProcTypes::*;
 import MemTypes::*;
+import CacheTypes::*;
 import Fifo::*;
 import Vector::*;
 import Memory::*;
+
 
 function Data extendLoad( Data value, Addr addr, LoadFunc func );
 
