@@ -122,7 +122,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	Vector#(FrontWidth, RFile             ) rf       <- replicateM(mkBypassRFile       );
 	Vector#(FrontWidth, Scoreboard#(8)    ) sb       <- replicateM(mkPipelineScoreboard);
-	Vector#(FrontWidth, Fifo#(2,ExecToken)) executeQ <- replicateM(mkPipelineFifo()    );
+	Vector#(FrontWidth, Fifo#(1,ExecToken)) executeQ <- replicateM(mkStageFifo()       );
 
 	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
 
