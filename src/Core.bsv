@@ -353,52 +353,57 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// PERFORMANCE CNT ////////////
 
-	rule cntCycles if (coreStarted && perf_DEBUG == True);
+	rule do_cnt_cycles if(coreStarted);
+
 		numCycles <= numCycles+1;
 
-		FrontID hart = rrfeID;
-		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(!executeQ[hart].notEmpty()) begin
-				hart = hart+1;
+		if (perf_DEBUG == True) begin
+
+			FrontID hart = rrfeID;
+			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+				if(!executeQ[hart].notEmpty()) begin
+					hart = hart+1;
+				end
 			end
-		end
-
-		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-
-			     if(i == 0) $write("%d ", numCycles);
-			else if(i == 1) $write("%d ", numCommit);
-			else            $write("           ");
-
-			case (stream[i].currentState())
-				Full :   $write("|| Full  ");
-				Evict:   $write("|| Evict ");
-				Ghost:   $write("|| Ghost ");
-				Dry  :   $write("|| Dry   ");
-				Empty:   $write("|| Empty ");
-				default: $write("||       ");
-			endcase
-
-			if(stream   [i].isl0Ihit) $write("h "); else $write("m ");
-			if(stream   [i].currentState() != Empty) $write("| F 0x%h |", stream[i].currentPC()); else $write("| F            |");
-			if(stream   [i].notEmpty) $write(" D 0x%h |", stream   [i].firstPC() ); else $write(" D            |");
-			if(regfetchQ[i].notEmpty) $write(" R 0x%h |", regfetchQ[i].first().pc); else $write(" R            |");
-			if(executeQ [i].notEmpty && hart == fromInteger(i)) $write(" E 0x%h |", executeQ [i].first().pc);
-			else if(executeQ [i].notEmpty) $write("%c[2;97m E 0x%h %c[0;0m|", 27, executeQ [i].first().pc, 27);
-			else $write(" E            |");
 			
-			if(memoryQ.notEmpty && (memoryQ.first().feID == fromInteger(i))) $write(" M 0x%h |",  memoryQ.first().pc); else $write("              |");
-			
-			if(wrbackQ.notEmpty && (wrbackQ.first().feID == fromInteger(i))) $write(" W 0x%h | ", wrbackQ.first().pc); else $write("              |");
-			if(wrbackQ.notEmpty && (wrbackQ.first().feID == fromInteger(i))) begin
-				$write("%c[1;33m",27);
-				$write("", showInst(wrbackQ.first().rawInst));
-				$write("%c[0m",27); 
+			for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+
+				     if(i == 0) $write("%d ", numCycles);
+				else if(i == 1) $write("%d ", numCommit);
+				else            $write("           ");
+
+				case (stream[i].currentState())
+					Full :   $write("|| Full  ");
+					Evict:   $write("|| Evict ");
+					Ghost:   $write("|| Ghost ");
+					Dry  :   $write("|| Dry   ");
+					Empty:   $write("|| Empty ");
+					default: $write("||       ");
+				endcase
+
+				if(stream   [i].isl0Ihit) $write("h "); else $write("m ");
+				if(stream   [i].currentState() != Empty) $write("| F 0x%h |", stream[i].currentPC()); else $write("| F            |");
+				if(stream   [i].notEmpty) $write(" D 0x%h |", stream   [i].firstPC() ); else $write(" D            |");
+				if(regfetchQ[i].notEmpty) $write(" R 0x%h |", regfetchQ[i].first().pc); else $write(" R            |");
+				if(executeQ [i].notEmpty && hart == fromInteger(i)) $write(" E 0x%h |", executeQ [i].first().pc);
+				else if(executeQ [i].notEmpty) $write("%c[2;97m E 0x%h %c[0;0m|", 27, executeQ [i].first().pc, 27);
+				else $write(" E            |");
+				
+				if(memoryQ.notEmpty && (memoryQ.first().feID == fromInteger(i))) $write(" M 0x%h |",  memoryQ.first().pc); else $write("              |");
+				
+				if(wrbackQ.notEmpty && (wrbackQ.first().feID == fromInteger(i))) $write(" W 0x%h | ", wrbackQ.first().pc); else $write("              |");
+				if(wrbackQ.notEmpty && (wrbackQ.first().feID == fromInteger(i))) begin
+					$write("%c[1;33m",27);
+					$write("", showInst(wrbackQ.first().rawInst));
+					$write("%c[0m",27); 
+				end
+
+				$display("");
 			end
 
-			$display("");
-		end
+			$write("----------------------------------------------------------------------------------------------------------------\n");
 
-		$write("----------------------------------------------------------------------------------------------------------------\n");
+		end
 
 	endrule
 

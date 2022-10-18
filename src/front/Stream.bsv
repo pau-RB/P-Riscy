@@ -46,6 +46,7 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	Fifo#(1,DecToken)      inst      <- mkStageFifo();
 	Fifo#(1,Redirect)      redirectQ <- mkBypassFifo();
+	Fifo#(1,void)          dryQ      <- mkBypassFifo();
 	
 	Reg #(CacheLine)       l0I       <- mkRegU();
 	Reg #(CacheLineNum)    l0Iline   <- mkRegU();
@@ -152,7 +153,16 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	endrule
 
-	// 3 - Consider external requests
+	// 3 - Check if pipeline is flush
+
+	rule do_dry if(state[0] == Dry);
+
+		dryQ.deq();
+		state[0] <= Empty;
+
+	endrule
+
+	// 4 - Consider external requests
 
 	method Action start(Addr sPC) if(state[1] == Empty);
 		state [1] <= Full;
@@ -167,7 +177,7 @@ module mkStream (WideMem l1I, Stream ifc);
 
 
 	method Action backendDry()    if(state[0] == Dry);
-		state [0] <= Empty;
+		dryQ.enq(?);
 	endmethod
 
 
