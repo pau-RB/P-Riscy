@@ -7,6 +7,8 @@
 #include "processor.h"
 #include "LoadTracer.h"
 #include "StoreTracer.h"
+#include "TestbenchTypes.h"
+#include "Tandem.h"
 
 class CustomSpike : public simif_t {
     public:
@@ -23,12 +25,12 @@ class CustomSpike : public simif_t {
         const char* get_symbol(uint64_t addr);
 
         // custom
-       	CommitReport step(FrontID feID);
+       	CommitReport step(VerifID feID);
 
     private:
         isa_parser_t isa;
         std::ostream sout_;
-        std::vector<processor_t*> proc;
+        std::map<VerifID, processor_t*> proc;
 
         char*        mem;
         size_t       mem_sz;
@@ -37,7 +39,9 @@ class CustomSpike : public simif_t {
         loadTracer   lt;
         storeTracer  st;
 
-        void  loadVMH(std::string path);
+        void load_vmh(std::string path);
+        void add_proc(VerifID id);
+        void remove_proc(VerifID id);
 
 };
 

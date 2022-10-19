@@ -17,7 +17,11 @@ enum tandem_mm{
 	addr
 };
 
+void tandem_warning(std::string msg);
+
 void tandem_report(std::string msg);
+
+void tandem_data(std::string msg, uint32_t data);
 
 tandem_mm tandem_compare(CommitReport spike, CommitReport dut);
 

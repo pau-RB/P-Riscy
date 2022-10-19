@@ -221,11 +221,11 @@ void printCMRSpike(const CommitReport cmr) {
     else
     	res = uint_to_hex(cmr.wbRes);
 
-    overwrite(phrase, std::to_string(cmr.feID ),  6, 3 );
-    overwrite(phrase, std::to_string(cmr.cycle), 19, 8 );
-    overwrite(phrase,    uint_to_hex(cmr.pc   ), 34, 8 );
-    overwrite(phrase,     printIType(cmr.iType), 52, 8 );
-    overwrite(phrase,                res       , 70, 8 );
+    overwrite(phrase, std::to_string(cmr.verifID ),  6, 3 );
+    overwrite(phrase, std::to_string(cmr.cycle   ), 19, 8 );
+    overwrite(phrase,    uint_to_hex(cmr.pc      ), 34, 8 );
+    overwrite(phrase,     printIType(cmr.iType   ), 52, 8 );
+    overwrite(phrase,                res          , 70, 8 );
 
     printf("\033[1;33m");
     printf("%s | %s\n", phrase.c_str(), interpreter(cmr.rawInst).c_str());

@@ -201,7 +201,7 @@ typedef struct {
 } Redirect deriving (Bits, Eq, FShow);
 
 typedef struct {
-	FrontID   feID;
+	VerifID   verifID;
 	Addr      pc;
 	CacheLine rfL;
 	CacheLine rfH;
@@ -209,7 +209,7 @@ typedef struct {
 
 typedef struct {
 	Data    cycle;
-	FrontID feID;
+	VerifID verifID;
 	Addr    pc;
 	Data  	rawInst;
 	IType 	iType;

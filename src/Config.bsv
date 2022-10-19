@@ -20,3 +20,6 @@ typedef 10 MTQ_LEN;
 // Core width
 typedef 4 FrontWidth;
 typedef Bit#(TLog#(FrontWidth)) FrontID;
+
+// Verification
+typedef Bit#(32) VerifID;

@@ -2,6 +2,7 @@
 #include <string>
 #include <fstream>
 #include <vector>
+#include <map>
 #include <pthread.h>
 
 // Testbench
@@ -10,6 +11,7 @@
 #include "LoadTracer.h"
 #include "StoreTracer.h"
 #include "CustomSpike.h"
+#include "Tandem.h"
 
 // Spike
 #include "config.h"
@@ -30,22 +32,10 @@ CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
 
 	sout_.rdbuf(std::cerr.rdbuf()); // debug output goes to stderr by default
 
-    for (FrontID i = 0; i < FrontWidth; ++i) {
-        proc.push_back(new processor_t(&isa, DEFAULT_VARCH, this, 0, false, NULL, sout_));
-                    // processor_t(isa, varch, sim, id, halt_on_reset, log_file, sout_);
-    }
-
 	mem_sz = memory_sz;
     mem    = (char*) calloc(memory_sz, 1);
 
-    this->loadVMH(elf_file);
-
-    for(int i = 0; i < FrontWidth; ++i) {
-        this->proc[i]->set_mmu_capability(IMPL_MMU_SBARE);
-        this->proc[i]->get_state()->pc = StartPC;
-        this->proc[i]->get_mmu()->register_memtracer(&(this->lt));
-        this->proc[i]->get_mmu()->register_memtracer(&(this->st));
-    }
+    this->load_vmh(elf_file);
 
     this->cycleCnt = 0;
 
@@ -65,34 +55,39 @@ bool CustomSpike::mmio_store(reg_t addr, size_t len, const uint8_t* bytes) { ret
 const char* CustomSpike::get_symbol(uint64_t addr) { return ""; }
 
 
-CommitReport CustomSpike::step(FrontID feID) {
+CommitReport CustomSpike::step(VerifID verifID) {
+
+    if(!proc.count(verifID)) {
+        this->add_proc(verifID);
+        tandem_warning("New thread added to spike!");
+    }
 
 	CommitReport cmr;
 
 	// What instruction will I execute next?
-	cmr.cycle = this->cycleCnt;
-    cmr.feID  = feID;
-	cmr.pc    = this->proc[feID]->get_state()->pc;
+	cmr.cycle   = this->cycleCnt;
+    cmr.verifID = verifID;
+	cmr.pc      = this->proc[verifID]->get_state()->pc;
 	try {
-		cmr.rawInst = (uint32_t) proc[feID]->get_mmu()->access_icache(cmr.pc)->data.insn.bits();
+		cmr.rawInst = (uint32_t) proc[verifID]->get_mmu()->access_icache(cmr.pc)->data.insn.bits();
     } catch(...) {
         std::cout << "[ERROR] access_icache(0x" << std::hex << cmr.pc <<  ") failed even though there was no interrupt or exception for the current verification packet." << std::endl;
     }
     cmr.iType = getIType(cmr.rawInst);
 
     // Execute it
-    proc[feID]->step(1); cycleCnt++;
+    proc[verifID]->step(1); cycleCnt++;
 
     // What is the result ?
     cmr.wbDst = (cmr.rawInst >> 7) & 0x1F;
-    cmr.wbRes = this->proc[feID]->get_state()->XPR[cmr.wbDst & 0x1F];
+    cmr.wbRes = this->proc[verifID]->get_state()->XPR[cmr.wbDst & 0x1F];
 
     if(cmr.iType == iTypeLd)
         cmr.addr = this->lt.get_last_access();
     else if(cmr.iType == iTypeSt)
         cmr.addr = this->st.get_last_access();
     else if(cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
-        cmr.addr = this->proc[feID]->get_state()->pc;
+        cmr.addr = this->proc[verifID]->get_state()->pc;
     else
         cmr.addr = 0;
     
@@ -100,7 +95,7 @@ CommitReport CustomSpike::step(FrontID feID) {
 
 }
 
-void CustomSpike::loadVMH(std::string path) {
+void CustomSpike::load_vmh(std::string path) {
 
     std::ifstream srcfile; srcfile.open(path,std::fstream::in|std::fstream::out|std::fstream::app);
 	std::string aux; srcfile >> aux;
@@ -109,6 +104,32 @@ void CustomSpike::loadVMH(std::string path) {
     for (uint32_t addr = 0; addr < MEM_MAX_ADDR; addr=addr+4) {
         srcfile >> std::hex >> word;
         memcpy(((char*) mem) + addr, &word, 4);
+    }
+
+}
+
+void CustomSpike::add_proc(VerifID verifID) {
+
+    processor_t *new_proc = new processor_t(&isa, DEFAULT_VARCH, this, 0, false, NULL, sout_);
+                            // processor_t(isa, varch, sim, id, halt_on_reset, log_file, sout_);
+
+    new_proc->set_mmu_capability(IMPL_MMU_SBARE);
+    new_proc->get_state()->pc = StartPC;
+    new_proc->get_mmu()->register_memtracer(&(this->lt));
+    new_proc->get_mmu()->register_memtracer(&(this->st));
+
+    proc.insert ( std::pair<VerifID,processor_t*>(verifID, new_proc) );
+
+}
+
+void CustomSpike::remove_proc(VerifID verifID) {
+
+    if(proc.count(verifID)) {
+
+        processor_t *old_proc = proc[verifID];
+        delete old_proc;
+        proc.erase ( verifID );
+
     }
 
 }

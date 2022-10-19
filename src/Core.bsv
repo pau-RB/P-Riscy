@@ -1,5 +1,6 @@
 import FShow::*;
 import Config::*;
+import VerifMaster::*;
 
 // types
 import Types::*;
@@ -32,8 +33,9 @@ import NTTX::*;
 
 interface Core;
 
-	method Action start(ContToken token);
+	method Action start (FrontID feID, ContToken token);
 	method Action evict(FrontID feID);
+	method Bool   available(FrontID feID);
 	method Data   getNumCommit();
 
 	method ActionValue#(ContToken)    getContToken();
@@ -42,7 +44,7 @@ interface Core;
 
 endinterface
 
-module mkCore6S(WideMem mem, Core ifc);
+module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	//////////// EXT STATE ////////////
 
@@ -234,7 +236,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// WRBACK ////////////
 
-	NTTX nttx <- mkNTTX(rf);
+	NTTX nttx <- mkNTTX(rf, verif);
 
 	rule do_wb;
 
@@ -281,7 +283,7 @@ module mkCore6S(WideMem mem, Core ifc);
 
 					if(commitInst.iType == J || commitInst.iType == Jr || commitInst.iType == Br) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
-														feID:    feID,
+														verifID: verif.getVerifID(feID),
 														pc:      wToken.pc,
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
@@ -290,7 +292,7 @@ module mkCore6S(WideMem mem, Core ifc);
 														addr:    commitInst.addr});
 					end else if(commitInst.iType == Ld) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
-														feID:    feID,
+														verifID: verif.getVerifID(feID),
 														pc:      wToken.pc,
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
@@ -299,7 +301,7 @@ module mkCore6S(WideMem mem, Core ifc);
 														addr:    commitInst.addr});
 					end else if(commitInst.iType == St) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
-														feID:    feID,
+														verifID: verif.getVerifID(feID),
 														pc:      wToken.pc,
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
@@ -308,7 +310,7 @@ module mkCore6S(WideMem mem, Core ifc);
 														addr:    commitInst.addr});
 					end else begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
-														feID:    feID,
+														verifID: verif.getVerifID(feID),
 														pc:      wToken.pc,
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
@@ -374,6 +376,8 @@ module mkCore6S(WideMem mem, Core ifc);
 				else if(i == 1) $write("%d ", numCommit);
 				else            $write("           ");
 
+				if(stream[i].currentState() != Empty) $write("|| %d ", verif.getVerifID(fromInteger(i))); else $write("||            ");
+
 				case (stream[i].currentState())
 					Full :   $write("|| Full  ");
 					Evict:   $write("|| Evict ");
@@ -403,7 +407,7 @@ module mkCore6S(WideMem mem, Core ifc);
 				$display("");
 			end
 
-			$write("----------------------------------------------------------------------------------------------------------------\n");
+			$write("------------------------------------------------------------------------------------------------------------------------------\n");
 
 		end
 
@@ -412,12 +416,14 @@ module mkCore6S(WideMem mem, Core ifc);
 
 	//////////// INTERFACE ////////////
 
-	method Action start (ContToken token);
+	method Action start (FrontID feID, ContToken token);
 
-		stream [token.feID].start(token.pc);
-		rf     [token.feID].setL(token.rfL);
-		rf     [token.feID].setH(token.rfH);
-		wbEpoch[token.feID][1] <= False;
+		stream [feID].start(token.pc );
+		rf     [feID].setL (token.rfL);
+		rf     [feID].setH (token.rfH);
+		wbEpoch[feID][1] <= False;
+
+		verif.setVerifID(feID, token.verifID);
 
 		if(!coreStarted) begin
 			coreStarted <= True;
@@ -430,6 +436,12 @@ module mkCore6S(WideMem mem, Core ifc);
 	method Action evict(FrontID feID);
 
 		stream[feID].evict();
+
+	endmethod
+
+	method Bool available(FrontID feID);
+
+		return (stream[feID].currentState() == Empty);
 
 	endmethod
 

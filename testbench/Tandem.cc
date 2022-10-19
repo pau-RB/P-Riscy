@@ -1,5 +1,11 @@
 #include "Tandem.h"
 
+void tandem_warning(std::string msg) {
+	printf("------------------------ ");
+    printf("%s", msg.c_str());
+	printf(" ------------------------\n");
+}
+
 void tandem_report(std::string msg) {
 	printf("\033[1;31m");
 	printf("------------------------ ");

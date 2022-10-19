@@ -1,5 +1,6 @@
 import Ifc::*;
 import Core::*; 
+import VerifMaster::*;
 import Types::*;
 import ProcTypes::*;
 import MemTypes::*;
@@ -19,17 +20,17 @@ endinterface
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
    WideMem                   mem        <- mkWideMemBRAM;
-   Core                      dut        <- mkCore6S(mem);
+   VerifMaster               verif      <- mkVerifMaster;
+   Core                      dut        <- mkCore6S(mem, verif);
    Reg#(Bool)                memInit    <- mkReg(False);
    Fifo#(MTQ_LEN, ContToken) mainTokenQ <- mkBypassFifo();
 
    rule relayCMR;
 
 	     CommitReport cmr <- dut.getCMR();
-        Bit#(8) feID  = zeroExtend(pack(cmr.feID));
         Bit#(8) iType = zeroExtend(pack(cmr.iType));
         Bit#(8) wbDst = zeroExtend(pack(cmr.wbDst));
-        ind.reportCMR(cmr.cycle, feID, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
+        ind.reportCMR(cmr.cycle, cmr.verifID, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
 
    endrule
 
@@ -37,6 +38,14 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
         Data msg <- dut.getMSG();
         ind.reportMSG(msg);
+
+   endrule
+
+   rule doEvict if((dut.getNumCommit()%100) == 80);
+
+      for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+         dut.evict(fromInteger(i));
+      end
 
    endrule
 
@@ -49,8 +58,16 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
    rule putContToken;
 
+      FrontID hart = 0;
+
+      for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+         if(!dut.available(hart)) begin
+            hart = hart+1;
+         end
+      end
+
       let t = mainTokenQ.first(); mainTokenQ.deq();
-      dut.start(t);
+      dut.start(hart,t);
 
    endrule
 
@@ -71,13 +88,15 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
       endmethod
 
-      method Action startPC(Bit#(8) feID, Bit#(32) startpc) if(memInit);
+      method Action startPC(Bit#(32) startpc) if(memInit);
+
+         VerifID verifID <- verif.newVerifID();
 
          mainTokenQ.enq(ContToken{
-                           feID: truncate(feID),
-                           pc  : startpc,
-                           rfL : replicate('0),
-                           rfH : replicate('0)  });
+                           verifID: verifID,
+                           pc     : startpc,
+                           rfL    : replicate('0),
+                           rfH    : replicate('0)  });
 
       endmethod
 
