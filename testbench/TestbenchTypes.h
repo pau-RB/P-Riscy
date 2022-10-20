@@ -7,6 +7,7 @@
 #define MEM_MAX_ADDR (1<<WMBAddrSz)*CacheLineBytes
 
 #define StartPC 0x200
+#define StartFP 0x800
 
 typedef uint32_t Data;
 typedef uint32_t Addr;
@@ -18,6 +19,7 @@ typedef struct {
 	Data    cycle;
 	VerifID verifID;
 	Addr    pc;
+	Addr    fp;
 	Data    rawInst;
 	IType   iType;
 	RIndx   wbDst;   // 0 if no wb

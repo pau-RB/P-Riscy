@@ -13,9 +13,10 @@ import VerifMaster::*;
 
 interface NTTX;
 
-	method Action    evict(FrontID feID, Addr pc);
-	method Action    deq;
-    method ContToken first;
+	method Action                evict(FrontID feID, Addr pc, Addr fp);
+	method ActionValue#(VerifID) efork(FrontID feID, Addr pc, Addr fp);
+	method Action                deq;
+    method ContToken             first;
 
 endinterface
 
@@ -23,12 +24,24 @@ module mkNTTX (Vector#(FrontWidth, RFile) rf, VerifMaster verif, NTTX ifc);
 
 	Fifo#(2,ContToken) out <- mkBypassFifo();
 
-	method Action evict(FrontID feID, Addr pc);
+	method Action evict(FrontID feID, Addr pc, Addr fp);
 		out.enq(ContToken{
 					verifID: verif.getVerifID(feID),
 					pc     : pc,
+					fp     : fp,
 					rfL    : rf[feID].getL(),
 					rfH    : rf[feID].getH() });
+	endmethod
+
+	method ActionValue#(VerifID) efork(FrontID feID, Addr pc, Addr fp);
+		VerifID child <- verif.newVerifID();
+		out.enq(ContToken{
+					verifID: child,
+					pc     : pc,
+					fp     : fp,
+					rfL    : rf[feID].getL(),
+					rfH    : rf[feID].getH() });
+		return child;
 	endmethod
 
 	method Action deq();

@@ -33,7 +33,7 @@ import NTTX::*;
 
 interface Core;
 
-	method Action start (FrontID feID, ContToken token);
+	method Action start(FrontID feID, ContToken token);
 	method Action evict(FrontID feID);
 	method Bool   available(FrontID feID);
 	method Data   getNumCommit();
@@ -94,9 +94,11 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				                   		imm    : tagged Invalid};
 
 				Addr        pc      = dToken.pc;
+				Addr        fp      = dToken.fp;
 				RFToken     rfToken = RFToken{
 										inst   : decInst,
 										pc     : pc,
+										fp     : fp,
 										epoch  : dToken.epoch,
 										rawInst: inst};
 
@@ -107,9 +109,11 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				DecodedInst decInst = decode(inst);
 
 				Addr        pc      = dToken.pc;
+				Addr        fp      = dToken.fp;
 				RFToken     rfToken = RFToken{
 										inst   : decInst,
 										pc     : pc,
+										fp     : fp,
 										epoch  : dToken.epoch,
 										rawInst: inst};
 
@@ -142,6 +146,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 							arg1   : arg1,
 							arg2   : arg2,
 							pc     : rfToken.pc,
+							fp     : rfToken.fp,
 							feID   : fromInteger(i),
 							epoch  : rfToken.epoch,
 							rawInst: rfToken.rawInst};
@@ -180,6 +185,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			let mToken   = MemToken{
 							inst   : execInst,
 							pc     : eToken.pc,
+							fp     : eToken.fp,
 							feID   : eToken.feID,
 							epoch  : eToken.epoch,
 							rawInst: eToken.rawInst};
@@ -227,6 +233,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		let wToken   = WBToken{
 							inst: execInst,
 							pc: mToken.pc,
+							fp: mToken.fp,
 							feID: mToken.feID,
 							epoch: mToken.epoch,
 							rawInst: mToken.rawInst};
@@ -253,7 +260,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 			if(commitInst.iType == Ghost) begin
 
-				nttx.evict(feID, wToken.pc);
+				nttx.evict(feID, wToken.pc, wToken.pc);
 				stream[feID].backendDry();
 
 			end else begin
@@ -286,7 +293,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					if(commitInst.iType == J || commitInst.iType == Jr || commitInst.iType == Br) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
 														verifID: verif.getVerifID(feID),
+														child:   '0,
 														pc:      wToken.pc,
+														fp:      wToken.fp,
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
 														wbDst:   '0,
@@ -295,7 +304,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					end else if(commitInst.iType == Ld) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
 														verifID: verif.getVerifID(feID),
+														child:   '0,
 														pc:      wToken.pc,
+														fp:      wToken.fp,
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
 														wbDst:   fromMaybe('0,commitInst.dst),
@@ -304,7 +315,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					end else if(commitInst.iType == St) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
 														verifID: verif.getVerifID(feID),
+														child:   '0,
 														pc:      wToken.pc,
+														fp:      wToken.fp,
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
 														wbDst:   '0,
@@ -313,7 +326,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					end else begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
 														verifID: verif.getVerifID(feID),
+														child:   '0,
 														pc:      wToken.pc,
+														fp:      wToken.fp,
 														rawInst: wToken.rawInst,
 														iType:   commitInst.iType,
 														wbDst:   fromMaybe('0,commitInst.dst),
@@ -378,7 +393,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				else if(i == 1) $write("%d ", numCommit);
 				else            $write("           ");
 
-				if(stream[i].currentState() != Empty) $write("|| %d ", verif.getVerifID(fromInteger(i))); else $write("||            ");
+				if(stream[i].currentState() != Empty) $write("|| vID %4d ", verif.getVerifID(fromInteger(i))); else $write("||          ");
+				if(stream[i].currentState() != Empty) $write("|| FP 0x%h ", stream[i].currentFP()); else $write("||               ");
 
 				case (stream[i].currentState())
 					Full :   $write("|| Full  ");
@@ -391,7 +407,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 				if(stream   [i].isl0Ihit) $write("h "); else $write("m ");
 				if(stream   [i].currentState() != Empty) $write("| F 0x%h |", stream[i].currentPC()); else $write("| F            |");
-				if(stream   [i].notEmpty) $write(" D 0x%h |", stream   [i].firstPC() ); else $write(" D            |");
+				if(stream   [i].notEmpty) $write(" D 0x%h |", stream   [i].decodePC() ); else $write(" D            |");
 				if(regfetchQ[i].notEmpty) $write(" R 0x%h |", regfetchQ[i].first().pc); else $write(" R            |");
 				if(executeQ [i].notEmpty && hart == fromInteger(i)) $write(" E 0x%h |", executeQ [i].first().pc);
 				else if(executeQ [i].notEmpty) $write("%c[2;97m E 0x%h %c[0;0m|", 27, executeQ [i].first().pc, 27);
@@ -409,7 +425,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				$display("");
 			end
 
-			$write("------------------------------------------------------------------------------------------------------------------------------\n");
+			$write("---------------------------------------------------------------------------------------------------------------------------------------------\n");
 
 		end
 
@@ -420,7 +436,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	method Action start (FrontID feID, ContToken token);
 
-		stream [feID].start(token.pc );
+		stream [feID].start(token.pc, token.fp);
 		rf     [feID].setL (token.rfL);
 		rf     [feID].setH (token.rfH);
 		wbEpoch[feID][1] <= False;

@@ -31,6 +31,7 @@ class CustomSpike : public simif_t {
         isa_parser_t isa;
         std::ostream sout_;
         std::map<VerifID, processor_t*> proc;
+        std::map<VerifID, Addr> fp;
 
         char*        mem;
         size_t       mem_sz;
@@ -40,7 +41,7 @@ class CustomSpike : public simif_t {
         storeTracer  st;
 
         void load_vmh(std::string path);
-        void add_proc(VerifID id);
+        void add_proc(VerifID id, Addr pc, Addr fp);
         void remove_proc(VerifID id);
 
 };

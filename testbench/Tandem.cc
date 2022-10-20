@@ -29,6 +29,11 @@ tandem_mm tandem_compare(CommitReport spike, CommitReport dut) {
 		return tandem_mm::pc;
 	}
 
+	if(dut.fp != spike.fp) {
+		tandem_report("PC mismatch!");
+		return tandem_mm::pc;
+	}
+
 	if(dut.rawInst != spike.rawInst) {
 		tandem_report("Raw instruction mismatch!");
 		return tandem_mm::rawInst;
