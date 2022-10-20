@@ -36,11 +36,12 @@ interface Stream;
 
 endinterface
 
-// {Redirect, Fetch} < Thread control
+// evict < {Redirect, Fetch} < l1I_resp < l1I_req < do_dry < start
 // Redirect C Fetch
+// Redirect C do_dry
 module mkStream (WideMem l1I, Stream ifc);
 
-	Ehr#(2,StreamStatus)   state     <- mkEhr(Empty);
+	Ehr#(3,StreamStatus)   state     <- mkEhr(Empty);
 	Ehr#(2,Addr)           pc        <- mkEhr('0);
 	Reg#(Bool)             epoch     <- mkReg(False);
 
@@ -89,15 +90,15 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	// 1 - Consider redirect
 
-	rule do_redirect if (state[0] == Full || state[0] == Evict || state[0] == Ghost || state[0] == Dry);
+	rule do_redirect if (state[1] == Full || state[1] == Evict || state[1] == Ghost || state[1] == Dry);
 
 		// Do redirect
 		let redirect = redirectQ.first(); redirectQ.deq();
 		pc[0] <= redirect.nextPc;
 		epoch <= redirect.epoch;
 
-		if(state[0] == Evict || state[0] == Dry) begin
-			state[0] <= Ghost;
+		if(state[1] == Evict || state[1] == Dry) begin
+			state[1] <= Ghost;
 		end
 
 	endrule
@@ -105,9 +106,9 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	// 2 - Try to fetch
 
-	rule do_fetch if ((state[0] == Full && l0Ihit) || state[0] == Evict || state[0] == Ghost);
+	rule do_fetch if ((state[1] == Full && l0Ihit) || state[1] == Evict || state[1] == Ghost);
 
-		if(state[0] == Full && l0Ihit) begin
+		if(state[1] == Full && l0Ihit) begin
 
 			// Fetch real instruction
 			CacheWordSelect wordSelect = truncate(pc[0] >> 2);
@@ -117,7 +118,7 @@ module mkStream (WideMem l1I, Stream ifc);
 							   epoch: epoch});
 			pc[0] <= pc[0]+4;
 
-		end else if (state[0] == Evict) begin
+		end else if (state[1] == Evict) begin
 			
 			if(l0Ihit) begin
 
@@ -132,7 +133,7 @@ module mkStream (WideMem l1I, Stream ifc);
 			end else begin
 				
 				// Fetch ghost
-				state[0] <= Dry;
+				state[1] <= Dry;
 				inst.enq(DecToken{ inst:  ?,
 								   pc:    pc[0],
 								   ghost: True,
@@ -143,7 +144,7 @@ module mkStream (WideMem l1I, Stream ifc);
 		end else begin
 			
 			// Fetch ghost
-			state[0] <= Dry;
+			state[1] <= Dry;
 			inst.enq(DecToken{ inst:  ?,
 							   pc:    pc[0],
 							   ghost: True,
@@ -155,17 +156,17 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	// 3 - Check if pipeline is flush
 
-	rule do_dry if(state[0] == Dry);
+	rule do_dry if(state[1] == Dry);
 
 		dryQ.deq();
-		state[0] <= Empty;
+		state[1] <= Empty;
 
 	endrule
 
 	// 4 - Consider external requests
 
-	method Action start(Addr sPC) if(state[1] == Empty);
-		state [1] <= Full;
+	method Action start(Addr sPC) if(state[2] == Empty);
+		state [2] <= Full;
 		pc[1]     <= sPC;
 		epoch     <= False;
 	endmethod
@@ -176,7 +177,7 @@ module mkStream (WideMem l1I, Stream ifc);
 	endmethod
 
 
-	method Action backendDry()    if(state[0] == Dry);
+	method Action backendDry()    if(state[1] == Dry);
 		dryQ.enq(?);
 	endmethod
 
