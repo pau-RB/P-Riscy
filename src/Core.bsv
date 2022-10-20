@@ -441,7 +441,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	method Bool available(FrontID feID);
 
-		return (stream[feID].currentState() == Empty);
+		return stream[feID].available();
 
 	endmethod
 

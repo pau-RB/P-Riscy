@@ -23,6 +23,7 @@ interface Stream;
 	method Action                 redirect(Redirect r);
 
 	// Thread control
+	method Bool                   available();
 	method Action                 start(Addr sPC);
 	method Action                 evict();
 	method Action                 backendDry();
@@ -164,6 +165,10 @@ module mkStream (WideMem l1I, Stream ifc);
 	endrule
 
 	// 4 - Consider external requests
+
+	method Bool available();
+		return (state[2] == Empty);
+	endmethod
 
 	method Action start(Addr sPC) if(state[2] == Empty);
 		state [2] <= Full;
