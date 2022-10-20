@@ -162,13 +162,15 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	rule do_execute;
 
-		FrontID hart = rrfeID; rrfeID <= rrfeID+1;
+		FrontID hart = rrfeID;
 
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 			if(!executeQ[hart].notEmpty()) begin
 				hart = hart+1;
 			end
 		end
+
+		rrfeID <= hart+1;
 
 		if (executeQ[hart].notEmpty()) begin
 
