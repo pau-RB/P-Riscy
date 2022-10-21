@@ -58,7 +58,7 @@ const char* CustomSpike::get_symbol(uint64_t addr) { return ""; }
 CommitReport CustomSpike::step(VerifID verifID) {
 
     if(!proc.count(verifID)) {
-        this->add_proc(verifID, StartPC, StartFP);
+        this->add_proc(verifID);
         tandem_warning("New thread added to spike!");
     }
 
@@ -68,8 +68,6 @@ CommitReport CustomSpike::step(VerifID verifID) {
 	cmr.cycle   = this->cycleCnt;
     cmr.verifID = verifID;
 	cmr.pc      = this->proc[verifID]->get_state()->pc;
-    cmr.fp      = this->fp[verifID];
-
 	try {
 		cmr.rawInst = (uint32_t) proc[verifID]->get_mmu()->access_icache(cmr.pc)->data.insn.bits();
     } catch(...) {
@@ -110,34 +108,27 @@ void CustomSpike::load_vmh(std::string path) {
 
 }
 
-void CustomSpike::add_proc(VerifID verifID, Addr pc, Addr fp) {
+void CustomSpike::add_proc(VerifID verifID) {
 
     processor_t *new_proc = new processor_t(&isa, DEFAULT_VARCH, this, 0, false, NULL, sout_);
                             // processor_t(isa, varch, sim, id, halt_on_reset, log_file, sout_);
 
     new_proc->set_mmu_capability(IMPL_MMU_SBARE);
-    new_proc->get_state()->pc = pc;
+    new_proc->get_state()->pc = StartPC;
     new_proc->get_mmu()->register_memtracer(&(this->lt));
     new_proc->get_mmu()->register_memtracer(&(this->st));
 
-    this->proc.insert ( std::pair<VerifID,processor_t*>(verifID, new_proc) );
-    this->fp.insert   ( std::pair<VerifID,Addr>(verifID, fp) );
+    proc.insert ( std::pair<VerifID,processor_t*>(verifID, new_proc) );
 
 }
 
 void CustomSpike::remove_proc(VerifID verifID) {
 
-    if(this->proc.count(verifID)) {
+    if(proc.count(verifID)) {
 
         processor_t *old_proc = proc[verifID];
         delete old_proc;
-        this->proc.erase ( verifID );
-
-    }
-
-    if(this->fp.count(verifID)) {
-
-        this->fp.erase ( verifID );
+        proc.erase ( verifID );
 
     }
 

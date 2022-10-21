@@ -24,15 +24,14 @@ interface Stream;
 
 	// Thread control
 	method Bool                   available();
-	method Action                 start(Addr sPC, Addr sFP);
+	method Action                 start(Addr sPC);
 	method Action                 evict();
 	method Action                 backendDry();
+	method Addr                   currentPC();
 
 	// Debug
 	method StreamStatus           currentState();
-	method Addr                   currentPC();
-	method Addr                   currentFP();
-	method Addr                   decodePC();
+	method Addr                   firstPC();
 	method Bool                   notEmpty();
 	method Bool                   isl0Ihit();
 
@@ -45,7 +44,6 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	Ehr#(3,StreamStatus)   state     <- mkEhr(Empty);
 	Ehr#(2,Addr)           pc        <- mkEhr('0);
-	Reg#(Addr)             fp        <- mkReg('0);
 	Reg#(Bool)             epoch     <- mkReg(False);
 
 	Fifo#(1,DecToken)      inst      <- mkStageFifo();
@@ -117,7 +115,6 @@ module mkStream (WideMem l1I, Stream ifc);
 			CacheWordSelect wordSelect = truncate(pc[0] >> 2);
 			inst.enq(DecToken{ inst:  l0I[wordSelect],
 							   pc:    pc[0],
-							   fp:    fp,
 							   ghost: False,
 							   epoch: epoch});
 			pc[0] <= pc[0]+4;
@@ -130,7 +127,6 @@ module mkStream (WideMem l1I, Stream ifc);
 				CacheWordSelect wordSelect = truncate(pc[0] >> 2);
 				inst.enq(DecToken{ inst:  l0I[wordSelect],
 								   pc:    pc[0],
-								   fp:    fp,
 								   ghost: False,
 								   epoch: epoch});
 				pc[0] <= pc[0]+4;
@@ -141,7 +137,6 @@ module mkStream (WideMem l1I, Stream ifc);
 				state[1] <= Dry;
 				inst.enq(DecToken{ inst:  ?,
 								   pc:    pc[0],
-								   fp:    fp,
 								   ghost: True,
 								   epoch: epoch});
 
@@ -153,7 +148,6 @@ module mkStream (WideMem l1I, Stream ifc);
 			state[1] <= Dry;
 			inst.enq(DecToken{ inst:  ?,
 							   pc:    pc[0],
-							   fp:    fp,
 							   ghost: True,
 							   epoch: epoch});
 
@@ -176,10 +170,9 @@ module mkStream (WideMem l1I, Stream ifc);
 		return (state[2] == Empty);
 	endmethod
 
-	method Action start(Addr sPC, Addr sFP) if(state[2] == Empty);
+	method Action start(Addr sPC) if(state[2] == Empty);
 		state [2] <= Full;
 		pc[1]     <= sPC;
-		fp        <= sFP;
 		epoch     <= False;
 	endmethod
 
@@ -205,27 +198,15 @@ module mkStream (WideMem l1I, Stream ifc);
 		redirectQ.enq(r);
 	endmethod
 
+	method Addr currentPC();
+		return pc[0];
+	endmethod
+
 	method StreamStatus currentState();
 		return state[0];
 	endmethod
 
-	method Addr currentPC();
-		if(state[0] != Empty) begin
-			return pc[0];
-		end else begin
-			return '0;
-		end
-	endmethod
-
-	method Addr currentFP();
-		if(state[0] != Empty) begin
-			return fp;
-		end else begin
-			return '0;
-		end
-	endmethod
-
-	method Addr decodePC();
+	method Addr firstPC();
 		if(inst.notEmpty()) begin
 			return inst.first().pc;
 		end else begin

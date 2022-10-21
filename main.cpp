@@ -36,9 +36,9 @@ class ToHost: public ToHostWrapper {
 
     public:
 
-        virtual void reportCMR (const uint32_t cycle, const uint32_t verifID, const uint32_t pc,
-                                const uint32_t fp,    const uint32_t rawInst, const uint8_t  iType,
-                                const uint8_t  wbDst, const uint32_t wbRes,   const uint32_t addr   ) {
+        virtual void reportCMR (const uint32_t cycle,   const uint32_t verifID, const uint32_t pc,
+                                const uint32_t rawInst, const uint8_t  iType,   const uint8_t  wbDst,
+                                const uint32_t wbRes,   const uint32_t addr) {
 
             // Get DUT commit
             CommitReport cmrDut;
@@ -46,7 +46,6 @@ class ToHost: public ToHostWrapper {
             cmrDut.cycle   = cycle   ;
             cmrDut.verifID = verifID ;
             cmrDut.pc      = pc      ;
-            cmrDut.fp      = fp      ;
             cmrDut.rawInst = rawInst ;
             cmrDut.iType   = iType   ;
             cmrDut.wbDst   = wbDst   ;
@@ -121,7 +120,7 @@ int main(int argc, char * const *argv) {
     printf("------ Start core ------\n"); fflush(stdout);
     int sim_threads = std::stoi(all_args[1]);
         for(int i = 0; i < sim_threads; ++i)
-            connectalProc->startPCFP(StartPC, StartFP);
+            connectalProc->startPC(StartPC);
 
     uint32_t sim_time = std::stoi(all_args[2]);
     usleep(sim_time*1000000);

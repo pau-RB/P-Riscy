@@ -154,7 +154,6 @@ Bit#(12) privSCALL    = 12'h000;
 typedef struct {
 	Data        inst;
 	Addr        pc;
-	Addr        fp;
 	Bool        ghost;
 	Bool        epoch;
 } DecToken deriving(Bits, Eq);
@@ -162,7 +161,6 @@ typedef struct {
 typedef struct {
 	DecodedInst inst;
 	Addr        pc;
-	Addr        fp;
 	Bool        epoch;
 	Data        rawInst;
 } RFToken deriving (Bits, Eq);
@@ -172,7 +170,6 @@ typedef struct {
 	Data        arg1;
 	Data        arg2;
 	Addr        pc;
-	Addr        fp;
 	FrontID     feID;
 	Bool        epoch;
 	Data        rawInst;
@@ -181,7 +178,6 @@ typedef struct {
 typedef struct {
 	ExecInst    inst;
 	Addr        pc;
-	Addr        fp;
 	FrontID     feID;
 	Bool        epoch;
 	Data        rawInst;
@@ -190,7 +186,6 @@ typedef struct {
 typedef struct {
 	ExecInst    inst;
 	Addr        pc;
-	Addr        fp;
 	FrontID     feID;
 	Bool        epoch;
 	Data        rawInst;
@@ -208,7 +203,6 @@ typedef struct {
 typedef struct {
 	VerifID   verifID;
 	Addr      pc;
-	Addr      fp;
 	CacheLine rfL;
 	CacheLine rfH;
 } ContToken deriving(Bits, Eq);
@@ -216,9 +210,7 @@ typedef struct {
 typedef struct {
 	Data    cycle;
 	VerifID verifID;
-	VerifID child;   // sync forks
 	Addr    pc;
-	Addr    fp;
 	Data  	rawInst;
 	IType 	iType;
 	RIndx 	wbDst;   // 0 if no wb

@@ -30,7 +30,7 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 	     CommitReport cmr <- dut.getCMR();
         Bit#(8) iType = zeroExtend(pack(cmr.iType));
         Bit#(8) wbDst = zeroExtend(pack(cmr.wbDst));
-        ind.reportCMR(cmr.cycle, cmr.verifID, cmr.pc, cmr.fp, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
+        ind.reportCMR(cmr.cycle, cmr.verifID, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
 
    endrule
 
@@ -88,14 +88,13 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
       endmethod
 
-      method Action startPCFP(Bit#(32) startpc, Bit#(32) startfp) if(memInit);
+      method Action startPC(Bit#(32) startpc) if(memInit);
 
          VerifID verifID <- verif.newVerifID();
 
          mainTokenQ.enq(ContToken{
                            verifID: verifID,
                            pc     : startpc,
-                           fp     : startfp,
                            rfL    : replicate('0),
                            rfH    : replicate('0)  });
 
