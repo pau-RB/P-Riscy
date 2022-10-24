@@ -24,7 +24,7 @@ interface Stream;
 
 	// Thread control
 	method Bool                   available();
-	method Action                 start(Addr sPC);
+	method Action                 start(Addr sPC, Bool sEpoch);
 	method Action                 evict();
 	method Action                 backendDry();
 	method Addr                   currentPC();
@@ -64,7 +64,7 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	// 0 - Interact with L1I
 
-	rule do_l1Ireq;
+	rule do_l1Ireq if (state[2] == Full);
 
 		CacheLineNum nextpcline = truncateLSB(pc[1]);
 
@@ -170,10 +170,10 @@ module mkStream (WideMem l1I, Stream ifc);
 		return (state[2] == Empty);
 	endmethod
 
-	method Action start(Addr sPC) if(state[2] == Empty);
+	method Action start(Addr sPC, Bool sEpoch) if(state[2] == Empty);
 		state [2] <= Full;
 		pc[1]     <= sPC;
-		epoch     <= False;
+		epoch     <= sEpoch;
 	endmethod
 
 

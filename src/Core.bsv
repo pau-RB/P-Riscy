@@ -435,10 +435,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	method Action start (FrontID feID, ContToken token);
 
-		stream [feID].start(token.pc );
+		stream [feID].start(token.pc, wbEpoch[feID][1]);
 		rf     [feID].setL (token.rfL);
 		rf     [feID].setH (token.rfH);
-		wbEpoch[feID][1] <= False;
 
 		verif.setVerifID(feID, token.verifID);
 
