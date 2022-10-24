@@ -44,4 +44,4 @@ build:
 	make build.verilator
 
 sim:
-	./verilator/bin/ubuntu.exe addi 8 200 --color=always | less -r
+	./verilator/bin/ubuntu.exe addifork 2 200 --color=always | less -r

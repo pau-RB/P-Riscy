@@ -281,6 +281,12 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					wbEpoch[feID][0] <= !wbEpoch[feID][0];
 				end
 
+				VerifID childVerifID = '0;
+
+				if(commitInst.iType == Fork) begin
+					childVerifID <- nttx.efork(feID, commitInst.addr);
+				end
+
 				if (wb_ext_DEBUG == True) begin
 
 					if(commitInst.iType == J || commitInst.iType == Jr || commitInst.iType == Br) begin
@@ -291,6 +297,15 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 														iType:   commitInst.iType,
 														wbDst:   '0,
 														wbRes:   '0,
+														addr:    commitInst.addr});
+					end else if(commitInst.iType == Fork) begin
+						commitReportQ.enq(CommitReport {cycle:   numCycles,
+														verifID: verif.getVerifID(feID),
+														pc:      wToken.pc,
+														rawInst: wToken.rawInst,
+														iType:   commitInst.iType,
+														wbDst:   '0,
+														wbRes:   childVerifID,
 														addr:    commitInst.addr});
 					end else if(commitInst.iType == Ld) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,

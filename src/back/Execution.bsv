@@ -56,9 +56,10 @@ endfunction
 function Addr brAddrCalc(Addr pc, Data val, IType iType, Data imm, Bool taken);
   Addr pcPlus4 = pc + 4;
   Addr targetAddr = case (iType)
-    J  : (pc + imm);
-    Jr : {truncateLSB(val + imm), 1'b0};
-    Br : (taken ? pc + imm : pcPlus4);
+    J   : (pc + imm);
+    Fork: (pc + imm);
+    Jr  : {truncateLSB(val + imm), 1'b0};
+    Br  : (taken ? pc + imm : pcPlus4);
     default: pcPlus4;
   endcase;
   return targetAddr;
@@ -81,7 +82,7 @@ function ExecInst exec(DecodedInst dInst, Data rVal1, Data rVal2, Addr pc, Addr 
   eInst.data = 
                dInst.iType==St ?
                  rVal2 :
-               (dInst.iType==J || dInst.iType == Jr) ?
+               (dInst.iType==J || dInst.iType == Jr || dInst.iType == Fork) ?
                  (pc+4) :
                dInst.iType==Auipc ?
                  (pc + fromMaybe(?, dInst.imm)) :

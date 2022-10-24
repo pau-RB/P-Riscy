@@ -45,6 +45,8 @@ std::string printIType (const IType iType) {
             return "Ld";
         case iTypeSt   :
             return "St";
+        case iTypeFork :
+            return "Fork";
         case iTypeJ    :
             return "J";
         case iTypeJr   :
@@ -72,6 +74,8 @@ IType getIType(const Data uinst) {
 			return iTypeAlu;
 		case opAuipc:
 			return iTypeAuipc;
+		case opFork:
+			return iTypeFork;
 		case opJal:
 			return iTypeJ;
 		case opJalr:
@@ -151,6 +155,9 @@ std::string interpreter(const Data uinst) {
 		case opAuipc:
 			return "auipc r"+std::to_string(rd)+" 0x"+int_to_hex(immU);
 
+		case opFork:
+			return "fork 0x"+int_to_hex(immJ);
+
 		case opJal:
 			return "jal r"+std::to_string(rd)+" 0x"+int_to_hex(immJ);
 
@@ -213,7 +220,7 @@ std::string interpreter(const Data uinst) {
 
 void printCMRSpike(const CommitReport cmr) {
 
-    std::string phrase = " [id:     ] cycle:          | pc:          | iType:          | res: 0x        ";
+    std::string phrase = " [id:     ] cycle:          | pc: 0x          | iType:          | res: 0x        ";
     std::string res;
 
     if (cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
@@ -223,9 +230,9 @@ void printCMRSpike(const CommitReport cmr) {
 
     overwrite(phrase, std::to_string(cmr.verifID ),  6, 3 );
     overwrite(phrase, std::to_string(cmr.cycle   ), 19, 8 );
-    overwrite(phrase,    uint_to_hex(cmr.pc      ), 34, 8 );
-    overwrite(phrase,     printIType(cmr.iType   ), 52, 8 );
-    overwrite(phrase,                res          , 70, 8 );
+    overwrite(phrase,    uint_to_hex(cmr.pc      ), 36, 8 );
+    overwrite(phrase,     printIType(cmr.iType   ), 54, 8 );
+    overwrite(phrase,                res          , 72, 8 );
 
     printf("\033[1;33m");
     printf("%s | %s\n", phrase.c_str(), interpreter(cmr.rawInst).c_str());
@@ -236,7 +243,7 @@ void printCMRSpike(const CommitReport cmr) {
 
 void printCMRDut(const CommitReport cmr) {
 
-    std::string phrase = "            cycle:          | pc:          | iType:          | res: 0x        ";
+    std::string phrase = "            cycle:          | pc: 0x          | iType:          | res: 0x        ";
     std::string res;
 
     if (cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
@@ -245,9 +252,9 @@ void printCMRDut(const CommitReport cmr) {
     	res = uint_to_hex(cmr.wbRes);
 
     overwrite(phrase, std::to_string(cmr.cycle), 19, 8 );
-    overwrite(phrase,    uint_to_hex(cmr.pc   ), 34, 8 );
-    overwrite(phrase,     printIType(cmr.iType), 52, 8 );
-    overwrite(phrase,                res       , 70, 8 );
+    overwrite(phrase,    uint_to_hex(cmr.pc   ), 36, 8 );
+    overwrite(phrase,     printIType(cmr.iType), 54, 8 );
+    overwrite(phrase,                res       , 72, 8 );
 
     printf("%s | %s\n", phrase.c_str(), interpreter(cmr.rawInst).c_str());
     fflush(stdout);

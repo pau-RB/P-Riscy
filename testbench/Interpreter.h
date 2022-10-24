@@ -8,6 +8,7 @@
 
 // opcode
 #define opLoad    0b0000011
+#define opFork    0b0001011
 #define opMiscMem 0b0001111
 #define opOpImm   0b0010011
 #define opAuipc   0b0010111
@@ -62,10 +63,11 @@
 #define iTypeAlu   1
 #define iTypeLd    2
 #define iTypeSt    3
-#define iTypeJ     4
-#define iTypeJr    5
-#define iTypeBr    6
-#define iTypeAuipc 7
+#define iTypeFork  4
+#define iTypeJ     5
+#define iTypeJr    6
+#define iTypeBr    7
+#define iTypeAuipc 8
 
 union Inst
 {

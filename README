@@ -40,3 +40,14 @@ export PATH=/opt/tools/bsc/latest/bin:$PATH
 	/usr/local/include/          -- C/C++ includes
 
 	/usr/local/lib/              -- .so libraruies
+
+
+############### Add instruction to SPIKE ###############
+
+1 - create riscv/insns/new_inst.h
+
+2 - Add masks to riscv/encoding.h
+
+3 - Add operation to riscv/opcodes.h
+
+4 - Add to  riscv_insn_ext_i  in  riscv/riscv.mk.in

@@ -25,6 +25,7 @@ typedef Bit#(5) RIndx;
 // opcode
 typedef Bit#(7) Opcode;
 Opcode opLoad    = 7'b0000011;
+Opcode opFork    = 7'b0001011;
 Opcode opMiscMem = 7'b0001111;
 Opcode opOpImm   = 7'b0010011;
 Opcode opAuipc   = 7'b0010111;
@@ -44,6 +45,7 @@ typedef enum {
 	Alu, 
 	Ld, 
 	St, 
+	Fork,
 	J,  
 	Jr, 
 	Br, 
@@ -214,8 +216,8 @@ typedef struct {
 	Data  	rawInst;
 	IType 	iType;
 	RIndx 	wbDst;   // 0 if no wb
-	Data  	wbRes;   // ALU/Load result
-	Addr  	addr;    // nextpc for branch, addr for LSU
+	Data  	wbRes;   // ALU/Load result, childverifID for fork
+	Addr  	addr;    // nextpc for branch, addr for LSU, nextpc for Fork
 } CommitReport deriving (Bits, Eq);
 
 function Bool dataHazard(Maybe#(RIndx) src1, Maybe#(RIndx) src2, Maybe#(RIndx) dst);
@@ -282,6 +284,10 @@ function Fmt showInst(Instruction inst);
 
 		opAuipc: begin
 			ret = $format("auipc r%d 0x%0x", rd, immU);
+		end
+
+		opFork: begin
+			ret = $format("fork 0x%0x", immJ);
 		end
 
 		opJal: begin

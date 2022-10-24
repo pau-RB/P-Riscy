@@ -95,6 +95,29 @@ CommitReport CustomSpike::step(VerifID verifID) {
 
 }
 
+void CustomSpike::fork(VerifID verifID, VerifID childverifID, Addr childpc) {
+
+    if(!proc.count(verifID)) {
+        this->add_proc(verifID);
+        tandem_warning("New thread added to spike!");
+    }
+
+    if(proc.count(childverifID)) {
+        tandem_warning("New childverifID already exists in spike!");
+    }
+
+    this->add_proc(childverifID);
+
+    this->proc[childverifID]->get_state()->pc = childpc;
+    for (RIndx xi = 0; xi < 32; ++xi) {
+        Data value = this->proc[verifID     ]->get_state()->XPR[xi & 0x1F];
+                     this->proc[childverifID]->get_state()->XPR.write(xi & 0x1F, value);
+    }
+
+    return;
+
+}
+
 void CustomSpike::load_vmh(std::string path) {
 
     std::ifstream srcfile; srcfile.open(path,std::fstream::in|std::fstream::out|std::fstream::app);

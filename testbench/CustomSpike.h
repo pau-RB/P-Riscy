@@ -25,7 +25,8 @@ class CustomSpike : public simif_t {
         const char* get_symbol(uint64_t addr);
 
         // custom
-       	CommitReport step(VerifID feID);
+       	CommitReport step(VerifID verifID);
+        void fork(VerifID verifID, VerifID childverifID, Addr childpc);
 
     private:
         isa_parser_t isa;

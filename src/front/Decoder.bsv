@@ -104,6 +104,16 @@ function DecodedInst decode(Instruction inst);
 			dInst.imm = tagged Valid immU;
 		end
 
+		opFork: begin
+			dInst.iType = Fork;
+			dInst.aluFunc = ?;
+			dInst.brFunc = NT;
+			dInst.dst = tagged Invalid;
+			dInst.src1 = tagged Invalid;
+			dInst.src2 = tagged Invalid;
+			dInst.imm = tagged Valid immJ;
+		end
+
 		opJal: begin
 			dInst.iType = J;
 			dInst.aluFunc = ?;

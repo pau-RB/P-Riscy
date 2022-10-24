@@ -6,7 +6,8 @@
 #define WMBAddrSz 12
 #define MEM_MAX_ADDR (1<<WMBAddrSz)*CacheLineBytes
 
-#define StartPC 0x200
+//#define StartPC 0x200
+#define StartPC 0x1FC
 
 typedef uint32_t Data;
 typedef uint32_t Addr;
@@ -21,8 +22,8 @@ typedef struct {
 	Data    rawInst;
 	IType   iType;
 	RIndx   wbDst;   // 0 if no wb
-	Data    wbRes;   // ALU/Load result
-	Addr    addr;    // nextpc for branch, addr for LSU
+	Data    wbRes;   // ALU/Load result, childverifID for fork
+	Addr    addr;    // nextpc for branch, addr for LSU, nextpc for Fork
 } CommitReport;
 
 #endif

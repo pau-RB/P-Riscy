@@ -58,6 +58,10 @@ class ToHost: public ToHostWrapper {
             // Check
             tandem_compare(cmrSpike, cmrDut);
 
+            if(iType == iTypeFork) {
+                spike->fork(verifID, wbRes, addr);
+            }
+
             // Print
             if (PRINT_COMMIT) {
                 printCMRSpike(cmrSpike);
