@@ -27,6 +27,7 @@ class CustomSpike : public simif_t {
         // custom
        	CommitReport step(VerifID verifID);
         void fork(VerifID verifID, VerifID childverifID, Addr childpc);
+        void join(VerifID verifID, Data res);
 
     private:
         isa_parser_t isa;

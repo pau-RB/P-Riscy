@@ -13,6 +13,7 @@
 #define opOpImm   0b0010011
 #define opAuipc   0b0010111
 #define opStore   0b0100011
+#define opJoin    0b0101011
 #define opAmo     0b0101111
 #define opOp      0b0110011
 #define opLui     0b0110111
@@ -64,10 +65,11 @@
 #define iTypeLd    2
 #define iTypeSt    3
 #define iTypeFork  4
-#define iTypeJ     5
-#define iTypeJr    6
-#define iTypeBr    7
-#define iTypeAuipc 8
+#define iTypeJoin  5
+#define iTypeJ     6
+#define iTypeJr    7
+#define iTypeBr    8
+#define iTypeAuipc 9
 
 union Inst
 {

@@ -47,6 +47,8 @@ std::string printIType (const IType iType) {
             return "St";
         case iTypeFork :
             return "Fork";
+        case iTypeJoin :
+            return "Join";
         case iTypeJ    :
             return "J";
         case iTypeJr   :
@@ -76,6 +78,8 @@ IType getIType(const Data uinst) {
 			return iTypeAuipc;
 		case opFork:
 			return iTypeFork;
+		case opJoin:
+			return iTypeJoin;
 		case opJal:
 			return iTypeJ;
 		case opJalr:
@@ -110,7 +114,7 @@ std::string interpreter(const Data uinst) {
 
 
 	int32_t immI    = inst.s>>20;
-	int32_t immS    = ((int32_t)(((inst.s&0xfe000000)<<0)|((inst.s&0x00000f80)<<13)))>>27;
+	int32_t immS    = ((int32_t)(((inst.s&0xfe000000)<<0)|((inst.s&0x00000f80)<<13)))>>20;
 	int32_t immB    = ((int32_t)(((inst.s&0x80000000)<<0)|((inst.s&0x00000080)<<23)|((inst.s&0x7e000000)>>1)|((inst.s&0x00000f00)<<12)))>>19;
 	int32_t immU    = (inst.s&0xfffff000);
 	int32_t immJ    = ((int32_t)(((inst.s&0x80000000)<<0)|((inst.s&0x000ff000)<<11)|((inst.s&0x00100000)<<2)|((inst.s&0x7e000000)>>10)|((inst.s&0x01e00000)>>9)))>>11;
@@ -157,6 +161,9 @@ std::string interpreter(const Data uinst) {
 
 		case opFork:
 			return "fork 0x"+int_to_hex(immJ);
+
+		case opJoin:
+			return "join [r"+std::to_string(rs1)+" 0x"+int_to_hex(immS)+"]";
 
 		case opJal:
 			return "jal r"+std::to_string(rd)+" 0x"+int_to_hex(immJ);

@@ -42,6 +42,8 @@ function Bit#(CacheLineBytes) writeEnReq (MemReq req);
             SH:  write_en = 'b11   << halfsel;
             SW:  write_en = 'b1111 << wordsel;
         endcase
+    end else if ( req.op == Join ) begin
+        write_en = 'b1111 << wordsel;
     end
 
     return write_en;
@@ -58,6 +60,8 @@ function CacheLine embedReq (MemReq req);
             SH:  word = {req.data[15:0],req.data[15:0]};
             SW:  word = {req.data};
         endcase
+    end else if ( req.op == Join ) begin
+        word = {req.data};
     end
 
     CacheLine line = replicate(word);

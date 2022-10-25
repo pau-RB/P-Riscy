@@ -114,6 +114,16 @@ function DecodedInst decode(Instruction inst);
 			dInst.imm = tagged Valid immJ;
 		end
 
+		opJoin: begin
+			dInst.iType = Join;
+			dInst.aluFunc = Add; // calc effective addr
+			dInst.brFunc = NT;
+			dInst.dst = tagged Invalid;
+			dInst.src1 = tagged Valid rs1;
+			dInst.src2 = tagged Invalid;
+			dInst.imm = tagged Valid immS;
+		end
+
 		opJal: begin
 			dInst.iType = J;
 			dInst.aluFunc = ?;

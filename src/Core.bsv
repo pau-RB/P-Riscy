@@ -221,6 +221,14 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
     		    			data: execInst.data,
     		    			func: execInst.stFunc});
 
+    		end else if(execInst.iType == Join) begin
+
+    		    l1D.req(MemReq{
+    		    			op  : Join,
+    		    			addr: execInst.addr,
+    		    			data: 'b1,
+    		    			func: ?});
+
     		end
     	end
 	
@@ -260,31 +268,45 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 				numCommit <= numCommit+1;
 
-				Data loadRes = '0;
+				Data    loadRes      = '0;
+				VerifID childVerifID = '0;
 
 				if(commitInst.iType == Ld) begin
+
 					Data loadResRaw <- l1D.resp();
 					loadRes = extendLoad(loadResRaw, commitInst.addr, commitInst.ldFunc);
 	        	    rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
-	        	end else if(isValid(commitInst.dst)) begin
-					rf[feID].wr(fromMaybe(?, commitInst.dst), commitInst.data);
-				end
 
-				if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
-					stream[feID].redirect(Redirect{
-											pc        : wToken.pc,
-											epoch     :!wToken.epoch,
-											nextPc    : commitInst.addr,
-										   	brType    : commitInst.iType,
-										   	taken     : commitInst.brTaken,
-										   	mispredict: commitInst.mispredict});
-					wbEpoch[feID][0] <= !wbEpoch[feID][0];
-				end
+	        	end else if(commitInst.iType == Fork) begin
 
-				VerifID childVerifID = '0;
-
-				if(commitInst.iType == Fork) begin
 					childVerifID <- nttx.efork(feID, commitInst.addr);
+
+				end else if(commitInst.iType == Join) begin
+
+					Data join_res <- l1D.resp();
+					loadRes = join_res;
+					if(join_res != '0) begin
+						stream[feID].backendKill(!wbEpoch[feID][0]);
+						wbEpoch[feID][0] <= !wbEpoch[feID][0];
+					end
+
+	        	end else begin
+
+	        		if(isValid(commitInst.dst)) begin
+						rf[feID].wr(fromMaybe(?, commitInst.dst), commitInst.data);
+					end
+
+					if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
+						stream[feID].redirect(Redirect{
+												pc        : wToken.pc,
+												epoch     :!wbEpoch[feID][0],
+												nextPc    : commitInst.addr,
+											   	brType    : commitInst.iType,
+											   	taken     : commitInst.brTaken,
+											   	mispredict: commitInst.mispredict});
+						wbEpoch[feID][0] <= !wbEpoch[feID][0];
+					end
+
 				end
 
 				if (wb_ext_DEBUG == True) begin
@@ -306,6 +328,15 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 														iType:   commitInst.iType,
 														wbDst:   '0,
 														wbRes:   childVerifID,
+														addr:    commitInst.addr});
+					end else if(commitInst.iType == Join) begin
+						commitReportQ.enq(CommitReport {cycle:   numCycles,
+														verifID: verif.getVerifID(feID),
+														pc:      wToken.pc,
+														rawInst: wToken.rawInst,
+														iType:   commitInst.iType,
+														wbDst:   '0,
+														wbRes:   loadRes,
 														addr:    commitInst.addr});
 					end else if(commitInst.iType == Ld) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
@@ -338,7 +369,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 				end
 
-				if(msg_ext_DEBUG == True) begin
+				if (msg_ext_DEBUG == True) begin
 					
 					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
 						messageReportQ.enq(commitInst.data);
@@ -358,7 +389,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 				end
 
-				if(msg_DEBUG == True) begin
+				if (msg_DEBUG == True) begin
 					
 					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
 						$display("MESSAGE: %h", commitInst.data);
@@ -435,7 +466,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	method Action start (FrontID feID, ContToken token);
 
-		stream [feID].start(token.pc, wbEpoch[feID][1]);
+		stream [feID].start(token.pc);
 		rf     [feID].setL (token.rfL);
 		rf     [feID].setH (token.rfH);
 

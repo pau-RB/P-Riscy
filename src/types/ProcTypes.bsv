@@ -30,6 +30,7 @@ Opcode opMiscMem = 7'b0001111;
 Opcode opOpImm   = 7'b0010011;
 Opcode opAuipc   = 7'b0010111;
 Opcode opStore   = 7'b0100011;
+Opcode opJoin    = 7'b0101011;
 Opcode opAmo     = 7'b0101111;
 Opcode opOp      = 7'b0110011;
 Opcode opLui     = 7'b0110111;
@@ -46,6 +47,7 @@ typedef enum {
 	Ld, 
 	St, 
 	Fork,
+	Join,
 	J,  
 	Jr, 
 	Br, 
@@ -216,7 +218,7 @@ typedef struct {
 	Data  	rawInst;
 	IType 	iType;
 	RIndx 	wbDst;   // 0 if no wb
-	Data  	wbRes;   // ALU/Load result, childverifID for fork
+	Data  	wbRes;   // ALU/Load result, childverifID for fork, memread for Join
 	Addr  	addr;    // nextpc for branch, addr for LSU, nextpc for Fork
 } CommitReport deriving (Bits, Eq);
 
@@ -288,6 +290,10 @@ function Fmt showInst(Instruction inst);
 
 		opFork: begin
 			ret = $format("fork 0x%0x", immJ);
+		end
+
+		opJoin: begin
+			ret = $format("join [r%d 0x%0x]", rs1, immS);
 		end
 
 		opJal: begin

@@ -142,7 +142,7 @@ module mkDirectCache(WideMem mem, Cache ifc);
 		Addr      addr = r.addr;
 
 		CacheWordSelect wordSelect = truncate(addr >> 2);
-		if(r.op == Ld) begin
+		if(r.op == Ld || r.op == Join) begin
 			response.enq(line[wordSelect]);
 		end
 
@@ -208,7 +208,7 @@ module mkDirectCache(WideMem mem, Cache ifc);
 
 		bramReq.enq(r);
 		bram.put(write_en, index, write_ln);
-		if(r.op == St) begin
+		if(r.op == St || r.op == Join) begin
 			dirty[index] <= True;
 		end
 
@@ -229,7 +229,7 @@ module mkDirectCache(WideMem mem, Cache ifc);
 
 			bramReq.enq(r);
 			bram.put(write_en, index, write_ln);
-			if(r.op == St) begin
+			if(r.op == St || r.op == Join) begin
 				dirty[index] <= True;
 			end
 

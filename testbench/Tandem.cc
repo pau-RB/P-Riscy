@@ -39,6 +39,16 @@ tandem_mm tandem_compare(CommitReport spike, CommitReport dut) {
 		return tandem_mm::unsup;
 	}
 
+	// Join
+	if(dut.iType == iTypeJoin) {
+		if(dut.addr != spike.addr) {
+			tandem_report("Join addr mismatch!");
+			tandem_data("Spike addr", spike.addr);
+			tandem_data("Dut addr  ", dut.addr);
+			return tandem_mm::addr;
+		}
+	}
+
 	// Load/Store
 	if(dut.iType == iTypeLd || dut.iType == iTypeSt) {
 		if(dut.addr != spike.addr) {

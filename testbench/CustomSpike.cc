@@ -86,6 +86,8 @@ CommitReport CustomSpike::step(VerifID verifID) {
         cmr.addr = this->lt.get_last_access();
     else if(cmr.iType == iTypeSt)
         cmr.addr = this->st.get_last_access();
+    else if(cmr.iType == iTypeJoin)
+        cmr.addr = this->st.get_last_access();
     else if(cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
         cmr.addr = this->proc[verifID]->get_state()->pc;
     else
@@ -115,6 +117,14 @@ void CustomSpike::fork(VerifID verifID, VerifID childverifID, Addr childpc) {
     }
 
     return;
+
+}
+
+void CustomSpike::join(VerifID verifID, Data res) {
+
+    if(res != 0) {
+        this->remove_proc(verifID);
+    }
 
 }
 

@@ -91,7 +91,7 @@ function ExecInst exec(DecodedInst dInst, Data rVal1, Data rVal2, Addr pc, Addr 
   let brTaken = aluBr(rVal1, rVal2, dInst.brFunc);
   let brAddr = brAddrCalc(pc, rVal1, dInst.iType, fromMaybe(?, dInst.imm), brTaken);
 
-  eInst.addr = (dInst.iType == Ld || dInst.iType == St) ? aluRes : brAddr;
+  eInst.addr = (dInst.iType == Ld || dInst.iType == St || dInst.iType == Join) ? aluRes : brAddr;
   eInst.mispredict = brAddr != ppc;
   eInst.brTaken = brTaken;
   

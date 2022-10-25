@@ -62,6 +62,10 @@ class ToHost: public ToHostWrapper {
                 spike->fork(verifID, wbRes, addr);
             }
 
+            if(iType == iTypeJoin) {
+                spike->join(verifID, wbRes);
+            }
+
             // Print
             if (PRINT_COMMIT) {
                 printCMRSpike(cmrSpike);
