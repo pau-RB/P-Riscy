@@ -158,6 +158,10 @@ int main(int argc, char * const *argv) {
     uint32_t sim_time = std::stoi(all_args[2]);
     usleep(sim_time*1000000);
 
+    if(!error_detected) {
+        print_stats(spike->get_stats());
+    }
+
     return 0;
     
 }

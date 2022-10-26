@@ -15,7 +15,7 @@ Addr     msg_ADDR  = 'h10000;
 Addr     max_ADDR  = 'h3fffc;
 
 // Main Token Queue
-typedef 10 MTQ_LEN;
+typedef 16 MTQ_LEN;
 
 // Core width
 typedef 4 FrontWidth;

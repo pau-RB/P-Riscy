@@ -25,6 +25,8 @@ CPPFILES +=                          \
 CONNECTALFLAGS += --mainclockperiod=50
 #CONNECTALFLAGS += --verilog=ddr3_v2_0/
 CONNECTALFLAGS += --bscflags="-show-schedule"
+CONNECTALFLAGS += --bscflags="-steps-warn-interval 1000000"
+CONNECTALFLAGS += --bscflags="-steps-max-intervals 10000000"
 CONNECTALFLAGS += --bscflags="+RTS -K250000000 -RTS"
 CONNECTALFLAGS += --cxxflags="-std=gnu++11                                    \
 							  -Wno-unused-variable -Wno-unused-function       \
@@ -47,4 +49,4 @@ slow:
 	./verilator/bin/ubuntu.exe sw 8 2000 --color=always | less -r
 
 fast:
-	./verilator/bin/ubuntu.exe sw 8 20
+	./verilator/bin/ubuntu.exe sw 16 20
