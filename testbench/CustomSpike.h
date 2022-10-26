@@ -30,12 +30,14 @@ class CustomSpike : public simif_t {
         bool dead(VerifID verifID);
         void fork(VerifID verifID, VerifID childverifID, Addr childpc);
         void join(VerifID verifID, Data res);
+        std::map<VerifID, uint32_t> get_stats();
 
     private:
         isa_parser_t isa;
         std::ostream sout_;
         std::map<VerifID, processor_t*> active_thread;
         std::set<VerifID> dead_thread;
+        std::map<VerifID, uint32_t> commit_thread;
 
         char*        mem;
         size_t       mem_sz;

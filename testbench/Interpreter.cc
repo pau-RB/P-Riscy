@@ -267,3 +267,30 @@ void printCMRDut(const CommitReport cmr) {
     fflush(stdout);
 
 }
+
+void print_stats(const std::map<VerifID, uint32_t> commit_thread) {
+
+	uint32_t total = 0;
+
+	printf("\033[1;33m");
+	printf("\n\n----------- STATS -----------\n\n");
+	for(auto p: commit_thread) {
+
+        std::string phrase = " [id:     ] commits:         ";
+		overwrite(phrase, std::to_string(p.first ),  6, 3 );
+	    overwrite(phrase, std::to_string(p.second), 21, 8 );
+	    printf("%s\n", phrase.c_str());
+
+	    total+=p.second;
+
+    }
+
+    std::string phrase = "\n      total commits:         \n";
+	overwrite(phrase, std::to_string(total), 21, 8 );
+	printf("%s\n", phrase.c_str());
+
+	printf("-----------------------------\n\n");
+	fflush(stdout);
+	printf("\033[0m");
+
+}

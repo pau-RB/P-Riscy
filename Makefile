@@ -43,5 +43,8 @@ clean:
 build:
 	make build.verilator
 
-sim:
+slow:
 	./verilator/bin/ubuntu.exe sw 8 2000 --color=always | less -r
+
+fast:
+	./verilator/bin/ubuntu.exe sw 8 20

@@ -29,6 +29,7 @@ using namespace std;
 
 // Custom spike
 CustomSpike* spike;
+Bool error_detected = false;
 
 class ToHost: public ToHostWrapper {
 
@@ -39,6 +40,10 @@ class ToHost: public ToHostWrapper {
         virtual void reportCMR (const uint32_t cycle,   const uint32_t verifID, const uint32_t pc,
                                 const uint32_t rawInst, const uint8_t  iType,   const uint8_t  wbDst,
                                 const uint32_t wbRes,   const uint32_t addr) {
+
+            if(error_detected) {
+                return;
+            }
 
             // Get DUT commit
             CommitReport cmrDut;
@@ -55,6 +60,7 @@ class ToHost: public ToHostWrapper {
             // Check if thread is active
             if(spike->dead(verifID)) {
                 tandem_report("Unexpected commit from verifID: "+to_string(verifID));
+                error_detected = true;
                 return;
             }
 
@@ -68,7 +74,9 @@ class ToHost: public ToHostWrapper {
             }
 
             // Check
-            tandem_compare(cmrSpike, cmrDut);
+            if(tandem_compare(cmrSpike, cmrDut) != tandem_mm::correct) {
+                error_detected = true;
+            }
 
             if(iType == iTypeFork) {
                 spike->fork(verifID, wbRes, addr);
@@ -83,6 +91,11 @@ class ToHost: public ToHostWrapper {
                 printCMRSpike(cmrSpike);
                 printCMRDut  (cmrDut);
                 printf("\n");
+            }
+
+            // Status
+            if(error_detected) {
+                print_stats(spike->get_stats());
             }
 
         }

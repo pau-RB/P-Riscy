@@ -2,6 +2,7 @@
 #define _INTERPRETER_H
 
 #include <string>
+#include <map>
 #include "TestbenchTypes.h"
 #include <stdio.h> 
 
@@ -96,5 +97,7 @@ std::string interpreter(const Data uinst);
 void printCMRSpike(const CommitReport cmr);
 
 void printCMRDut(const CommitReport cmr);
+
+void print_stats(const std::map<VerifID, uint32_t> commit_thread);
 
 #endif

@@ -20,6 +20,9 @@
 
 CustomSpike::~CustomSpike() {
     free(mem);
+    for(auto p: active_thread) {
+        delete p.second;
+    }
 }
 
 CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
@@ -59,6 +62,8 @@ CommitReport CustomSpike::step(VerifID verifID) {
     if(!active_thread.count(verifID)) {
         this->add_proc(verifID);
     }
+
+    commit_thread[verifID] = commit_thread[verifID]+1;
 
 	CommitReport cmr;
 
@@ -125,6 +130,10 @@ void CustomSpike::join(VerifID verifID, Data res) {
 
 }
 
+std::map<VerifID, uint32_t> CustomSpike::get_stats() {
+    return commit_thread;
+}
+
 void CustomSpike::load_vmh(std::string path) {
 
     std::ifstream srcfile; srcfile.open(path,std::fstream::in|std::fstream::out|std::fstream::app);
@@ -149,6 +158,7 @@ void CustomSpike::add_proc(VerifID verifID) {
     new_proc->get_mmu()->register_memtracer(&(this->st));
 
     active_thread.insert ( std::pair<VerifID,processor_t*>(verifID, new_proc) );
+    commit_thread.insert ( std::pair<VerifID,uint32_t>(verifID, 0) );
 
 }
 
