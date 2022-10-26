@@ -52,6 +52,12 @@ class ToHost: public ToHostWrapper {
             cmrDut.wbRes   = wbRes   ;
             cmrDut.addr    = addr    ;
 
+            // Check if thread is active
+            if(spike->dead(verifID)) {
+                tandem_report("Unexpected commit from verifID: "+to_string(verifID));
+                return;
+            }
+
             // Get Spike commit
             Data joinRead; memcpy(&joinRead, spike->addr_to_mem(addr), sizeof(addr));
 

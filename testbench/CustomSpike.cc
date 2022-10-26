@@ -11,7 +11,6 @@
 #include "LoadTracer.h"
 #include "StoreTracer.h"
 #include "CustomSpike.h"
-#include "Tandem.h"
 
 // Spike
 #include "config.h"
@@ -57,9 +56,8 @@ const char* CustomSpike::get_symbol(uint64_t addr) { return ""; }
 
 CommitReport CustomSpike::step(VerifID verifID) {
 
-    if(!proc.count(verifID)) {
+    if(!active_thread.count(verifID)) {
         this->add_proc(verifID);
-        tandem_warning("New thread added to spike!");
     }
 
 	CommitReport cmr;
@@ -67,20 +65,20 @@ CommitReport CustomSpike::step(VerifID verifID) {
 	// What instruction will I execute next?
 	cmr.cycle   = this->cycleCnt;
     cmr.verifID = verifID;
-	cmr.pc      = this->proc[verifID]->get_state()->pc;
+	cmr.pc      = this->active_thread[verifID]->get_state()->pc;
 	try {
-		cmr.rawInst = (uint32_t) proc[verifID]->get_mmu()->access_icache(cmr.pc)->data.insn.bits();
+		cmr.rawInst = (uint32_t) active_thread[verifID]->get_mmu()->access_icache(cmr.pc)->data.insn.bits();
     } catch(...) {
         std::cout << "[ERROR] access_icache(0x" << std::hex << cmr.pc <<  ") failed even though there was no interrupt or exception for the current verification packet." << std::endl;
     }
     cmr.iType = getIType(cmr.rawInst);
 
     // Execute it
-    proc[verifID]->step(1); cycleCnt++;
+    active_thread[verifID]->step(1); cycleCnt++;
 
     // What is the result ?
     cmr.wbDst = (cmr.rawInst >> 7) & 0x1F;
-    cmr.wbRes = this->proc[verifID]->get_state()->XPR[cmr.wbDst & 0x1F];
+    cmr.wbRes = this->active_thread[verifID]->get_state()->XPR[cmr.wbDst & 0x1F];
 
     if(cmr.iType == iTypeLd)
         cmr.addr = this->lt.get_last_access();
@@ -89,7 +87,7 @@ CommitReport CustomSpike::step(VerifID verifID) {
     else if(cmr.iType == iTypeJoin)
         cmr.addr = this->st.get_last_access();
     else if(cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
-        cmr.addr = this->proc[verifID]->get_state()->pc;
+        cmr.addr = this->active_thread[verifID]->get_state()->pc;
     else
         cmr.addr = 0;
     
@@ -97,23 +95,22 @@ CommitReport CustomSpike::step(VerifID verifID) {
 
 }
 
+bool CustomSpike::active(VerifID verifID) {
+    return this->active_thread.count(verifID);
+}
+
+bool CustomSpike::dead(VerifID verifID) {
+    return this->dead_thread.count(verifID);
+}
+
 void CustomSpike::fork(VerifID verifID, VerifID childverifID, Addr childpc) {
-
-    if(!proc.count(verifID)) {
-        this->add_proc(verifID);
-        tandem_warning("New thread added to spike!");
-    }
-
-    if(proc.count(childverifID)) {
-        tandem_warning("New childverifID already exists in spike!");
-    }
 
     this->add_proc(childverifID);
 
-    this->proc[childverifID]->get_state()->pc = childpc;
+    this->active_thread[childverifID]->get_state()->pc = childpc;
     for (RIndx xi = 0; xi < 32; ++xi) {
-        Data value = this->proc[verifID     ]->get_state()->XPR[xi & 0x1F];
-                     this->proc[childverifID]->get_state()->XPR.write(xi & 0x1F, value);
+        Data value = this->active_thread[verifID     ]->get_state()->XPR[xi & 0x1F];
+                     this->active_thread[childverifID]->get_state()->XPR.write(xi & 0x1F, value);
     }
 
     return;
@@ -151,17 +148,18 @@ void CustomSpike::add_proc(VerifID verifID) {
     new_proc->get_mmu()->register_memtracer(&(this->lt));
     new_proc->get_mmu()->register_memtracer(&(this->st));
 
-    proc.insert ( std::pair<VerifID,processor_t*>(verifID, new_proc) );
+    active_thread.insert ( std::pair<VerifID,processor_t*>(verifID, new_proc) );
 
 }
 
 void CustomSpike::remove_proc(VerifID verifID) {
 
-    if(proc.count(verifID)) {
+    if(active_thread.count(verifID)) {
 
-        processor_t *old_proc = proc[verifID];
+        processor_t *old_proc = active_thread[verifID];
         delete old_proc;
-        proc.erase ( verifID );
+        active_thread.erase( verifID );
+        dead_thread.insert(verifID);
 
     }
 

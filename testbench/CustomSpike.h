@@ -2,13 +2,13 @@
 #define _CUSTOM_SPIKE_H
 
 #include <vector>
+#include <set>
 
 #include "simif.h"
 #include "processor.h"
 #include "LoadTracer.h"
 #include "StoreTracer.h"
 #include "TestbenchTypes.h"
-#include "Tandem.h"
 
 class CustomSpike : public simif_t {
     public:
@@ -26,13 +26,16 @@ class CustomSpike : public simif_t {
 
         // custom
        	CommitReport step(VerifID verifID);
+        bool active(VerifID verifID);
+        bool dead(VerifID verifID);
         void fork(VerifID verifID, VerifID childverifID, Addr childpc);
         void join(VerifID verifID, Data res);
 
     private:
         isa_parser_t isa;
         std::ostream sout_;
-        std::map<VerifID, processor_t*> proc;
+        std::map<VerifID, processor_t*> active_thread;
+        std::set<VerifID> dead_thread;
 
         char*        mem;
         size_t       mem_sz;
