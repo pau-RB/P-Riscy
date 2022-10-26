@@ -53,7 +53,13 @@ class ToHost: public ToHostWrapper {
             cmrDut.addr    = addr    ;
 
             // Get Spike commit
+            Data joinRead; memcpy(&joinRead, spike->addr_to_mem(addr), sizeof(addr));
+
             CommitReport cmrSpike = spike->step(verifID);
+
+            if(cmrSpike.iType == iTypeJoin) {
+                cmrSpike.wbRes = joinRead;
+            }
 
             // Check
             tandem_compare(cmrSpike, cmrDut);

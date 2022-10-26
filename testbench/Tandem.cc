@@ -47,6 +47,12 @@ tandem_mm tandem_compare(CommitReport spike, CommitReport dut) {
 			tandem_data("Dut addr  ", dut.addr);
 			return tandem_mm::addr;
 		}
+		if(dut.wbRes != spike.wbRes) {
+			tandem_report("Join result mismatch!");
+			tandem_data("Spike result", spike.wbRes);
+			tandem_data("Dut result  ", dut.wbRes);
+			return tandem_mm::wbRes;
+		}
 	}
 
 	// Load/Store
