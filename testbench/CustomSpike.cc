@@ -80,6 +80,7 @@ CommitReport CustomSpike::step(VerifID verifID) {
 
     // Execute it
     active_thread[verifID]->step(1); cycleCnt++;
+    active_thread[verifID]->get_mmu()->flush_tlb();
 
     // What is the result ?
     cmr.wbDst = (cmr.rawInst >> 7) & 0x1F;
