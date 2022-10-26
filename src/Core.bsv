@@ -285,7 +285,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 					Data join_res <- l1D.resp();
 					loadRes = join_res;
-					if(join_res != '0) begin
+					if(join_res == '0) begin
 						stream[feID].backendKill(!wbEpoch[feID][0]);
 						wbEpoch[feID][0] <= !wbEpoch[feID][0];
 					end

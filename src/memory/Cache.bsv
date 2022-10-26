@@ -126,9 +126,10 @@ module mkDirectCache(WideMem mem, Cache ifc);
 
 	Reg#(CacheStatus) status <- mkReg(Ready);
 
-	Vector#(CacheRows,Reg#(Maybe#(CacheTag))) tags  <- replicateM(mkReg(tagged Invalid));
-	Vector#(CacheRows,Reg#(Bool))             dirty <- replicateM(mkReg(False));
-	BRAM_PORT_BE#(CacheIndex, CacheLine, CacheLineBytes) bram <- mkBRAMCore1BE(valueOf(CacheRows), False);
+	Vector#(CacheRows,Reg#(Maybe#(CacheTag)))                 tags  <- replicateM(mkReg(tagged Invalid));
+	Vector#(CacheRows,Reg#(Bool))                             dirty <- replicateM(mkReg(False));
+	BRAM_DUAL_PORT_BE#(CacheIndex, CacheLine, CacheLineBytes) bram  <- mkBRAMCore2BE(valueOf(CacheRows), False);
+	// Use port a for R and port b for W, important in Join (both operations)
 
 	Fifo#(1,MemReq) bramReq  <- mkStageFifo();
 	Fifo#(1,MemReq) memReq   <- mkStageFifo();
@@ -136,13 +137,13 @@ module mkDirectCache(WideMem mem, Cache ifc);
 	Fifo#(1,Data)   response <- mkBypassFifo();
 
 	rule do_read_BRAM if(bramReq.notEmpty());
-
-		CacheLine line = bram.read;
-		MemReq    r    = bramReq.first(); bramReq.deq();
-		Addr      addr = r.addr;
-
+		
+		MemReq          r          = bramReq.first(); bramReq.deq();
+		Addr            addr       = r.addr;
 		CacheWordSelect wordSelect = truncate(addr >> 2);
+
 		if(r.op == Ld || r.op == Join) begin
+			CacheLine line = bram.a.read;
 			response.enq(line[wordSelect]);
 		end
 
@@ -152,7 +153,7 @@ module mkDirectCache(WideMem mem, Cache ifc);
 
 		Addr       addr      = memReq.first().addr;
 		CacheIndex index     = truncate(addr >> valueOf(TLog#(CacheLineBytes)));
-		CacheLine  flushLine = bram.read;
+		CacheLine  flushLine = bram.a.read;
 		Addr       flushAddr = {fromMaybe(?,tags[index]), index, '0};
 
 		if(dirty[index]) begin
@@ -189,7 +190,7 @@ module mkDirectCache(WideMem mem, Cache ifc);
 		// Update BRAM
 		CacheTag   tag   = truncateLSB(addr);
 		CacheIndex index = truncate(addr >> valueOf(TLog#(CacheLineBytes)));
-		bram.put('1, index, line);
+		bram.b.put('1, index, line);
 		tags [index] <= tagged Valid tag;
 		dirty[index] <= False;
 
@@ -207,8 +208,15 @@ module mkDirectCache(WideMem mem, Cache ifc);
 		CacheLine            write_ln = embedReq(r);
 
 		bramReq.enq(r);
-		bram.put(write_en, index, write_ln);
-		if(r.op == St || r.op == Join) begin
+		
+		if(r.op == Ld) begin
+			bram.a.put('0, index, ?);
+		end else if (r.op == St) begin
+			bram.b.put(write_en, index, write_ln);
+			dirty[index] <= True;
+		end else if(r.op == Join) begin
+			bram.a.put('0, index, ?);
+			bram.b.put(write_en, index, write_ln);
 			dirty[index] <= True;
 		end
 
@@ -228,8 +236,15 @@ module mkDirectCache(WideMem mem, Cache ifc);
 		if(isValid(tags[index]) && fromMaybe(?,tags[index]) == tag) begin // hit
 
 			bramReq.enq(r);
-			bram.put(write_en, index, write_ln);
-			if(r.op == St || r.op == Join) begin
+
+			if(r.op == Ld) begin
+				bram.a.put('0, index, ?);
+			end else if (r.op == St) begin
+				bram.b.put(write_en, index, write_ln);
+				dirty[index] <= True;
+			end else if(r.op == Join) begin
+				bram.a.put('0, index, ?);
+				bram.b.put(write_en, index, write_ln);
 				dirty[index] <= True;
 			end
 
@@ -238,7 +253,7 @@ module mkDirectCache(WideMem mem, Cache ifc);
 		end else begin // miss
 
 			memReq.enq(r);
-			bram.put('0, index, ?);
+			bram.a.put('0, index, ?);
 			status <= Request;
 
 		end

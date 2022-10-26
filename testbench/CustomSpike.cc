@@ -122,7 +122,7 @@ void CustomSpike::fork(VerifID verifID, VerifID childverifID, Addr childpc) {
 
 void CustomSpike::join(VerifID verifID, Data res) {
 
-    if(res != 0) {
+    if(res == 0) {
         this->remove_proc(verifID);
     }
 
