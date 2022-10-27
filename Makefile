@@ -28,7 +28,7 @@ CONNECTALFLAGS += --bscflags="-show-schedule"
 CONNECTALFLAGS += --bscflags="-steps-warn-interval 1000000"
 CONNECTALFLAGS += --bscflags="-steps-max-intervals 10000000"
 CONNECTALFLAGS += --bscflags="+RTS -K250000000 -RTS"
-CONNECTALFLAGS += --cxxflags="-std=gnu++11                                    \
+CONNECTALFLAGS += --cxxflags="-std=gnu++17                                    \
 							  -Wno-unused-variable -Wno-unused-function       \
 							  -I $(PWD)/testbench                             \
 							  -I $(PWD)/spike_install/include/                \

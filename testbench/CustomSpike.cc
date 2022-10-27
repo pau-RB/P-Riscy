@@ -14,6 +14,7 @@
 
 // Spike
 #include "config.h"
+#include "memif.h"
 #include "simif.h"
 #include "mmu.h"
 #include "processor.h"
@@ -150,8 +151,8 @@ void CustomSpike::load_vmh(std::string path) {
 
 void CustomSpike::add_proc(VerifID verifID) {
 
-    processor_t *new_proc = new processor_t(&isa, DEFAULT_VARCH, this, 0, false, NULL, sout_);
-                            // processor_t(isa, varch, sim, id, halt_on_reset, log_file, sout_);
+    processor_t *new_proc = new processor_t(&isa, DEFAULT_VARCH, this, 0, false, memif_endianness_little, NULL, sout_);
+                            // processor_t(isa, varch, sim, id, halt_on_reset, endianess, log_file, sout_);
 
     new_proc->set_mmu_capability(IMPL_MMU_SBARE);
     new_proc->get_state()->pc = StartPC;
