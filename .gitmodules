@@ -1,3 +1,6 @@
 [submodule "connectal"]
 	path = connectal
 	url = https://github.com/cambridgehackers/connectal
+[submodule "riscv-isa-sim"]
+	path = riscv-isa-sim
+	url = https://github.com/pau-RB/riscv-isa-sim
