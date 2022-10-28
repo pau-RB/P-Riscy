@@ -46,7 +46,7 @@ class CustomSpike : public simif_t {
         loadTracer   lt;
         storeTracer  st;
 
-        void load_vmh(std::string path);
+        void load_obj(std::string path);
         void add_proc(VerifID id);
         void remove_proc(VerifID id);
 

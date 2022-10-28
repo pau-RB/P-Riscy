@@ -11,7 +11,7 @@ export PATH=/opt/tools/bsc/latest/bin:$PATH
 
 1- Clone the spike repo
 
-	git clone https://github.com/riscv-software-src/riscv-isa-sim
+	git clone https://github.com/pau-RB/riscv-isa-sim
 
 2- Create spike_install and build folders
 
@@ -51,3 +51,22 @@ export PATH=/opt/tools/bsc/latest/bin:$PATH
 3 - Add operation to riscv/opcodes.h
 
 4 - Add to  riscv_insn_ext_i  in  riscv/riscv.mk.in
+
+
+############### ISA TESTS ###############
+
+1 - git clone https://github.com/riscv-software-src/riscv-tests
+
+2 - mkdir tests_install
+
+3 - cd riscv-tests
+
+4 - git submodule update --init --recursive
+
+5 - autoconf
+
+6 - ./configure --prefix=$PWD/../tests_install
+
+7 - cd isa
+
+8 - make rv32ui rv32um

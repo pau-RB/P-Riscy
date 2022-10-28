@@ -6,8 +6,7 @@
 #define WMBAddrSz 12
 #define MEM_MAX_ADDR (1<<WMBAddrSz)*CacheLineBytes
 
-#define StartPC 0x200
-//#define StartPC 0x1F8
+#define StartPC 0x1000
 
 typedef uint32_t Data;
 typedef uint32_t Addr;

@@ -46,7 +46,7 @@ build:
 	make build.verilator
 
 slow:
-	./verilator/bin/ubuntu.exe sw 8 2000 --color=always | less -r
+	./verilator/bin/ubuntu.exe rv32ui-p-sw 1 2000 --color=always | less -r
 
 fast:
-	./verilator/bin/ubuntu.exe sw 16 20
+	./verilator/bin/ubuntu.exe rv32ui-p-sw 1 20

@@ -38,9 +38,11 @@ CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
 	mem_sz = memory_sz;
     mem    = (char*) calloc(memory_sz, 1);
 
-    this->load_vmh(elf_file);
+    this->load_obj(elf_file);
 
     this->cycleCnt = 0;
+
+    std::cout << std::hex << mem_sz << std::endl;
 
 }
 
@@ -49,7 +51,7 @@ CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
 // If it return NULL, it will be considered as an MMIO region and will call
 // mmio_load/mmio_store to request the operaton to the sim.
 
-char* CustomSpike::addr_to_mem(reg_t addr) { return ((char*) mem) + addr; }
+char* CustomSpike::addr_to_mem(reg_t addr) { return ((char*)mem) + (addr%mem_sz);}
 
 bool CustomSpike::mmio_load(reg_t addr, size_t len, uint8_t* bytes) { return true; }
 
@@ -71,13 +73,9 @@ CommitReport CustomSpike::step(VerifID verifID) {
 	// What instruction will I execute next?
 	cmr.cycle   = this->cycleCnt;
     cmr.verifID = verifID;
-	cmr.pc      = this->active_thread[verifID]->get_state()->pc;
-	try {
-		cmr.rawInst = (uint32_t) active_thread[verifID]->get_mmu()->access_icache(cmr.pc)->data.insn.bits();
-    } catch(...) {
-        std::cout << "[ERROR] access_icache(0x" << std::hex << cmr.pc <<  ") failed even though there was no interrupt or exception for the current verification packet." << std::endl;
-    }
-    cmr.iType = getIType(cmr.rawInst);
+	cmr.pc      = this->active_thread[verifID]->get_state()->pc;	
+    cmr.rawInst = (uint32_t) active_thread[verifID]->get_mmu()->access_icache(cmr.pc)->data.insn.bits();
+    cmr.iType   = getIType(cmr.rawInst);
 
     // Execute it
     active_thread[verifID]->step(1); cycleCnt++;
@@ -97,6 +95,10 @@ CommitReport CustomSpike::step(VerifID verifID) {
         cmr.addr = this->active_thread[verifID]->get_state()->pc;
     else
         cmr.addr = 0;
+
+    if(cmr.iType == iTypeUnsup) {
+        this->active_thread[verifID]->get_state()->pc = cmr.pc+4;
+    }
     
     return cmr;
 
@@ -136,15 +138,22 @@ std::map<VerifID, uint32_t> CustomSpike::get_stats() {
     return commit_thread;
 }
 
-void CustomSpike::load_vmh(std::string path) {
+void CustomSpike::load_obj(std::string path) {
 
-    std::ifstream srcfile; srcfile.open(path,std::fstream::in|std::fstream::out|std::fstream::app);
-	std::string aux; srcfile >> aux;
+    std::ifstream input( path, std::ios::binary );
 
-	uint32_t word;
-    for (uint32_t addr = 0; addr < MEM_MAX_ADDR; addr=addr+4) {
-        srcfile >> std::hex >> word;
+    std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(input), {});
+
+    for (uint32_t addr = 0; addr < mem_sz; addr=addr+4) {
+
+        uint32_t byte0 = (addr+0<(uint32_t)buffer.size()) ? buffer[addr+0] : 0;
+        uint32_t byte1 = (addr+1<(uint32_t)buffer.size()) ? buffer[addr+1] : 0;
+        uint32_t byte2 = (addr+2<(uint32_t)buffer.size()) ? buffer[addr+2] : 0;
+        uint32_t byte3 = (addr+3<(uint32_t)buffer.size()) ? buffer[addr+3] : 0;
+        Data word = byte3<<24|byte2<<16|byte1<<8|byte0;
+
         memcpy(((char*) mem) + addr, &word, 4);
+
     }
 
 }

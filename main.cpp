@@ -74,7 +74,8 @@ class ToHost: public ToHostWrapper {
             }
 
             // Check
-            if(tandem_compare(cmrSpike, cmrDut) != tandem_mm::correct) {
+            tandem_mm mm = tandem_compare(cmrSpike, cmrDut);
+            if(mm != tandem_mm::correct && mm != tandem_mm::unsup) {
                 error_detected = true;
             }
 
@@ -114,20 +115,24 @@ class ToHost: public ToHostWrapper {
 static FromHostProxy *connectalProc=0;
 static ToHost        *connectalHost=0;
 
-void initMem(string path) {
+void initMemOBJ(string path) {
 
-    ifstream srcfile; srcfile.open(path,fstream::in|fstream::out|fstream::app);
+    std::ifstream input( path, std::ios::binary );
 
-    uint32_t word;
-    string aux;
-    srcfile >> aux;
+    std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(input), {});
+
     for (uint32_t addr = 0; addr < MEM_MAX_ADDR; addr=addr+4) {
-        srcfile >> std::hex >> word;
+
+        uint32_t byte0 = (addr+0<(uint32_t)buffer.size()) ? buffer[addr+0] : 0;
+        uint32_t byte1 = (addr+1<(uint32_t)buffer.size()) ? buffer[addr+1] : 0;
+        uint32_t byte2 = (addr+2<(uint32_t)buffer.size()) ? buffer[addr+2] : 0;
+        uint32_t byte3 = (addr+3<(uint32_t)buffer.size()) ? buffer[addr+3] : 0;
+        Data word = byte3<<24|byte2<<16|byte1<<8|byte0;
+
         connectalProc->setMem(addr, word);
+
     }
-
 }
-
 
 int main(int argc, char * const *argv) {
 
@@ -144,8 +149,8 @@ int main(int argc, char * const *argv) {
 
     printf("------ Initializing memory ------\n"); fflush(stdout);
         string test = all_args[0];
-        string path = "./vmh/"+ test +".riscv.vmh";
-        initMem(path);
+        string path = "./obj/"+ test;
+        initMemOBJ(path);
 
     printf("------ Setup Spike ------\n"); fflush(stdout);
         spike = new CustomSpike(path, MEM_MAX_ADDR);
