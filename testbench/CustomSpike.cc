@@ -83,6 +83,9 @@ CommitReport CustomSpike::step(VerifID verifID) {
     cmr.wbDst = (cmr.rawInst >> 7) & 0x1F;
     cmr.wbRes = this->active_thread[verifID]->get_state()->XPR[cmr.wbDst & 0x1F];
 
+    if(this->active_thread[verifID]->get_state()->pc == 0)
+        cmr.iType = iTypeUnsup;
+
     if(cmr.iType == iTypeLd)
         cmr.addr = this->lt.get_last_access();
     else if(cmr.iType == iTypeSt)

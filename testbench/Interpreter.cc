@@ -109,7 +109,7 @@ std::string interpreter(const Data uinst) {
 	uint32_t funct3 = (inst.u&0x00007000)>>12;
 	uint32_t rs1    = (inst.u&0x000f8000)>>15;
 	uint32_t rs2    = (inst.u&0x01f00000)>>20;
-	//uint32_t funct7 = (inst.u&0xfe000000)>>25;
+	uint32_t funct7 = (inst.u&0xfe000000)>>25;
 	uint32_t aluSel = (inst.u&0x40000000)>>30;
 
 
@@ -129,8 +129,8 @@ std::string interpreter(const Data uinst) {
 				case fnAND:  ret = "andi" ; break;
 				case fnOR:   ret = "ori"  ; break;
 				case fnXOR:  ret = "xori" ; break;
-				case fnSLL:  ret = "slli" ; break;
-				case fnSR:   ret = (aluSel == 0 ? "srli" : "srai"); break;
+				case fnSLL:  ret = ( funct7         != 0) ? "unsupport "+uint_to_hex(inst.u) : "slli" ; break;
+				case fnSR:   ret = ((funct7 & 0x5F) != 0) ? "unsupport "+uint_to_hex(inst.u) : (aluSel == 0 ? "srli" : "srai"); break;
 				default:     ret = "unsupport "+uint_to_hex(inst.u);
 			}
 			ret = ret+" r"+std::to_string(rd)+" = r"+std::to_string(rs1)+" ";
@@ -140,14 +140,14 @@ std::string interpreter(const Data uinst) {
 		case opOp:
 			
 			switch (funct3) {
-				case fnADD:  ret = (aluSel == 0 ? "add" : "sub"); break;
-				case fnSLT:  ret = "slt"; break;
-				case fnSLTU: ret = "sltu"; break;
-				case fnAND:  ret = "and"; break;
-				case fnOR:   ret = "or"; break;
-				case fnXOR:  ret = "xor"; break;
-				case fnSLL:  ret = "sll"; break;
-				case fnSR:   ret = (aluSel == 0 ? "srl" : "sra"); break;
+				case fnADD:  ret = ((funct7 & 0x5F) != 0) ? "unsupport "+uint_to_hex(inst.u) : (aluSel == 0 ? "add" : "sub"); break;
+				case fnSLT:  ret = ( funct7         != 0) ? "unsupport "+uint_to_hex(inst.u) : "slt"; break;
+				case fnSLTU: ret = ( funct7         != 0) ? "unsupport "+uint_to_hex(inst.u) : "sltu"; break;
+				case fnAND:  ret = ( funct7         != 0) ? "unsupport "+uint_to_hex(inst.u) : "and"; break;
+				case fnOR:   ret = ( funct7         != 0) ? "unsupport "+uint_to_hex(inst.u) : "or"; break;
+				case fnXOR:  ret = ( funct7         != 0) ? "unsupport "+uint_to_hex(inst.u) : "xor"; break;
+				case fnSLL:  ret = ( funct7         != 0) ? "unsupport "+uint_to_hex(inst.u) : "sll"; break;
+				case fnSR:   ret = ((funct7 & 0x5F) != 0) ? "unsupport "+uint_to_hex(inst.u) : (aluSel == 0 ? "srl" : "sra"); break;
 				default:     ret = "unsupport "+uint_to_hex(inst.u);
 			}
 			ret = ret+" r"+std::to_string(rd)+" = r"+std::to_string(rs1)+" r"+std::to_string(rs2);

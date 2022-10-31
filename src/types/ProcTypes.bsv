@@ -241,7 +241,7 @@ function Fmt showInst(Instruction inst);
 	let funct3 = inst[ 14 : 12 ];
 	let rs1    = inst[ 19 : 15 ];
 	let rs2    = inst[ 24 : 20 ];
-//	let funct7 = inst[ 31 : 25 ];
+	let funct7 = inst[ 31 : 25 ];
 	let aluSel = inst[30]; // select between Add/Sub, Srl/Sra
 
 	Bit#(32) immI   = signExtend(inst[31:20]);
@@ -259,8 +259,8 @@ function Fmt showInst(Instruction inst);
 				fnAND: $format("andi");
 				fnOR: $format("ori");
 				fnXOR: $format("xori");
-				fnSLL: $format("slli");
-				fnSR: (aluSel == 0 ? $format("srli") : $format("srai"));
+				fnSLL: (( funct7          != '0) ? $format("unsupport OpImm 0x%0x", inst) : $format("slli"));
+				fnSR:  (((funct7 & 7'h5F) != '0) ? $format("unsupport OpImm 0x%0x", inst) : (aluSel == 0 ? $format("srli") : $format("srai")));
 				default: $format("unsupport OpImm 0x%0x", inst);
 			endcase;
 			ret = ret + $format(" r%d = r%d ", rd, rs1);
@@ -272,14 +272,14 @@ function Fmt showInst(Instruction inst);
 
 		opOp: begin
 			ret = case (funct3)
-				fnADD: (aluSel == 0 ? $format("add") : $format("sub"));
-				fnSLT: $format("slt");
-				fnSLTU: $format("sltu");
-				fnAND: $format("and");
-				fnOR: $format("or");
-				fnXOR: $format("xor");
-				fnSLL: $format("sll");
-				fnSR: (aluSel == 0 ? $format("srl") : $format("sra"));
+				fnADD: (((funct7 & 7'h5F) != '0) ? $format("unsupport Op 0x%0x", inst) : (aluSel == 0 ? $format("add") : $format("sub")));
+				fnSLT: (( funct7          != '0) ? $format("unsupport Op 0x%0x", inst) : $format("slt"));
+				fnSLTU:(( funct7          != '0) ? $format("unsupport Op 0x%0x", inst) : $format("sltu"));
+				fnAND: (( funct7          != '0) ? $format("unsupport Op 0x%0x", inst) : $format("and"));
+				fnOR:  (( funct7          != '0) ? $format("unsupport Op 0x%0x", inst) : $format("or"));
+				fnXOR: (( funct7          != '0) ? $format("unsupport Op 0x%0x", inst) : $format("xor"));
+				fnSLL: (( funct7          != '0) ? $format("unsupport Op 0x%0x", inst) : $format("sll"));
+				fnSR:  (((funct7 & 7'h5F) != '0) ? $format("unsupport Op 0x%0x", inst) : (aluSel == 0 ? $format("srl") : $format("sra")));
 				default: $format("unsupport Op 0x%0x", inst);
 			endcase;
 			ret = ret + $format(" r%d = r%d r%d", rd, rs1, rs2);

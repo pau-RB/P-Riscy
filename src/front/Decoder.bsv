@@ -28,7 +28,7 @@ function DecodedInst decode(Instruction inst);
 	let funct3    =        inst[ 14 : 12 ];
 	let rs1       =        inst[ 19 : 15 ];
 	let rs2       =        inst[ 24 : 20 ];
-//	let funct7    =        inst[ 31 : 25 ];
+	let funct7    =        inst[ 31 : 25 ];
 	let aluSel    =        inst[30]; // select between Add/Sub, Srl/Sra
 
 	Data immI   = signExtend(inst[31:20]);
@@ -40,6 +40,19 @@ function DecodedInst decode(Instruction inst);
 	case (opcode)
 		opOpImm: begin
 			dInst.iType = Alu;
+			case (funct3)
+				fnADD:  dInst.iType  = Alu;
+				fnSLT:  dInst.iType  = Alu;
+				fnSLTU: dInst.iType  = Alu;
+				fnAND:  dInst.iType  = Alu;
+				fnOR:   dInst.iType  = Alu;
+				fnXOR:  dInst.iType  = Alu;
+				fnSLL:  dInst.iType  = (( funct7          == '0) ? Alu : Unsupported );
+				fnSR:   dInst.iType  = (((funct7 & 7'h5F) == '0) ? Alu : Unsupported );
+				default: begin
+					dInst.iType = Unsupported;
+				end
+			endcase
 			case (funct3)
 				fnADD:  dInst.aluFunc = Add;
 				fnSLT:  dInst.aluFunc = Slt;
@@ -63,6 +76,19 @@ function DecodedInst decode(Instruction inst);
 
 		opOp: begin
 			dInst.iType = Alu;
+			case (funct3)
+				fnADD:  dInst.iType = (((funct7 & 7'h5F) == '0) ? Alu : Unsupported );
+				fnSLT:  dInst.iType = (( funct7          == '0) ? Alu : Unsupported );
+				fnSLTU: dInst.iType = (( funct7          == '0) ? Alu : Unsupported );
+				fnAND:  dInst.iType = (( funct7          == '0) ? Alu : Unsupported );
+				fnOR:   dInst.iType = (( funct7          == '0) ? Alu : Unsupported );
+				fnXOR:  dInst.iType = (( funct7          == '0) ? Alu : Unsupported );
+				fnSLL:  dInst.iType = (( funct7          == '0) ? Alu : Unsupported );
+				fnSR:   dInst.iType = (((funct7 & 7'h5F) == '0) ? Alu : Unsupported );
+				default: begin
+					dInst.iType = Unsupported;
+				end
+			endcase
 			case (funct3)
 				fnADD:  dInst.aluFunc = aluSel == 0 ? Add : Sub;
 				fnSLT:  dInst.aluFunc = Slt;
