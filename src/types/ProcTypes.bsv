@@ -222,6 +222,11 @@ typedef struct {
 	Addr  	addr;    // nextpc for branch, addr for LSU, nextpc for Fork
 } CommitReport deriving (Bits, Eq);
 
+typedef struct {
+	VerifID verifID;
+	Bit#(8) data;
+} Message deriving (Bits, Eq);
+
 function Bool dataHazard(Maybe#(RIndx) src1, Maybe#(RIndx) src2, Maybe#(RIndx) dst);
     return (isValid(dst) && ((isValid(src1) && fromMaybe(?, dst)==fromMaybe(?, src1)) ||
                              (isValid(src2) && fromMaybe(?, dst)==fromMaybe(?, src2))));

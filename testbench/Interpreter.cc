@@ -294,3 +294,12 @@ void print_stats(const std::map<VerifID, uint32_t> commit_thread) {
 	printf("\033[0m");
 
 }
+
+void printMSGDut(const VerifID verifID, const uint8_t msg) {
+
+	std::string phrase = " [id:     ] MSG:";
+	overwrite(phrase, std::to_string(verifID),  6, 3 );
+    printf("%s %c\n\n", phrase.c_str(), (char)msg);
+    fflush(stdout);
+
+}

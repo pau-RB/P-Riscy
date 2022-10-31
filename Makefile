@@ -42,11 +42,8 @@ include $(CONNECTALDIR)/Makefile.connectal
 clean:
 	rm -rf ./verilator/*
 
-build:
-	make build.verilator
-
 slow:
-	./verilator/bin/ubuntu.exe rv32ui-p-sw 1 2000 --color=always | less -r
+	./verilator/bin/ubuntu.exe ./test/build/rv32-add 1 2000 --color=always | less -r
 
 fast:
-	./verilator/bin/ubuntu.exe rv32ui-p-sw 1 20
+	./verilator/bin/ubuntu.exe ./test/build/rv32-add 1 20

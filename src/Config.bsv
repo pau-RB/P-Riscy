@@ -11,7 +11,7 @@ Bool perf_DEBUG    = False;
 
 // MSG relay
 typedef  80 THQ_LEN;
-Addr     msg_ADDR  = 'h10000;
+Addr     msg_ADDR  = 'h0fff0;
 Addr     max_ADDR  = 'h3fffc;
 
 // Main Token Queue

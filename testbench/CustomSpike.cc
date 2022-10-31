@@ -42,8 +42,6 @@ CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
 
     this->cycleCnt = 0;
 
-    std::cout << std::hex << mem_sz << std::endl;
-
 }
 
 // For a Ld/St, the mmu will call addr_to_mem to get the host addr for the actual

@@ -40,7 +40,7 @@ interface Core;
 
 	method ActionValue#(ContToken)    getContToken();
 	method ActionValue#(CommitReport) getCMR();
-	method ActionValue#(Data)         getMSG();
+	method ActionValue#(Message)      getMSG();
 
 endinterface
 
@@ -52,7 +52,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	Reg#(Data)                  numCommit      <- mkReg(0);
 	Reg#(Data)                  numCycles      <- mkReg(0);
 	Fifo#(THQ_LEN,CommitReport) commitReportQ  <- mkPipelineFifo();
-	Fifo#(THQ_LEN,Data)         messageReportQ <- mkPipelineFifo();
+	Fifo#(THQ_LEN,Message)      messageReportQ <- mkPipelineFifo();
 
 
 	//////////// MEMORY ////////////
@@ -372,7 +372,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				if (msg_ext_DEBUG == True) begin
 					
 					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
-						messageReportQ.enq(commitInst.data);
+						messageReportQ.enq(Message { verifID: verif.getVerifID(feID),
+													 data:    truncate(commitInst.data) });
 					end
 
 				end
@@ -512,7 +513,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	endmethod
 
-	method ActionValue#(Data) getMSG();
+	method ActionValue#(Message) getMSG();
 
 		let latest = messageReportQ.first(); messageReportQ.deq();
 		return latest;

@@ -100,4 +100,6 @@ void printCMRDut(const CommitReport cmr);
 
 void print_stats(const std::map<VerifID, uint32_t> commit_thread);
 
+void printMSGDut(const VerifID verifID, const uint8_t msg);
+
 #endif

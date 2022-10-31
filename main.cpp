@@ -75,7 +75,7 @@ class ToHost: public ToHostWrapper {
 
             // Check
             tandem_mm mm = tandem_compare(cmrSpike, cmrDut);
-            if(mm != tandem_mm::correct && mm != tandem_mm::unsup) {
+            if(mm != tandem_mm::correct) {
                 error_detected = true;
             }
 
@@ -101,9 +101,10 @@ class ToHost: public ToHostWrapper {
 
         }
 
-        virtual void reportMSG ( const uint32_t msg){
-            printf("MESSAGE:  %s\n", uint_to_hex(msg).c_str());
-            fflush(stdout);
+        virtual void reportMSG ( const uint32_t verifID, const uint8_t msg ){
+
+            printMSGDut(verifID, msg);
+
         }
     
     ToHost(unsigned int id) : ToHostWrapper(id){}
@@ -149,11 +150,10 @@ int main(int argc, char * const *argv) {
 
     printf("------ Initializing memory ------\n"); fflush(stdout);
         string test = all_args[0];
-        string path = "./obj/"+ test;
-        initMemOBJ(path);
+        initMemOBJ(test);
 
     printf("------ Setup Spike ------\n"); fflush(stdout);
-        spike = new CustomSpike(path, MEM_MAX_ADDR);
+        spike = new CustomSpike(test, MEM_MAX_ADDR);
 
     printf("------ Start core ------\n"); fflush(stdout);
     int sim_threads = std::stoi(all_args[1]);
