@@ -27,7 +27,7 @@ CustomSpike::~CustomSpike() {
 }
 
 CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
-	isa("RV32I", "m"),
+	isa("RV32IM", "m"),
 	sout_(nullptr),
     lt(),
     st()

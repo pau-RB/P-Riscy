@@ -39,6 +39,7 @@ function DecodedInst decode(Instruction inst);
 
 	case (opcode)
 		opOpImm: begin
+
 			dInst.iType = Alu;
 			case (funct3)
 				fnADD:  dInst.iType  = Alu;
@@ -72,32 +73,57 @@ function DecodedInst decode(Instruction inst);
 			dInst.src1 = tagged Valid rs1;
 			dInst.src2 = tagged Invalid;
 			dInst.imm = tagged Valid immI;
+
 		end
 
 		opOp: begin
-			dInst.iType = Alu;
-			case (funct3)
-				fnADD:  dInst.iType = (((funct7 & 7'h5F) == '0) ? Alu : Unsupported );
-				fnSLT:  dInst.iType = (( funct7          == '0) ? Alu : Unsupported );
-				fnSLTU: dInst.iType = (( funct7          == '0) ? Alu : Unsupported );
-				fnAND:  dInst.iType = (( funct7          == '0) ? Alu : Unsupported );
-				fnOR:   dInst.iType = (( funct7          == '0) ? Alu : Unsupported );
-				fnXOR:  dInst.iType = (( funct7          == '0) ? Alu : Unsupported );
-				fnSLL:  dInst.iType = (( funct7          == '0) ? Alu : Unsupported );
-				fnSR:   dInst.iType = (((funct7 & 7'h5F) == '0) ? Alu : Unsupported );
-				default: begin
-					dInst.iType = Unsupported;
+
+			case (funct7)
+				7'h00: begin
+					dInst.iType = Alu;
+					case (funct3)
+						fnADD:  dInst.aluFunc = Add;
+						fnSLT:  dInst.aluFunc = Slt;
+						fnSLTU: dInst.aluFunc = Sltu;
+						fnAND:  dInst.aluFunc = And;
+						fnOR:   dInst.aluFunc = Or;
+						fnXOR:  dInst.aluFunc = Xor;
+						fnSLL:  dInst.aluFunc = Sll;
+						fnSR:   dInst.aluFunc = Srl;
+						default: begin
+							dInst.aluFunc = ?;
+							dInst.iType = Unsupported;
+						end
+					endcase
 				end
-			endcase
-			case (funct3)
-				fnADD:  dInst.aluFunc = aluSel == 0 ? Add : Sub;
-				fnSLT:  dInst.aluFunc = Slt;
-				fnSLTU: dInst.aluFunc = Sltu;
-				fnAND:  dInst.aluFunc = And;
-				fnOR:   dInst.aluFunc = Or;
-				fnXOR:  dInst.aluFunc = Xor;
-				fnSLL:  dInst.aluFunc = Sll;
-				fnSR:   dInst.aluFunc = aluSel == 0 ? Srl : Sra;
+				7'h20: begin
+					dInst.iType = Alu;
+					case (funct3)
+						fnADD:  dInst.aluFunc = Sub;
+						fnSR:   dInst.aluFunc = Sra;
+						default: begin
+							dInst.aluFunc = ?;
+							dInst.iType = Unsupported;
+						end
+					endcase
+				end
+				7'h01: begin
+					dInst.iType = Mul;
+					case (funct3)
+						fnMUL:    dInst.mulFunc = Mul;
+						fnMULH:   dInst.mulFunc = Mulh;
+						fnMULHSU: dInst.mulFunc = Mulhsu;
+						fnMULHU:  dInst.mulFunc = Mulhu;
+						fnDIV:    dInst.mulFunc = Div;
+						fnDIVU:   dInst.mulFunc = Divu;
+						fnREM:    dInst.mulFunc = Rem;
+						fnREMU:   dInst.mulFunc = Remu;
+						default: begin
+							dInst.aluFunc = ?;
+							dInst.iType = Unsupported;
+						end
+					endcase
+				end
 				default: begin
 					dInst.aluFunc = ?;
 					dInst.iType = Unsupported;
@@ -108,6 +134,7 @@ function DecodedInst decode(Instruction inst);
 			dInst.src1 = tagged Valid rs1;
 			dInst.src2 = tagged Valid rs2;
 			dInst.imm  = tagged Invalid;
+
 		end
 
 		opLui: begin // rd = immU + r0

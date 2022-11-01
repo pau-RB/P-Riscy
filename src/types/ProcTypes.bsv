@@ -44,6 +44,7 @@ Opcode opSystem  = 7'b1110011;
 typedef enum {
 	Unsupported, 
 	Alu, 
+	Mul,
 	Ld, 
 	St, 
 	Fork,
@@ -93,11 +94,23 @@ typedef enum {
 	Srl
 } AluFunc deriving(Bits, Eq, FShow);
 
+typedef enum {
+	Mul,
+	Mulh,
+	Mulhsu,
+	Mulhu,
+	Div,
+	Divu,
+	Rem,
+	Remu
+} MulFunc deriving(Bits, Eq, FShow);
+
 typedef void Exception;
 
 typedef struct {
     IType            iType;
     AluFunc          aluFunc;
+    MulFunc          mulFunc;
     BrFunc           brFunc;
     LoadFunc         ldFunc;
     StoreFunc        stFunc;
@@ -128,6 +141,15 @@ Bit#(3) fnXOR   = 3'b100;
 Bit#(3) fnSR    = 3'b101;
 Bit#(3) fnOR    = 3'b110;
 Bit#(3) fnAND   = 3'b111;
+// M
+Bit#(3) fnMUL   = 3'b000;
+Bit#(3) fnMULH  = 3'b001;
+Bit#(3) fnMULHSU= 3'b010;
+Bit#(3) fnMULHU = 3'b011;
+Bit#(3) fnDIV   = 3'b100;
+Bit#(3) fnDIVU  = 3'b101;
+Bit#(3) fnREM   = 3'b110;
+Bit#(3) fnREMU  = 3'b111;
 // Branch
 Bit#(3) fnBEQ   = 3'b000;
 Bit#(3) fnBNE   = 3'b001;
@@ -271,15 +293,40 @@ function Fmt showInst(Instruction inst);
 		end
 
 		opOp: begin
-			ret = case (funct3)
-				fnADD: (((funct7 & 7'h5F) != '0) ? $format("unsupport Op 0x%0x", inst) : (aluSel == 0 ? $format("add") : $format("sub")));
-				fnSLT: (( funct7          != '0) ? $format("unsupport Op 0x%0x", inst) : $format("slt"));
-				fnSLTU:(( funct7          != '0) ? $format("unsupport Op 0x%0x", inst) : $format("sltu"));
-				fnAND: (( funct7          != '0) ? $format("unsupport Op 0x%0x", inst) : $format("and"));
-				fnOR:  (( funct7          != '0) ? $format("unsupport Op 0x%0x", inst) : $format("or"));
-				fnXOR: (( funct7          != '0) ? $format("unsupport Op 0x%0x", inst) : $format("xor"));
-				fnSLL: (( funct7          != '0) ? $format("unsupport Op 0x%0x", inst) : $format("sll"));
-				fnSR:  (((funct7 & 7'h5F) != '0) ? $format("unsupport Op 0x%0x", inst) : (aluSel == 0 ? $format("srl") : $format("sra")));
+			ret = case (funct7)
+				7'h00: begin
+					case (funct3)
+						fnADD:  $format("add");
+						fnSLT:  $format("slt");
+						fnSLTU: $format("sltu");
+						fnAND:  $format("and");
+						fnOR:   $format("or");
+						fnXOR:  $format("xor");
+						fnSLL:  $format("sll");
+						fnSR:   $format("srl");
+						default: $format("unsupport Op 0x%0x", inst);
+					endcase
+				end
+				7'h20: begin
+					case (funct3)
+						fnADD:  $format("sub");
+						fnSR:   $format("sra");
+						default: $format("unsupport Op 0x%0x", inst);
+					endcase
+				end
+				7'h01: begin
+					case (funct3)
+						fnMUL:    $format("mul");
+						fnMULH:   $format("mulh");
+						fnMULHSU: $format("mulhsu");
+						fnMULHU:  $format("mulhu");
+						fnDIV:    $format("div");
+						fnDIVU:   $format("divu");
+						fnREM:    $format("rem");
+						fnREMU:   $format("remu");
+						default: $format("unsupport Op 0x%0x", inst);
+					endcase
+				end
 				default: $format("unsupport Op 0x%0x", inst);
 			endcase;
 			ret = ret + $format(" r%d = r%d r%d", rd, rs1, rs2);

@@ -38,6 +38,38 @@ function Data alu(Data a, Data b, AluFunc func);
 endfunction
 
 (* noinline *)
+function Data mul(Data a, Data b, MulFunc func);
+
+  Int#(TAdd#(DataSz,DataSz))  a_int_s  = unpack(signExtend(a));
+  Int#(TAdd#(DataSz,DataSz))  b_int_s  = unpack(signExtend(b));
+
+  Int#(TAdd#(DataSz,DataSz))  a_int_z  = unpack(zeroExtend(a));
+  Int#(TAdd#(DataSz,DataSz))  b_int_z  = unpack(zeroExtend(b));
+
+  UInt#(TAdd#(DataSz,DataSz)) a_uint_z = unpack(zeroExtend(a));
+  UInt#(TAdd#(DataSz,DataSz)) b_uint_z = unpack(zeroExtend(b));
+
+  Int#(DataSz)                a_int    = unpack(a);
+  Int#(DataSz)                b_int    = unpack(b);
+
+  UInt#(DataSz)               a_uint   = unpack(a);
+  UInt#(DataSz)               b_uint   = unpack(b);
+
+  Data res = case(func)
+    Mul    : truncate   (pack(a_int_s *b_int_s ));
+    Mulh   : truncateLSB(pack(a_int_s *b_int_s ));
+    Mulhsu : truncateLSB(pack(a_int_s *b_int_z ));
+    Mulhu  : truncateLSB(pack(a_uint_z*b_uint_z));
+    Div    :             pack(a_int   /b_int   ) ;
+    Divu   :             pack(a_uint  /b_uint  ) ;
+    Rem    :             pack(a_int   %b_int   ) ;
+    Remu   :             pack(a_uint  %b_uint  ) ;
+  endcase;
+  return res;
+
+endfunction
+
+(* noinline *)
 function Bool aluBr(Data a, Data b, BrFunc brFunc);
   Bool brTaken = case(brFunc)
     Eq  : (a == b);
@@ -72,6 +104,7 @@ function ExecInst exec(DecodedInst dInst, Data rVal1, Data rVal2, Addr pc, Addr 
   // do ALU operation: use imm instead of rs2 if imm is valid (consider LW and SW)
   Data aluVal2 = isValid(dInst.imm) ? fromMaybe(?, dInst.imm) : rVal2;
   let aluRes = alu(rVal1, aluVal2, dInst.aluFunc);
+  let mulRes = mul(rVal1, rVal2,   dInst.mulFunc);
   
   // set eInst
   eInst.iType = dInst.iType;
@@ -86,6 +119,8 @@ function ExecInst exec(DecodedInst dInst, Data rVal1, Data rVal2, Addr pc, Addr 
                  (pc+4) :
                dInst.iType==Auipc ?
                  (pc + fromMaybe(?, dInst.imm)) :
+               dInst.iType==Mul ?
+                 mulRes : 
                  aluRes;
 
   let brTaken = aluBr(rVal1, rVal2, dInst.brFunc);

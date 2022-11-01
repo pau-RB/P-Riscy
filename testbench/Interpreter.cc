@@ -41,6 +41,8 @@ std::string printIType (const IType iType) {
             return "Unsup";
         case iTypeAlu  :
             return "Alu";
+        case iTypeMul  :
+            return "Mul";
         case iTypeLd   :
             return "Ld";
         case iTypeSt   :
@@ -138,18 +140,44 @@ std::string interpreter(const Data uinst) {
 			return ret;
 
 		case opOp:
-			
-			switch (funct3) {
-				case fnADD:  ret = ((funct7 & 0x5F) != 0) ? "unsupport "+uint_to_hex(inst.u) : (aluSel == 0 ? "add" : "sub"); break;
-				case fnSLT:  ret = ( funct7         != 0) ? "unsupport "+uint_to_hex(inst.u) : "slt"; break;
-				case fnSLTU: ret = ( funct7         != 0) ? "unsupport "+uint_to_hex(inst.u) : "sltu"; break;
-				case fnAND:  ret = ( funct7         != 0) ? "unsupport "+uint_to_hex(inst.u) : "and"; break;
-				case fnOR:   ret = ( funct7         != 0) ? "unsupport "+uint_to_hex(inst.u) : "or"; break;
-				case fnXOR:  ret = ( funct7         != 0) ? "unsupport "+uint_to_hex(inst.u) : "xor"; break;
-				case fnSLL:  ret = ( funct7         != 0) ? "unsupport "+uint_to_hex(inst.u) : "sll"; break;
-				case fnSR:   ret = ((funct7 & 0x5F) != 0) ? "unsupport "+uint_to_hex(inst.u) : (aluSel == 0 ? "srl" : "sra"); break;
-				default:     ret = "unsupport "+uint_to_hex(inst.u);
+
+			switch (funct7) {
+				case 0x00:
+					switch (funct3) {
+						case fnADD:  ret = "add"; break;
+						case fnSLT:  ret = "slt"; break;
+						case fnSLTU: ret = "sltu"; break;
+						case fnAND:  ret = "and"; break;
+						case fnOR:   ret = "or"; break;
+						case fnXOR:  ret = "xor"; break;
+						case fnSLL:  ret = "sll"; break;
+						case fnSR:   ret = "srl"; break;
+						default: return "unsupport "+uint_to_hex(inst.u);
+					}
+					break;
+				case 0x20:
+					switch (funct3) {
+						case fnADD:  ret = "sub"; break;
+						case fnSR:   ret = "sra"; break;
+						default: return "unsupport "+uint_to_hex(inst.u);
+					}
+					break;
+				case 0x01:
+					switch (funct3) {
+						case fnMUL:   ret = "mul"; break;
+						case fnMULH:  ret = "mulh"; break;
+						case fnMULHSU:ret = "mulhsu"; break;
+						case fnMULHU: ret = "mulhu"; break;
+						case fnDIV:   ret = "div"; break;
+						case fnDIVU:  ret = "divu"; break;
+						case fnREM:   ret = "rem"; break;
+						case fnREMU:  ret = "remu"; break;
+						default: return "unsupport "+uint_to_hex(inst.u);
+					}
+					break;
+				default: return "unsupport "+uint_to_hex(inst.u);
 			}
+			
 			ret = ret+" r"+std::to_string(rd)+" = r"+std::to_string(rs1)+" r"+std::to_string(rs2);
 			return ret;
 

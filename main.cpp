@@ -103,6 +103,10 @@ class ToHost: public ToHostWrapper {
 
         virtual void reportMSG ( const uint32_t verifID, const uint8_t msg ){
 
+            if(error_detected) {
+                return;
+            }
+
             printMSGDut(verifID, msg);
 
         }

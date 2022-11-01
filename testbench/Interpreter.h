@@ -33,6 +33,15 @@
 #define fnSR   0b101
 #define fnOR   0b110
 #define fnAND  0b111
+// MUL
+#define fnMUL    0b000
+#define fnMULH   0b001
+#define fnMULHSU 0b010
+#define fnMULHU  0b011
+#define fnDIV    0b100
+#define fnDIVU   0b101
+#define fnREM    0b110
+#define fnREMU   0b111
 // Branch
 #define fnBEQ  0b000
 #define fnBNE  0b001
@@ -63,14 +72,15 @@
 //Itypes
 #define iTypeUnsup 0
 #define iTypeAlu   1
-#define iTypeLd    2
-#define iTypeSt    3
-#define iTypeFork  4
-#define iTypeJoin  5
-#define iTypeJ     6
-#define iTypeJr    7
-#define iTypeBr    8
-#define iTypeAuipc 9
+#define iTypeMul   2
+#define iTypeLd    3
+#define iTypeSt    4
+#define iTypeFork  5
+#define iTypeJoin  6
+#define iTypeJ     7
+#define iTypeJr    8
+#define iTypeBr    9
+#define iTypeAuipc 10
 
 union Inst
 {

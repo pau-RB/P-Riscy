@@ -76,7 +76,8 @@ tandem_mm tandem_compare(CommitReport spike, CommitReport dut) {
 	}
 
 	// Instruction WB
-	if(dut.iType == iTypeAlu || dut.iType == iTypeLd || dut.iType == iTypeAuipc) {
+	if(dut.iType == iTypeAlu || dut.iType == iTypeMul ||
+		dut.iType == iTypeLd || dut.iType == iTypeAuipc) {
 		// wb expected
 		if(dut.wbDst != spike.wbDst) {
 			tandem_report("Destination register mismatch!");
