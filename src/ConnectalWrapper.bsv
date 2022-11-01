@@ -19,11 +19,12 @@ endinterface
 
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
-   WideMem                   mem        <- mkWideMemBRAM;
-   VerifMaster               verif      <- mkVerifMaster;
-   Core                      dut        <- mkCore6S(mem, verif);
-   Reg#(Bool)                memInit    <- mkReg(False);
-   Fifo#(MTQ_LEN, ContToken) mainTokenQ <- mkBypassFifo();
+   WideMem                   mem          <- mkWideMemBRAM;
+   VerifMaster               verif        <- mkVerifMaster;
+   Core                      dut          <- mkCore6S(mem, verif);
+   Reg#(Bool)                memInit      <- mkReg(False);
+   Fifo#(MTQ_LEN, ContToken) mainTokenQ   <- mkBypassFifo();
+   Reg#(Data)                commitTarget <- mkReg(80);
 
    rule relayCMR;
 
@@ -41,11 +42,13 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
    endrule
 
-   rule doEvict if((dut.getNumCommit()%100) == 80);
+   rule doEvict if(dut.getNumCommit() == commitTarget);
 
       for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
          dut.evict(fromInteger(i));
       end
+
+      commitTarget <= commitTarget+100;
 
    endrule
 
