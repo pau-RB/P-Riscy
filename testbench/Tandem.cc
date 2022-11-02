@@ -1,4 +1,5 @@
 #include "Tandem.h"
+#include "Interpreter.h"
 
 void tandem_warning(std::string msg) {
 	printf("------------------------ ");
@@ -17,7 +18,7 @@ void tandem_report(std::string msg) {
 void tandem_data(std::string msg, uint32_t data) {
 	printf("\033[1;31m");
 	printf(" --> ");
-    printf("%s: 0x%s\n", msg.c_str(), uint_to_hex(data).c_str());
+    printf("%s: 0x%s\n", msg.c_str(), Interpreter::uint_to_hex(data).c_str());
     printf("\033[0m");
 }
 

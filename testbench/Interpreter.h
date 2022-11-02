@@ -3,113 +3,36 @@
 
 #include <string>
 #include <map>
+#include <stdio.h>
+
 #include "TestbenchTypes.h"
-#include <stdio.h> 
+#include "isa_parser.h"
+#include "disasm.h"
 
+class Interpreter {
 
-// opcode
-#define opLoad    0b0000011
-#define opFork    0b0001011
-#define opMiscMem 0b0001111
-#define opOpImm   0b0010011
-#define opAuipc   0b0010111
-#define opStore   0b0100011
-#define opJoin    0b0101011
-#define opAmo     0b0101111
-#define opOp      0b0110011
-#define opLui     0b0110111
-#define opBranch  0b1100011
-#define opJalr    0b1100111
-#define opJal     0b1101111
-#define opSystem  0b1110011
+	public:
 
-// function code
-// ALU
-#define fnADD  0b000
-#define fnSLL  0b001
-#define fnSLT  0b010
-#define fnSLTU 0b011
-#define fnXOR  0b100
-#define fnSR   0b101
-#define fnOR   0b110
-#define fnAND  0b111
-// MUL
-#define fnMUL    0b000
-#define fnMULH   0b001
-#define fnMULHSU 0b010
-#define fnMULHU  0b011
-#define fnDIV    0b100
-#define fnDIVU   0b101
-#define fnREM    0b110
-#define fnREMU   0b111
-// Branch
-#define fnBEQ  0b000
-#define fnBNE  0b001
-#define fnBLT  0b100
-#define fnBGE  0b101
-#define fnBLTU 0b110
-#define fnBGEU 0b111
-// Load
-#define fnLW  0b010
-#define fnLB  0b000
-#define fnLH  0b001
-#define fnLBU 0b100
-#define fnLHU 0b101
-// Store
-#define fnSW 0b010
-#define fnSB 0b000
-#define fnSH 0b001
-// Amo
-#define fnLR 0b00010
-#define fnSC 0b00011
-//MiscMem
-#define fnFENCE  0b000
-#define fnFENCEI 0b001
-// System
-#define fnPRIV    0b000
-#define privSCALL 0x000
+		Interpreter(isa_parser_t *isa);
+		~Interpreter();
 
-//Itypes
-#define iTypeUnsup 0
-#define iTypeAlu   1
-#define iTypeMul   2
-#define iTypeLd    3
-#define iTypeSt    4
-#define iTypeFork  5
-#define iTypeJoin  6
-#define iTypeJ     7
-#define iTypeJr    8
-#define iTypeBr    9
-#define iTypeAuipc 10
+		static std::string uint_to_hex(uint32_t w);
+		static std::string int_to_hex(int32_t w);
 
-union Inst
-{
-	uint32_t u;
-	 int32_t s;
+		void print_CMR_spk(const CommitReport cmr);
+		void print_CMR_dut(const CommitReport cmr);
+		void print_MSG_dut(const VerifID verifID, const uint8_t msg);
+		void print_stats(const std::map<VerifID, uint32_t> commit_thread);
+
+	private:
+
+		disassembler_t *disasm;
+
+		static void overwrite(std::string &base, const std::string &text, int position, int max);
+
+		std::string print_itype(const IType iType);
+		std::string print_disasm(const Data uinst);
+
 };
-
-std::string uint_to_hex(uint32_t w);
-
-std::string int_to_hex(int32_t w);
-
-// Overwrite part of a base string
-void overwrite (std::string &base, const std::string &text, int position, int max);
-
-// Prints the instruction type
-std::string printIType (const IType iType);
-
-// Get IType
-IType getIType(const Data uinst);
-
-// Pretty print of an instruction
-std::string interpreter(const Data uinst);
-
-void printCMRSpike(const CommitReport cmr);
-
-void printCMRDut(const CommitReport cmr);
-
-void print_stats(const std::map<VerifID, uint32_t> commit_thread);
-
-void printMSGDut(const VerifID verifID, const uint8_t msg);
 
 #endif

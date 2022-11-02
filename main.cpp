@@ -27,8 +27,10 @@
 
 using namespace std;
 
-// Custom spike
-CustomSpike* spike;
+isa_parser_t*isa;
+CustomSpike *spike;
+Interpreter *inter;
+
 Bool error_detected = false;
 
 class ToHost: public ToHostWrapper {
@@ -89,14 +91,14 @@ class ToHost: public ToHostWrapper {
 
             // Print
             if (PRINT_COMMIT) {
-                printCMRSpike(cmrSpike);
-                printCMRDut  (cmrDut);
+                inter->print_CMR_spk(cmrSpike);
+                inter->print_CMR_dut(cmrDut);
                 printf("\n");
             }
 
             // Status
             if(error_detected) {
-                print_stats(spike->get_stats());
+                inter->print_stats(spike->get_stats());
             }
 
         }
@@ -107,7 +109,7 @@ class ToHost: public ToHostWrapper {
                 return;
             }
 
-            printMSGDut(verifID, msg);
+            inter->print_MSG_dut(verifID, msg);
 
         }
     
@@ -157,7 +159,9 @@ int main(int argc, char * const *argv) {
         initMemOBJ(test);
 
     printf("------ Setup Spike ------\n"); fflush(stdout);
-        spike = new CustomSpike(test, MEM_MAX_ADDR);
+        isa   = new isa_parser_t("RV32IM", "m");
+        spike = new CustomSpike(isa, test, MEM_MAX_ADDR);
+        inter = new Interpreter(isa);
 
     printf("------ Start core ------\n"); fflush(stdout);
     int sim_threads = std::stoi(all_args[1]);
@@ -168,7 +172,7 @@ int main(int argc, char * const *argv) {
     usleep(sim_time*1000000);
 
     if(!error_detected) {
-        print_stats(spike->get_stats());
+        inter->print_stats(spike->get_stats());
     }
 
     return 0;

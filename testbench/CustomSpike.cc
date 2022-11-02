@@ -7,7 +7,6 @@
 
 // Testbench
 #include "TestbenchTypes.h"
-#include "Interpreter.h"
 #include "LoadTracer.h"
 #include "StoreTracer.h"
 #include "CustomSpike.h"
@@ -26,8 +25,7 @@ CustomSpike::~CustomSpike() {
     }
 }
 
-CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
-	isa("RV32IM", "m"),
+CustomSpike::CustomSpike(isa_parser_t *isa, const std::string elf_file, size_t memory_sz):
 	sout_(nullptr),
     lt(),
     st()
@@ -35,8 +33,9 @@ CustomSpike::CustomSpike(const std::string elf_file, size_t memory_sz):
 
 	sout_.rdbuf(std::cerr.rdbuf()); // debug output goes to stderr by default
 
-	mem_sz = memory_sz;
-    mem    = (char*) calloc(memory_sz, 1);
+    this->isa    = isa;
+	this->mem_sz = memory_sz;
+    this->mem    = (char*) calloc(memory_sz, 1);
 
     this->load_obj(elf_file);
 
@@ -139,6 +138,39 @@ std::map<VerifID, uint32_t> CustomSpike::get_stats() {
     return commit_thread;
 }
 
+IType CustomSpike::getIType(const Data uinst) {
+
+    uint32_t opcode = (uinst&0x0000007f);
+
+    switch (opcode) {
+        case opOpImm:
+            return iTypeAlu;
+        case opOp:
+            return iTypeAlu; 
+        case opLui:
+            return iTypeAlu;
+        case opAuipc:
+            return iTypeAuipc;
+        case opFork:
+            return iTypeFork;
+        case opJoin:
+            return iTypeJoin;
+        case opJal:
+            return iTypeJ;
+        case opJalr:
+            return iTypeJr;
+        case opBranch:
+            return iTypeBr;
+        case opLoad:
+            return iTypeLd;
+        case opStore:
+            return iTypeSt;
+        default:
+            return iTypeUnsup;
+    }
+
+}
+
 void CustomSpike::load_obj(std::string path) {
 
     std::ifstream input( path, std::ios::binary );
@@ -161,7 +193,7 @@ void CustomSpike::load_obj(std::string path) {
 
 void CustomSpike::add_proc(VerifID verifID) {
 
-    processor_t *new_proc = new processor_t(&isa, DEFAULT_VARCH, this, 0, false, memif_endianness_little, NULL, sout_);
+    processor_t *new_proc = new processor_t(isa, DEFAULT_VARCH, this, 0, false, memif_endianness_little, NULL, sout_);
                             // processor_t(isa, varch, sim, id, halt_on_reset, endianess, log_file, sout_);
 
     new_proc->set_mmu_capability(IMPL_MMU_SBARE);

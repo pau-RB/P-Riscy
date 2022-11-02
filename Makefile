@@ -34,7 +34,8 @@ CONNECTALFLAGS += --cxxflags="-std=gnu++17                                    \
 							  -I $(PWD)/spike_install/include/                \
 							  -I $(PWD)/spike_install/include/fesvr/          \
 							  -I $(PWD)/spike_install/include/riscv/          \
-							  -I $(PWD)/spike_install/include/softfloat/"
+							  -I $(PWD)/spike_install/include/softfloat/"     \
+							  -I $(PWD)/riscv-isa-sim/riscv/                  \
 
 include $(CONNECTALDIR)/Makefile.connectal
 
