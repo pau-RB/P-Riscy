@@ -44,7 +44,7 @@ clean:
 	rm -rf ./verilator/*
 
 slow:
-	./verilator/bin/ubuntu.exe ./test/build/rv32-reverse 6 2000 --color=always | less -r
+	./verilator/bin/ubuntu.exe ./test/build/rv32-mxm-asm 1 2000 --color=always | less -r
 
 fast:
-	./verilator/bin/ubuntu.exe ./test/build/rv32-reverse 6 15
+	./verilator/bin/ubuntu.exe ./test/build/rv32-mxm-asm 1 15
