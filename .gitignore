@@ -5,6 +5,7 @@ spike_install/
 test/rv32-intermeidate.o
 test/rv32-init.o
 test/rv32-mmio.o
+test/rv32-mxmhost.o
 test/build
 test/dump
 test/hex
