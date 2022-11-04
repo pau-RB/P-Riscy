@@ -47,4 +47,4 @@ slow:
 	./verilator/bin/ubuntu.exe ./test/build/rv32-mxm-ikj 1 2000 --color=always | less -r
 
 fast:
-	./verilator/bin/ubuntu.exe ./test/build/rv32-mxm-ikj 1 15
+	./verilator/bin/ubuntu.exe ./test/build/rv32-mxm-ikj 1 120

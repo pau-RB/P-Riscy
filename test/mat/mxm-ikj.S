@@ -1,17 +1,16 @@
-.equ msz,4
+.equ msz,16
 .align 2
 .text
 .globl mxm
 ###### mat times mat ######
 mxm:
-	li	t3,msz
+	li		t3,msz
 for_i:
-	li	t4,msz
+	li		t4,msz
 for_k:
 	lw		t0,0(a0)
-	li	t5,msz
+	li		t5,msz
 for_j:
-
 	lw		t1,0(a1)
 	lw		t2,0(a2)
 	mul		t1,t0,t1
