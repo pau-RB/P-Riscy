@@ -78,7 +78,9 @@ int main() {
   C[0][0] = 0;
   D[0][0] = 0;
 
+  putchar('S');
   mxm((int*)A,(int*)B,(int*)C);
+  putchar('E');
 
   for (int i = 0; i < msz; ++i)
     for (int j = 0; j < msz; ++j)
@@ -88,6 +90,7 @@ int main() {
   for (int i = 0; i < msz; ++i)
     for (int j = 0; j < msz; ++j)
       if(C[i][j]!=D[i][j]) {
+        putchar('F');
         putchar(i+48);
         putchar(j+48);
         putchar(C[i][j]+48);
@@ -95,7 +98,7 @@ int main() {
         return 1;
       }
 
-  putchar('C');
+  putchar('P');
 
   return 0;
 }

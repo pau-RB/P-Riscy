@@ -54,4 +54,11 @@ typedef struct {
 	Addr    addr;    // nextpc for branch, addr for LSU, nextpc for Fork
 } CommitReport;
 
+typedef struct {
+	VerifID verifID;
+	Data    cycle;
+	Data    commit;
+	Data	data;
+} Message;
+
 #endif

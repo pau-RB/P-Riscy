@@ -246,7 +246,9 @@ typedef struct {
 
 typedef struct {
 	VerifID verifID;
-	Bit#(8) data;
+	Data    cycle;
+	Data    commit;
+	Data	data;
 } Message deriving (Bits, Eq);
 
 function Bool dataHazard(Maybe#(RIndx) src1, Maybe#(RIndx) src2, Maybe#(RIndx) dst);

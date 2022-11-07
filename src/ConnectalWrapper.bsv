@@ -38,7 +38,7 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
    rule relayMSG;
 
         Message msg <- dut.getMSG();
-        ind.reportMSG(msg.verifID, msg.data);
+        ind.reportMSG(msg.verifID, msg.cycle, msg.commit, msg.data);
 
    endrule
 

@@ -85,6 +85,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				DecodedInst decInst = DecodedInst{
 				                   		iType  : Ghost,
 				                   		aluFunc: ?,
+				                   		mulFunc: ?,
 				                   		ldFunc : ?,
 				                   		stFunc : ?,
 				                   		brFunc : NT,
@@ -373,19 +374,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					
 					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
 						messageReportQ.enq(Message { verifID: verif.getVerifID(feID),
-													 data:    truncate(commitInst.data) });
-					end
-
-				end
-
-				if (wb_DEBUG == True) begin
-
-					if(commitInst.iType == J ||commitInst.iType == Jr || commitInst.iType == Br) begin
-						$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, commitInst.addr, showInst(wToken.rawInst));
-					end else if (commitInst.iType == Ld) begin
-						$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, loadRes, showInst(wToken.rawInst));
-					end else begin
-						$display(" cycle: %d | pc: 0x%h | res: 0x%h | ", numCycles, wToken.pc, commitInst.data, showInst(wToken.rawInst));
+													 cycle:   numCycles,
+													 commit:  numCommit,
+													 data:    commitInst.data });
 					end
 
 				end
@@ -393,7 +384,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				if (msg_DEBUG == True) begin
 					
 					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
-						$display("MESSAGE: %h", commitInst.data);
+						$display(" [id: %d ] MESSAGE | cycle: %d | commit: %d | %c ", verif.getVerifID(feID), numCycles, numCommit, commitInst.data);
 					end
 
 				end

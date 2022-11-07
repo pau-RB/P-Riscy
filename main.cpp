@@ -103,13 +103,20 @@ class ToHost: public ToHostWrapper {
 
         }
 
-        virtual void reportMSG ( const uint32_t verifID, const uint8_t msg ){
+        virtual void reportMSG ( const uint32_t verifID, const uint32_t cycle,
+                                 const uint32_t commit,  const uint32_t data ){
 
             if(error_detected) {
                 return;
             }
 
-            inter->print_MSG_dut(verifID, msg);
+            Message msg;
+            msg.verifID = verifID;
+            msg.cycle   = cycle;
+            msg.commit  = commit;
+            msg.data    = data;
+
+            inter->print_MSG_dut(msg);
 
         }
     

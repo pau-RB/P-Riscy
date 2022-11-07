@@ -51,11 +51,13 @@ void Interpreter::print_CMR_dut(const CommitReport cmr) {
 
 }
 
-void Interpreter::print_MSG_dut(const VerifID verifID, const uint8_t msg) {
+void Interpreter::print_MSG_dut(const Message msg) {
 
-	std::string phrase = " [id:     ] MSG:";
-	overwrite(phrase, std::to_string(verifID),  6, 3 );
-    printf("%s %c\n\n", phrase.c_str(), (char)msg);
+	std::string phrase = " [id:     ] MESSAGE | cycle:          | commit:          | ";
+	overwrite(phrase, std::to_string(msg.verifID),  6, 3 );
+    overwrite(phrase, std::to_string(msg.cycle  ), 29, 8 );
+    overwrite(phrase, std::to_string(msg.commit ), 48, 8 );
+    printf("%s %c\n", phrase.c_str(), (char)msg.data);
     fflush(stdout);
 
 }
