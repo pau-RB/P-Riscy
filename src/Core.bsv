@@ -278,7 +278,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					loadRes = extendLoad(loadResRaw, commitInst.addr, commitInst.ldFunc);
 	        	    rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
 
-	        	end else if(commitInst.iType == Fork) begin
+	        	end else if(commitInst.iType == Fork || commitInst.iType == Forkr) begin
 
 					childVerifID <- nttx.efork(feID, commitInst.addr);
 
@@ -321,7 +321,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 														wbDst:   '0,
 														wbRes:   '0,
 														addr:    commitInst.addr});
-					end else if(commitInst.iType == Fork) begin
+					end else if(commitInst.iType == Fork || commitInst.iType == Forkr) begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
 														verifID: verif.getVerifID(feID),
 														pc:      wToken.pc,

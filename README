@@ -50,7 +50,9 @@ export PATH=/opt/tools/bsc/latest/bin:$PATH
 
 3 - Add operation to riscv/opcodes.h
 
-4 - Add to  riscv_insn_ext_i  in  riscv/riscv.mk.in
+4 - Add to riscv_insn_ext_i  in  riscv/riscv.mk.in
+
+5 - Add to disasm/disasm.cc
 
 
 ############### ISA TESTS ###############

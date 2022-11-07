@@ -81,7 +81,7 @@ class ToHost: public ToHostWrapper {
                 error_detected = true;
             }
 
-            if(iType == iTypeFork) {
+            if(iType == iTypeFork || iType == iTypeForkr) {
                 spike->fork(verifID, wbRes, addr);
             }
 

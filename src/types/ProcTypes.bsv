@@ -48,6 +48,7 @@ typedef enum {
 	Ld, 
 	St, 
 	Fork,
+	Forkr,
 	Join,
 	J,  
 	Jr, 
@@ -141,6 +142,9 @@ Bit#(3) fnXOR   = 3'b100;
 Bit#(3) fnSR    = 3'b101;
 Bit#(3) fnOR    = 3'b110;
 Bit#(3) fnAND   = 3'b111;
+// FORK/JOIN
+Bit#(5) fnFork  = 5'b00000;
+Bit#(5) fnForkr = 5'b00001;
 // M
 Bit#(3) fnMUL   = 3'b000;
 Bit#(3) fnMULH  = 3'b001;
@@ -240,8 +244,8 @@ typedef struct {
 	Data  	rawInst;
 	IType 	iType;
 	RIndx 	wbDst;   // 0 if no wb
-	Data  	wbRes;   // ALU/Load result, childverifID for fork, memread for Join
-	Addr  	addr;    // nextpc for branch, addr for LSU, nextpc for Fork
+	Data  	wbRes;   // ALU/Load result, childverifID for fork/forkr, memread for Join
+	Addr  	addr;    // nextpc for branch, addr for LSU, nextpc for fork/forkr
 } CommitReport deriving (Bits, Eq);
 
 typedef struct {

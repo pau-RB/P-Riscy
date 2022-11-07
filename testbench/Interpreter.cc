@@ -136,6 +136,8 @@ std::string Interpreter::print_itype(const IType iType) {
             return "St";
         case iTypeFork :
             return "Fork";
+        case iTypeForkr :
+            return "Forkr";
         case iTypeJoin :
             return "Join";
         case iTypeJ    :

@@ -141,6 +141,7 @@ std::map<VerifID, uint32_t> CustomSpike::get_stats() {
 IType CustomSpike::getIType(const Data uinst) {
 
     uint32_t opcode = (uinst&0x0000007f);
+    uint32_t rd     = (uinst&0x00000f80)>>7;
 
     switch (opcode) {
         case opOpImm:
@@ -152,7 +153,7 @@ IType CustomSpike::getIType(const Data uinst) {
         case opAuipc:
             return iTypeAuipc;
         case opFork:
-            return iTypeFork;
+            return (rd == 0 ? iTypeFork : iTypeForkr);
         case opJoin:
             return iTypeJoin;
         case opJal:
