@@ -1,13 +1,43 @@
-############### export BSC ###############
+############### Repo Setup ###############
 
-Change to proper BSC installation directory
+1 - git submodule update --init --recursive
 
-export BLUESPECDIR=/opt/tools/bsc/bsc-2022.01-ubuntu-20.04/lib/
-export PATH=/opt/tools/bsc/latest/bin:$PATH
+2 - Export BSC (Change to proper BSC installation directory)
+
+	export BLUESPECDIR=/opt/tools/bsc/bsc-2022.01-ubuntu-20.04/lib/
+	export PATH=/opt/tools/bsc/latest/bin:$PATH
+
+3 - Build spike
+
+4 - src/Config.bsv contains main configuration (need to recompile)
+
+	- wb_ext_DEBUG  -> will print each commit through Connectal and compare to Spike
+
+	- msg_ext_DEBUG -> will print stores into msg_ADDR through Connectal
+
+	- msg_DEBUG     -> will print each commit through SystemVerilog simulation
+
+	- perf_DEBUG    -> will print the state of the pipeline in every cycle through SystemVerilog simulation
+
+	Debug through Connectal will affect performance.
+	Debug through SystemVerilog simulation is not available in FPGA.
+
+5 - Build tests:
+
+		cd test
+
+		make all
+
+6 - Compile simulation:
+
+	make build.verilator
+
+7 - Compile FPGA:
+
+	make build.vcu108
 
 
-
-############### Install SPIKE ###############
+############### Build SPIKE ###############
 
 1- Clone the spike repo
 
@@ -25,7 +55,7 @@ export PATH=/opt/tools/bsc/latest/bin:$PATH
 
 	../configure --with-isa=RV32I --prefix=$PWD/../../spike_install
 
-	[Maybe] --without-boost --without-boost-asio --without-boost-regex
+	[--without-boost --without-boost-asio --without-boost-regex]
 
 4- Build and install:
 
@@ -54,21 +84,4 @@ export PATH=/opt/tools/bsc/latest/bin:$PATH
 
 5 - Add to disasm/disasm.cc
 
-
-############### ISA TESTS ###############
-
-1 - git clone https://github.com/riscv-software-src/riscv-tests
-
-2 - mkdir tests_install
-
-3 - cd riscv-tests
-
-4 - git submodule update --init --recursive
-
-5 - autoconf
-
-6 - ./configure --prefix=$PWD/../tests_install
-
-7 - cd isa
-
-8 - make rv32ui rv32um
+6 - Rebuild spike
