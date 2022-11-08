@@ -1,7 +1,10 @@
 .PHONY: all clean
 
+APIDIR=API
+MMIODIR=MMIO
+MXMDIR=MXM
+
 SRCDIR=src
-MATDIR=mat
 BUILDDIR=build
 DUMPDIR=dump
 HEXDIR=hex
@@ -11,13 +14,18 @@ ELF2HEX=./elf2hex
 RISCVCC32=riscv64-unknown-elf-gcc -march=rv32im -mabi=ilp32 -static -nostdlib -nostartfiles -mcmodel=medany
 RISCVOBJD=riscv64-unknown-elf-objdump --disassemble-all --disassemble-zeroes --section=.text --section=.text.startup --section=.text.init --section=.data
 
-SOURCES_C=$(notdir $(wildcard $(SRCDIR)/*.c))
-SOURCES_S=$(notdir $(wildcard $(SRCDIR)/*.S))
-SOURCES_M=$(notdir $(wildcard $(MATDIR)/*.S))
-SOURCES  =$(sort $(SOURCES_C) $(SOURCES_S) $(SOURCES_M))
-ELF=$(addprefix build/rv32-,$(basename $(SOURCES)))
+MXM_SOURCES=$(notdir $(wildcard $(MXMDIR)/*.S))
+MXM_ELF=$(addprefix build/rv32-mxm-,$(basename $(MXM_SOURCES)))
 
-all: $(ELF)
+S_SOURCES=$(notdir $(wildcard $(SRCDIR)/*.S))
+S_ELF=$(addprefix build/rv32-s-,$(basename $(S_SOURCES)))
+
+C_SOURCES=$(notdir $(wildcard $(SRCDIR)/*.c))
+C_ELF=$(addprefix build/rv32-c-,$(basename $(C_SOURCES)))
+
+
+
+all: $(sort $(MXM_ELF) $(S_ELF) $(C_ELF))
 
 $(ELF2HEX)/elf2hex:
 	$(MAKE) -C $(ELF2HEX)
@@ -25,49 +33,54 @@ $(ELF2HEX)/elf2hex:
 rv32-init.o: init.S
 	$(RISCVCC32) -c init.S -o rv32-init.o
 
-rv32-mmio.o: mmio.c
-	$(RISCVCC32) -c mmio.c -o rv32-mmio.o
+rv32-fork.o: $(APIDIR)/fork.S
+	$(RISCVCC32) -c $(APIDIR)/fork.S -o $(APIDIR)/fork.o
 
-rv32-fork.o: API/fork.S
-	$(RISCVCC32) -c API/fork.S -o API/fork.o
-	$(RISCVOBJD) API/fork.o > API/fork.dump
+rv32-wait.o: $(APIDIR)/wait.S
+	$(RISCVCC32) -c $(APIDIR)/wait.S -o $(APIDIR)/wait.o
 
-rv32-wait.o: API/wait.S
-	$(RISCVCC32) -c API/wait.S -o API/wait.o
-	$(RISCVOBJD) API/wait.o > API/wait.dump
+rv32-mmio.o: $(MMIODIR)/mmio.c
+	$(RISCVCC32) -c $(MMIODIR)/mmio.c -o $(MMIODIR)/rv32-mmio.o
 
 rv32-mxmhost.o: mxmhost.c
 	$(RISCVCC32) -c mxmhost.c -o rv32-mxmhost.o
 
-$(BUILDDIR)/rv32-%: $(ELF2HEX)/elf2hex $(SRCDIR)/%.c rv32-init.o rv32-mmio.o mmio.ld rv32-fork.o rv32-wait.o API/api.h
+
+
+$(BUILDDIR)/rv32-mxm-%: $(ELF2HEX)/elf2hex rv32-init.o rv32-mmio.o $(MMIODIR)/mmio.ld rv32-mxmhost.o $(MXMDIR)/%.S
 	mkdir -p $(BUILDDIR)
 	mkdir -p $(DUMPDIR)
 	mkdir -p $(HEXDIR)
-	$(RISCVCC32) -c $(SRCDIR)/$*.c -o rv32-intermeidate.o
-	$(RISCVCC32) -o $(BUILDDIR)/rv32-$* -Tmmio.ld rv32-intermeidate.o rv32-init.o rv32-mmio.o API/fork.o API/wait.o
-	$(RISCVOBJD) $(BUILDDIR)/rv32-$* > $(DUMPDIR)/rv32-$*.dump
-	$(ELF2HEX)/elf2hex $(BUILDDIR)/rv32-$* 0 16G $(HEXDIR)/rv32-$*.hex
-	rm rv32-intermeidate.o
-
-$(BUILDDIR)/rv32-%: $(ELF2HEX)/elf2hex $(SRCDIR)/%.S rv32-init.o rv32-mmio.o mmio.ld
-	mkdir -p $(BUILDDIR)
-	mkdir -p $(DUMPDIR)
-	mkdir -p $(HEXDIR)
-	$(RISCVCC32) -c $(SRCDIR)/$*.S -o rv32-intermeidate.o
-	$(RISCVCC32) -o $(BUILDDIR)/rv32-$* -Tmmio.ld rv32-intermeidate.o rv32-init.o rv32-mmio.o
-	$(RISCVOBJD) $(BUILDDIR)/rv32-$* > $(DUMPDIR)/rv32-$*.dump
-	$(ELF2HEX)/elf2hex $(BUILDDIR)/rv32-$* 0 16G $(HEXDIR)/rv32-$*.hex
-	rm rv32-intermeidate.o
-
-$(BUILDDIR)/rv32-mxm-%: $(ELF2HEX)/elf2hex rv32-init.o rv32-mmio.o mmio.ld rv32-mxmhost.o mat/mxm-%.S
-	$(RISCVCC32) -c $(MATDIR)/mxm-$*.S -o rv32-intermeidate.o
-	$(RISCVCC32) -o $(BUILDDIR)/rv32-mxm-$* -Tmmio.ld rv32-intermeidate.o rv32-init.o rv32-mmio.o rv32-mxmhost.o
+	$(RISCVCC32) -c $(MXMDIR)/$*.S -o rv32-intermeidate.o
+	$(RISCVCC32) -o $(BUILDDIR)/rv32-mxm-$* -T$(MMIODIR)/mmio.ld rv32-intermeidate.o rv32-init.o $(MMIODIR)/rv32-mmio.o rv32-mxmhost.o
 	$(RISCVOBJD) $(BUILDDIR)/rv32-mxm-$* > $(DUMPDIR)/rv32-mxm-$*.dump
 	$(ELF2HEX)/elf2hex $(BUILDDIR)/rv32-mxm-$* 0 16G $(HEXDIR)/rv32-mxm-$*.hex
 	rm rv32-intermeidate.o
 
+$(BUILDDIR)/rv32-s-%: $(ELF2HEX)/elf2hex $(SRCDIR)/%.S rv32-init.o rv32-mmio.o $(MMIODIR)/mmio.ld
+	mkdir -p $(BUILDDIR)
+	mkdir -p $(DUMPDIR)
+	mkdir -p $(HEXDIR)
+	$(RISCVCC32) -c $(SRCDIR)/$*.S -o rv32-intermeidate.o
+	$(RISCVCC32) -o $(BUILDDIR)/rv32-s-$* -T$(MMIODIR)/mmio.ld rv32-intermeidate.o rv32-init.o $(MMIODIR)/rv32-mmio.o
+	$(RISCVOBJD) $(BUILDDIR)/rv32-s-$* > $(DUMPDIR)/rv32-s-$*.dump
+	$(ELF2HEX)/elf2hex $(BUILDDIR)/rv32-s-$* 0 16G $(HEXDIR)/rv32-s-$*.hex
+	rm rv32-intermeidate.o
+
+$(BUILDDIR)/rv32-c-%: $(ELF2HEX)/elf2hex $(SRCDIR)/%.c rv32-init.o rv32-mmio.o $(MMIODIR)/mmio.ld rv32-fork.o rv32-wait.o $(APIDIR)/api.h
+	mkdir -p $(BUILDDIR)
+	mkdir -p $(DUMPDIR)
+	mkdir -p $(HEXDIR)
+	$(RISCVCC32) -c $(SRCDIR)/$*.c -o rv32-intermeidate.o
+	$(RISCVCC32) -o $(BUILDDIR)/rv32-c-$* -T$(MMIODIR)/mmio.ld rv32-intermeidate.o rv32-init.o $(MMIODIR)/rv32-mmio.o $(APIDIR)/fork.o $(APIDIR)/wait.o
+	$(RISCVOBJD) $(BUILDDIR)/rv32-c-$* > $(DUMPDIR)/rv32-c-$*.dump
+	$(ELF2HEX)/elf2hex $(BUILDDIR)/rv32-c-$* 0 16G $(HEXDIR)/rv32-c-$*.hex
+	rm rv32-intermeidate.o
+
+
+
 clean:
-	rm -f rv32-intermeidate.o rv32-init.o rv32-mmio.o rv32-mxmhost.o
+	rm -f rv32-intermeidate.o rv32-init.o rv32-mxmhost.o $(APIDIR)/*.o $(MMIODIR)/*.o
 	rm -rf build
 	rm -rf dump
 	rm -rf hex

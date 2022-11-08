@@ -4,10 +4,9 @@ verilator/
 spike_install/
 test/rv32-intermeidate.o
 test/rv32-init.o
-test/rv32-mmio.o
 test/rv32-mxmhost.o
+test/API/*.o
+test/MMIO/*.o
 test/build
 test/dump
 test/hex
-test/API/*.o
-test/API/*.dump
