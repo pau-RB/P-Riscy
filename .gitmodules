@@ -4,3 +4,6 @@
 [submodule "riscv-isa-sim"]
 	path = riscv-isa-sim
 	url = https://github.com/pau-RB/riscv-isa-sim
+[submodule "fpgamake"]
+	path = fpgamake
+	url = https://github.com/cambridgehackers/fpgamake
