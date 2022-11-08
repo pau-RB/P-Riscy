@@ -28,15 +28,23 @@ rv32-init.o: init.S
 rv32-mmio.o: mmio.c
 	$(RISCVCC32) -c mmio.c -o rv32-mmio.o
 
+rv32-fork.o: API/fork.S
+	$(RISCVCC32) -c API/fork.S -o API/fork.o
+	$(RISCVOBJD) API/fork.o > API/fork.dump
+
+rv32-wait.o: API/wait.S
+	$(RISCVCC32) -c API/wait.S -o API/wait.o
+	$(RISCVOBJD) API/wait.o > API/wait.dump
+
 rv32-mxmhost.o: mxmhost.c
 	$(RISCVCC32) -c mxmhost.c -o rv32-mxmhost.o
 
-$(BUILDDIR)/rv32-%: $(ELF2HEX)/elf2hex $(SRCDIR)/%.c rv32-init.o rv32-mmio.o mmio.ld
+$(BUILDDIR)/rv32-%: $(ELF2HEX)/elf2hex $(SRCDIR)/%.c rv32-init.o rv32-mmio.o mmio.ld rv32-fork.o rv32-wait.o API/api.h
 	mkdir -p $(BUILDDIR)
 	mkdir -p $(DUMPDIR)
 	mkdir -p $(HEXDIR)
 	$(RISCVCC32) -c $(SRCDIR)/$*.c -o rv32-intermeidate.o
-	$(RISCVCC32) -o $(BUILDDIR)/rv32-$* -Tmmio.ld rv32-intermeidate.o rv32-init.o rv32-mmio.o
+	$(RISCVCC32) -o $(BUILDDIR)/rv32-$* -Tmmio.ld rv32-intermeidate.o rv32-init.o rv32-mmio.o API/fork.o API/wait.o
 	$(RISCVOBJD) $(BUILDDIR)/rv32-$* > $(DUMPDIR)/rv32-$*.dump
 	$(ELF2HEX)/elf2hex $(BUILDDIR)/rv32-$* 0 16G $(HEXDIR)/rv32-$*.hex
 	rm rv32-intermeidate.o

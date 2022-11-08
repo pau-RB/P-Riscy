@@ -9,3 +9,5 @@ test/rv32-mxmhost.o
 test/build
 test/dump
 test/hex
+test/API/*.o
+test/API/*.dump
