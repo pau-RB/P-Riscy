@@ -165,13 +165,14 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 		FrontID hart = rrfeID;
 
-		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(!executeQ[hart].notEmpty()) begin
-				hart = hart+1;
+		if(valueOf(FrontWidth) != 1) begin
+			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+				if(!executeQ[hart].notEmpty()) begin
+					hart = (hart == lastFrontID) ? '0 : hart+1;
+				end
 			end
+			rrfeID <= (hart == lastFrontID) ? '0 : hart+1;
 		end
-
-		rrfeID <= hart+1;
 
 		if (executeQ[hart].notEmpty()) begin
 

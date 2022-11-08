@@ -19,12 +19,13 @@ endinterface
 
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
-   WideMem                   mem          <- mkWideMemBRAM;
-   VerifMaster               verif        <- mkVerifMaster;
-   Core                      dut          <- mkCore6S(mem, verif);
-   Reg#(Bool)                memInit      <- mkReg(False);
-   Fifo#(MTQ_LEN, ContToken) mainTokenQ   <- mkBypassFifo();
-   Reg#(Data)                commitTarget <- mkReg(80);
+   WideMem                    mem          <- mkWideMemBRAM;
+   VerifMaster                verif        <- mkVerifMaster;
+   Core                       dut          <- mkCore6S(mem, verif);
+   Reg#(Bool)                 memInit      <- mkReg(False);
+   Fifo#(MTQ_LEN, ContToken)  mainTokenQ   <- mkCFFifo();
+   Reg#(Data)                 commitTarget <- mkReg(80);
+   Reg#(FrontID)              evictTarget  <- mkReg(0);
 
    rule relayCMR;
 
@@ -42,13 +43,14 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
    endrule
 
-   rule doEvict if(dut.getNumCommit() == commitTarget);
+   rule doEvict if(roundRobin && dut.getNumCommit() == commitTarget);
 
-      for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-         dut.evict(fromInteger(i));
+      if(mainTokenQ.notEmpty) begin
+         dut.evict(evictTarget);
+         evictTarget  <=  (evictTarget == lastFrontID) ? '0 : evictTarget+1;
       end
 
-      commitTarget <= commitTarget+100;
+      commitTarget <= commitTarget+fromInteger(valueOf(RR_INT));
 
    endrule
 
@@ -63,9 +65,11 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
       FrontID hart = 0;
 
-      for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-         if(!dut.available(hart)) begin
-            hart = hart+1;
+      if(valueOf(FrontWidth) != 1) begin
+         for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+            if(!dut.available(hart)) begin
+               hart = (hart == lastFrontID) ? '0 : hart+1;
+            end
          end
       end
 
