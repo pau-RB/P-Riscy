@@ -7,8 +7,6 @@ import MemTypes::*;
 
 //////////// LOCAL DATA-BASED MEMORY ////////////
 
-typedef enum{Ld, St, Join}  MemOp  deriving(Eq, Bits, FShow);
-
 typedef struct{
     MemOp     op;
     Addr      addr;

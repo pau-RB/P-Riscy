@@ -65,12 +65,6 @@ typedef enum {
 } LoadFunc deriving(Bits, Eq, FShow);
 
 typedef enum {
-	SB,
-	SH,
-	SW
-} StoreFunc deriving(Bits, Eq, FShow);
-
-typedef enum {
 	Eq, 
 	Neq, 
 	Lt, 

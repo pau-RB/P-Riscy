@@ -5,7 +5,6 @@ import Fifo::*;
 import Ehr::*;
 
 
-typedef Bit#(TSub#(AddrSz,TLog#(CacheLineBytes))) CacheLineNum;
 
 typedef enum {
 	Full,

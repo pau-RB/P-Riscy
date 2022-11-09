@@ -18,6 +18,7 @@ import Ehr::*;
 import MemUtil::*;
 import Cache::*;
 import WideMemSplit::*;
+import LSU::*;
 
 // front
 import Decoder::*;
