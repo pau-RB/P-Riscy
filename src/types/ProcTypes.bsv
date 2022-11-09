@@ -30,7 +30,6 @@ Opcode opMiscMem = 7'b0001111;
 Opcode opOpImm   = 7'b0010011;
 Opcode opAuipc   = 7'b0010111;
 Opcode opStore   = 7'b0100011;
-Opcode opJoin    = 7'b0101011;
 Opcode opAmo     = 7'b0101111;
 Opcode opOp      = 7'b0110011;
 Opcode opLui     = 7'b0110111;
@@ -145,6 +144,7 @@ Bit#(3) fnAND   = 3'b111;
 // FORK/JOIN
 Bit#(5) fnFork  = 5'b00000;
 Bit#(5) fnForkr = 5'b00001;
+Bit#(5) fnJoin  = 5'b00010;
 // M
 Bit#(3) fnMUL   = 3'b000;
 Bit#(3) fnMULH  = 3'b001;
@@ -348,10 +348,6 @@ function Fmt showInst(Instruction inst);
 
 		opFork: begin
 			ret = $format("fork 0x%0x", immJ);
-		end
-
-		opJoin: begin
-			ret = $format("join [r%d 0x%0x]", rs1, immS);
 		end
 
 		opJal: begin

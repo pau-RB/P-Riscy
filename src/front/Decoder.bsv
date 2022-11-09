@@ -161,34 +161,33 @@ function DecodedInst decode(Instruction inst);
 			case(rd)
 				fnFork: begin
 					dInst.iType = Fork;
+					dInst.aluFunc = ?;
 					dInst.src1 = tagged Invalid;
 					dInst.imm = tagged Valid immJ;
 				end
 				fnForkr: begin
-					dInst.iType = Forkr;
+					dInst.iType = (funct3 == '0) ? Forkr:Unsupported;
+					dInst.aluFunc = ?;
+					dInst.src1 = tagged Valid rs1;
+					dInst.imm = tagged Valid immI;
+				end
+				fnJoin: begin
+					dInst.iType = (funct3 == '0) ? Join:Unsupported;
+					dInst.aluFunc = Add;
 					dInst.src1 = tagged Valid rs1;
 					dInst.imm = tagged Valid immI;
 				end
 				default: begin
 					dInst.iType = Unsupported;
+					dInst.aluFunc = ?;
 					dInst.src1 = tagged Invalid;
 					dInst.imm = tagged Invalid;
 				end
 			endcase
-			dInst.aluFunc = ?;
+			
 			dInst.brFunc = NT;
 			dInst.dst = tagged Invalid;
 			dInst.src2 = tagged Invalid;
-		end
-
-		opJoin: begin
-			dInst.iType = Join;
-			dInst.aluFunc = Add; // calc effective addr
-			dInst.brFunc = NT;
-			dInst.dst = tagged Invalid;
-			dInst.src1 = tagged Valid rs1;
-			dInst.src2 = tagged Invalid;
-			dInst.imm = tagged Valid immS;
 		end
 
 		opJal: begin

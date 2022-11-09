@@ -34,7 +34,7 @@ wait:
 	sw		x30,4*30(a0)
 	sw		x31,4*31(a0)
 
-	.word	0x0005002b					#join 0(a0)
+	.word	0x0005010b					#join 0(a0)
 
 	lw		a1,4*11(a0)
 	lw		a0,4*10(a0)

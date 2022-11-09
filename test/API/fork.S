@@ -20,7 +20,7 @@ child_return:
 	sw		a0,4*10(s0)
 	sw		a1,4*11(s0)
 
-	.word	0x0004002b					#join 0(s0)
+	.word	0x0004010b					#join 0(s0)
 
 	lw		x1,4*1(s0)
 	lw		x2,4*2(s0)

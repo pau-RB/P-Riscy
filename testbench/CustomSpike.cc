@@ -153,9 +153,7 @@ IType CustomSpike::getIType(const Data uinst) {
         case opAuipc:
             return iTypeAuipc;
         case opFork:
-            return (rd == 0 ? iTypeFork : iTypeForkr);
-        case opJoin:
-            return iTypeJoin;
+            return (rd == 0 ? iTypeFork : (rd == 1 ? iTypeForkr : iTypeJoin));
         case opJal:
             return iTypeJ;
         case opJalr:

@@ -60,11 +60,8 @@ for_j:
 	bnez	t3,for_i
 
 join:
-	.word	0x000F802b
-	addi	t6,t6,4
-	.word	0x000F802b
-	addi	t6,t6,4
-	.word	0x000F802b
-	addi	t6,t6,4
+	.word	0x000F810b
+	.word	0x004F810b
+	.word	0x008F810b
 
 	ret

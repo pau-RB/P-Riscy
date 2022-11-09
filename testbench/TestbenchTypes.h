@@ -21,7 +21,6 @@ typedef uint8_t  RIndx;
 #define opOpImm   0b0010011
 #define opAuipc   0b0010111
 #define opStore   0b0100011
-#define opJoin    0b0101011
 #define opAmo     0b0101111
 #define opOp      0b0110011
 #define opLui     0b0110111
