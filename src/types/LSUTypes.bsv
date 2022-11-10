@@ -51,15 +51,6 @@ typedef struct{
     transIdType	transId;
 } LSUOldResp#(type transIdType) deriving(Eq, Bits, FShow);
 
-interface MSHR#(numeric type length, type transIdType);
-    method Bool notEmpty();
-    method Bool notFull();
-    method Bool addrMatch(LSUReq#(transIdType) r);
-    method Action enq(LSUReq#(transIdType) r);
-    method Action deq();
-    method LSUReq#(transIdType) first();
-endinterface
-
 interface LSU#(type transIdType);
     method Action req(LSUReq#(transIdType) r);
     method ActionValue#(LSUResp#(transIdType)) resp;

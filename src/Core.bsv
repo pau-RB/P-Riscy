@@ -18,6 +18,7 @@ import Ehr::*;
 import MemUtil::*;
 import Cache::*;
 import WideMemSplit::*;
+import LSUTypes::*;
 import LSU::*;
 
 // front
@@ -59,8 +60,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	//////////// MEMORY ////////////
 
 	Vector#(TAdd#(FrontWidth,1), WideMem) memSplit   <- mkSplitWideMem(True, mem);
-	Cache                                 l1D        <- mkDirectCache(memSplit[valueOf(FrontWidth)]);
-
+	BareDataCache                         l1d        <- mkDirectDataCache();
+	LSU#(WBToken)                         lsu        <- mkLSU(memSplit[valueOf(FrontWidth)], l1d);
 
 	//////////// FETCH ////////////
 
@@ -206,41 +207,42 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		let execInst = mToken.inst;
 		let feID     = mToken.feID;
 
-		if (mToken.epoch == wbEpoch[feID][1]) begin
-			// Prevent instruction from requesting MEM operations if epoch is changed
-			if(execInst.iType == Ld) begin
-
-    		    l1D.req(MemReq{
-    		    			op  : Ld,
-    		    			addr: execInst.addr,
-    		    			data: ?,
-    		    			func: ?});
-
-    		end else if(execInst.iType == St) begin
-
-    		    l1D.req(MemReq{
-    		    			op  : St,
-    		    			addr: execInst.addr,
-    		    			data: execInst.data,
-    		    			func: execInst.stFunc});
-
-    		end else if(execInst.iType == Join) begin
-
-    		    l1D.req(MemReq{
-    		    			op  : Join,
-    		    			addr: execInst.addr,
-    		    			data: 'b1,
-    		    			func: ?});
-
-    		end
-    	end
-	
 		let wToken   = WBToken{
 							inst: execInst,
 							pc: mToken.pc,
 							feID: mToken.feID,
 							epoch: mToken.epoch,
 							rawInst: mToken.rawInst};
+
+		if (mToken.epoch == wbEpoch[feID][1]) begin
+			// Prevent instruction from requesting MEM operations if epoch is changed
+
+			if(execInst.iType == Ld) begin
+
+    		    lsu.req(LSUReq{ op     : Ld,
+    		                    func   : ?,
+    		                    addr   : execInst.addr,
+    		                    data   : ?,
+    		                    transId: wToken });
+
+    		end else if(execInst.iType == St) begin
+
+    		    lsu.req(LSUReq{ op     : St,
+    		                    func   : execInst.stFunc,
+    		                    addr   : execInst.addr,
+    		                    data   : execInst.data,
+    		                    transId: wToken });
+
+    		end else if(execInst.iType == Join) begin
+
+    		    lsu.req(LSUReq{ op  : Join,
+    		                    func: ?,
+    		                    addr: execInst.addr,
+    		                    data: 'b1,
+    		                    transId: wToken });
+
+    		end
+    	end
 
 		wrbackQ.enq(wToken);
 
@@ -271,14 +273,28 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 				numCommit <= numCommit+1;
 
-				Data    loadRes      = '0;
+				Data    loadRes      = '1;
+				Bool    memValid     = True;
 				VerifID childVerifID = '0;
 
 				if(commitInst.iType == Ld) begin
 
-					Data loadResRaw <- l1D.resp();
-					loadRes = extendLoad(loadResRaw, commitInst.addr, commitInst.ldFunc);
-	        	    rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
+					let resp <- lsu.resp();
+					if(resp.valid) begin
+						loadRes = extendLoad(resp.data, commitInst.addr, commitInst.ldFunc);
+	        	    	rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
+					end else begin
+						wbEpoch[feID][0] <= !wbEpoch[feID][0];
+						memValid = False;
+					end
+
+	        	end else if(commitInst.iType == St) begin
+
+					let resp <- lsu.resp();
+					if(!resp.valid) begin
+						wbEpoch[feID][0] <= !wbEpoch[feID][0];
+						memValid = False;
+					end
 
 	        	end else if(commitInst.iType == Fork || commitInst.iType == Forkr) begin
 
@@ -286,11 +302,16 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 				end else if(commitInst.iType == Join) begin
 
-					Data join_res <- l1D.resp();
-					loadRes = join_res;
-					if(join_res == '0) begin
-						stream[feID].backendKill(!wbEpoch[feID][0]);
+					let resp <- lsu.resp();
+					if(resp.valid) begin
+						loadRes = resp.data;
+						if(resp.data == '0) begin
+							stream[feID].backendKill(!wbEpoch[feID][0]);
+							wbEpoch[feID][0] <= !wbEpoch[feID][0];
+						end
+					end else begin
 						wbEpoch[feID][0] <= !wbEpoch[feID][0];
+						memValid = False;
 					end
 
 	        	end else begin
@@ -333,32 +354,38 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 														wbRes:   childVerifID,
 														addr:    commitInst.addr});
 					end else if(commitInst.iType == Join) begin
-						commitReportQ.enq(CommitReport {cycle:   numCycles,
-														verifID: verif.getVerifID(feID),
-														pc:      wToken.pc,
-														rawInst: wToken.rawInst,
-														iType:   commitInst.iType,
-														wbDst:   '0,
-														wbRes:   loadRes,
-														addr:    commitInst.addr});
+						if(memValid) begin
+							commitReportQ.enq(CommitReport {cycle:   numCycles,
+															verifID: verif.getVerifID(feID),
+															pc:      wToken.pc,
+															rawInst: wToken.rawInst,
+															iType:   commitInst.iType,
+															wbDst:   '0,
+															wbRes:   loadRes,
+															addr:    commitInst.addr});
+						end
 					end else if(commitInst.iType == Ld) begin
-						commitReportQ.enq(CommitReport {cycle:   numCycles,
-														verifID: verif.getVerifID(feID),
-														pc:      wToken.pc,
-														rawInst: wToken.rawInst,
-														iType:   commitInst.iType,
-														wbDst:   fromMaybe('0,commitInst.dst),
-														wbRes:   loadRes,
-														addr:    commitInst.addr});
+						if(memValid) begin
+							commitReportQ.enq(CommitReport {cycle:   numCycles,
+															verifID: verif.getVerifID(feID),
+															pc:      wToken.pc,
+															rawInst: wToken.rawInst,
+															iType:   commitInst.iType,
+															wbDst:   fromMaybe('0,commitInst.dst),
+															wbRes:   loadRes,
+															addr:    commitInst.addr});
+						end
 					end else if(commitInst.iType == St) begin
-						commitReportQ.enq(CommitReport {cycle:   numCycles,
-														verifID: verif.getVerifID(feID),
-														pc:      wToken.pc,
-														rawInst: wToken.rawInst,
-														iType:   commitInst.iType,
-														wbDst:   '0,
-														wbRes:   '0,
-														addr:    commitInst.addr});
+						if(memValid) begin
+							commitReportQ.enq(CommitReport {cycle:   numCycles,
+															verifID: verif.getVerifID(feID),
+															pc:      wToken.pc,
+															rawInst: wToken.rawInst,
+															iType:   commitInst.iType,
+															wbDst:   '0,
+															wbRes:   '0,
+															addr:    commitInst.addr});
+						end
 					end else begin
 						commitReportQ.enq(CommitReport {cycle:   numCycles,
 														verifID: verif.getVerifID(feID),
@@ -391,6 +418,85 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 				end
 
+			end
+
+		end
+
+	endrule
+
+	rule do_old_wb;
+
+		let resp <- lsu.oldResp();
+		let wToken     = resp.transId;
+		let commitInst = wToken.inst;
+		let feID       = wToken.feID;
+		Data loadRes   = 'haff;
+
+		if(commitInst.iType == Ld) begin
+
+			loadRes = extendLoad(resp.data, commitInst.addr, commitInst.ldFunc);
+    	    rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
+    	    stream[feID].redirect(Redirect{ pc        : wToken.pc,
+			                                epoch     : wbEpoch[feID][0],
+			                                nextPc    : wToken.pc+4,
+			                                brType    : commitInst.iType,
+			                                taken     : commitInst.brTaken,
+			                                mispredict: commitInst.mispredict});
+
+    	end else if(commitInst.iType == St) begin
+
+    	    stream[feID].redirect(Redirect{ pc        : wToken.pc,
+			                                epoch     : wbEpoch[feID][0],
+			                                nextPc    : wToken.pc+4,
+			                                brType    : commitInst.iType,
+			                                taken     : commitInst.brTaken,
+			                                mispredict: commitInst.mispredict});
+
+    	end else if(commitInst.iType == Join) begin
+
+    		loadRes = resp.data;
+			if(resp.data == '0) begin
+				stream[feID].backendKill(wbEpoch[feID][0]);
+			end else begin
+				stream[feID].redirect(Redirect{ pc        : wToken.pc,
+			                                	epoch     : wbEpoch[feID][0],
+			                                	nextPc    : wToken.pc+4,
+			                                	brType    : commitInst.iType,
+			                                	taken     : commitInst.brTaken,
+			                                	mispredict: commitInst.mispredict});
+			end
+
+    	end
+
+    	if (wb_ext_DEBUG == True) begin
+
+			if(commitInst.iType == Join) begin
+				commitReportQ.enq(CommitReport {cycle:   numCycles,
+												verifID: verif.getVerifID(feID),
+												pc:      wToken.pc,
+												rawInst: wToken.rawInst,
+												iType:   commitInst.iType,
+												wbDst:   '0,
+												wbRes:   loadRes,
+												addr:    commitInst.addr});
+			end else if(commitInst.iType == Ld) begin
+				commitReportQ.enq(CommitReport {cycle:   numCycles,
+												verifID: verif.getVerifID(feID),
+												pc:      wToken.pc,
+												rawInst: wToken.rawInst,
+												iType:   commitInst.iType,
+												wbDst:   fromMaybe('0,commitInst.dst),
+												wbRes:   loadRes,
+												addr:    commitInst.addr});
+			end else if(commitInst.iType == St) begin
+				commitReportQ.enq(CommitReport {cycle:   numCycles,
+												verifID: verif.getVerifID(feID),
+												pc:      wToken.pc,
+												rawInst: wToken.rawInst,
+												iType:   commitInst.iType,
+												wbDst:   '0,
+												wbRes:   '0,
+												addr:    commitInst.addr});
 			end
 
 		end

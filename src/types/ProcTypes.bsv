@@ -213,7 +213,7 @@ typedef struct {
 	FrontID     feID;
 	Bool        epoch;
 	Data        rawInst;
-} WBToken deriving (Bits, Eq);
+} WBToken deriving (Bits, Eq, FShow);
 
 typedef struct {
     Addr  pc;
