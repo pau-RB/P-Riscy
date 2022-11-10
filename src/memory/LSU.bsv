@@ -4,7 +4,7 @@ import Fifo::*;
 import Vector::*;
 import BRAMCore::*;
 
-typedef 8 CacheRows;
+typedef 32 CacheRows;
 typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(CacheRows))) CacheTag;
 typedef Bit#(TLog#(CacheRows)) CacheIndex;
 typedef Bit#(TLog#(CacheLineWords)) CacheOffset;
@@ -124,37 +124,128 @@ module mkDirectDataCache (numeric cacheRows, BareDataCache ifc);
 
 endmodule
 
+module mkMSHR(MSHR#(length, transIdType)) provisos(Bits#(transIdType,transIdTypeSz));
 
+	Fifo#(length, LSUReq#(transIdType)) reqFifo <- mkPipelineFifo();
+
+	method Bool notEmpty() = reqFifo.notEmpty();
+	method Bool notFull() = reqFifo.notFull();
+
+    method Bool addrMatch(LSUReq#(transIdType) r);
+    	if(reqFifo.notEmpty()) begin
+    		return (cacheLineNumReq(reqFifo.first())==cacheLineNumReq(r));
+    	end else begin
+    		return False;
+    	end
+    endmethod
+
+    method Action enq(LSUReq#(transIdType) r) = reqFifo.enq(r);
+    method Action deq() = reqFifo.deq();
+    method LSUReq#(transIdType) first() =reqFifo.first();
+
+endmodule
 
 module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provisos(Bits#(transIdType,transIdTypeSz));
 
 	Fifo#(1,transIdType) dataCacheReq <- mkStageFifo();
+	Fifo#(1,Bool)        dataCacheOld <- mkStageFifo();
 
-	method Action req(LSUReq#(transIdType) r);
+	MSHR#(4,transIdType)          mshr  <- mkMSHR();
+	Fifo#(1,LSUReq#(transIdType)) missQ <- mkPipelineFifo();
+	Fifo#(1,Addr)                 outQ  <- mkPipelineFifo();
 
-		let hit = dataCache.req(DataCacheReq{ op:   r.op,
+	Reg#(Bool) flushMSHR <- mkReg(False);
+
+	rule do_MEMREQ;
+
+		let r = missQ.first();
+
+		if(!mshr.notEmpty()) begin
+			mshr.enq(r);
+			missQ.deq();
+			outQ.enq(r.addr);
+			mem.req(WideMemReq{ write_en: '0,
+								addr    : r.addr,
+								data    : ? });
+		end else if(mshr.addrMatch(r)) begin
+			mshr.enq(r);
+			missQ.deq();
+		end
+
+	endrule
+
+	rule do_MEMRESP;
+
+		let num  = cacheLineNumAddr(outQ.first()); outQ.deq();
+		let line <- mem.resp();
+		dataCache.put(DataCacheWB{ num:  num,
+		                           line: line });
+		flushMSHR <= True;
+
+	endrule
+
+	rule do_RETRY if(flushMSHR);
+
+		if(mshr.notEmpty()) begin
+
+			let r = mshr.first(); mshr.deq();
+
+			let hit <- dataCache.req(DataCacheReq{ op:   r.op,
+			                                       func: r.func,
+			                                       addr: r.addr,
+			                                       data: r.data });
+			dataCacheReq.enq(r.transId);
+			dataCacheOld.enq(True);
+
+		end else begin
+			
+			flushMSHR <= False;
+
+		end
+
+	endrule
+
+	rule do_WB;
+
+		let r <- dataCache.get();
+
+		mem.req(WideMemReq{ write_en: '1,
+		                    addr    : {r.num,0},
+		                    data    : r.line });
+
+	endrule
+
+	method Action req(LSUReq#(transIdType) r) if(!flushMSHR);
+
+		let hit <- dataCache.req(DataCacheReq{ op:   r.op,
 		                                       func: r.func,
 		                                       addr: r.addr,
 		                                       data: r.data });
-
 		dataCacheReq.enq(r.transId);
+		dataCacheOld.enq(False);
+
+		if(!hit) begin
+			missQ.enq(r);
+		end
 
 	endmethod
 
-    method ActionValue#(LSUResp#(transIdType)) resp;
+    method ActionValue#(LSUResp#(transIdType)) resp if(dataCacheOld.first()==False);
 
     	dataCacheReq.deq();
     	let r <- dataCache.resp();
     	return LSUResp{ valid: isValid(r),
     					data: fromMaybe(?,r),
-						transId: dataCacheReq.first()};
+						transId: dataCacheReq.first() };
 
     endmethod
 
-    method ActionValue#(LSUOldResp#(transIdType)) oldResp;
+    method ActionValue#(LSUOldResp#(transIdType)) oldResp if(dataCacheOld.first()==True);
 
-    	return LSUOldResp{ data: 0,
-						   transId: ? };
+   		dataCacheReq.deq();
+   		let r <- dataCache.resp();
+   		return LSUOldResp{ data: fromMaybe(?,r),
+						   transId: dataCacheReq.first() };
 
     endmethod
 

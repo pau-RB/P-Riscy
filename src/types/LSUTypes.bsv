@@ -1,6 +1,7 @@
 import Types::*;
 import Vector::*;
 
+//////////// BARE DATA CACHE ////////////
 
 typedef struct{
     MemOp	op;
@@ -27,7 +28,9 @@ interface BareDataCache;
     method ActionValue#(DataCacheResp) resp;
     method Action put(DataCacheWB wb);
     method ActionValue#(DataCacheWB) get();
-endinterface 
+endinterface
+
+//////////// LSU ////////////
 
 typedef struct{
     MemOp		op;
@@ -48,11 +51,33 @@ typedef struct{
     transIdType	transId;
 } LSUOldResp#(type transIdType) deriving(Eq, Bits, FShow);
 
+interface MSHR#(numeric type length, type transIdType);
+    method Bool notEmpty();
+    method Bool notFull();
+    method Bool addrMatch(LSUReq#(transIdType) r);
+    method Action enq(LSUReq#(transIdType) r);
+    method Action deq();
+    method LSUReq#(transIdType) first();
+endinterface
+
 interface LSU#(type transIdType);
     method Action req(LSUReq#(transIdType) r);
     method ActionValue#(LSUResp#(transIdType)) resp;
     method ActionValue#(LSUOldResp#(transIdType)) oldResp;
 endinterface
+
+//////////// UTILITIES ////////////
+
+function CacheLineNum cacheLineNumReq(LSUReq#(transIdType) r) provisos(Bits#(LSUReq#(transIdType),reqSz));
+    Addr a = r.addr;
+    CacheLineNum num = truncateLSB(a);
+    return num;
+endfunction
+
+function CacheLineNum cacheLineNumAddr(Addr a);
+    CacheLineNum num = truncateLSB(a);
+    return num;
+endfunction
 
 function Bit#(CacheLineBytes) writeEnDCR (DataCacheReq req);
     
