@@ -24,6 +24,7 @@ typedef struct {
 } DataCacheWB deriving(Eq, Bits, FShow);
 
 interface BareDataCache;
+    method Bool isHit(DataCacheReq r);
 	method ActionValue#(Bool) req(DataCacheReq r);
     method ActionValue#(DataCacheResp) resp;
     method Action put(DataCacheWB wb);
