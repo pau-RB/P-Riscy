@@ -13,7 +13,6 @@ import Vector::*;
 import Ehr::*;
 
 // mem
-import MemUtil::*;
 import WideMemSplit::*;
 import LSU::*;
 

@@ -1,5 +1,4 @@
 import Types::*;
-import MemUtil::*;
 import BRAM::*;
 
 module mkWideMemBRAM(WideMem);

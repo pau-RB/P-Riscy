@@ -5,12 +5,21 @@ import Types::*;
 import ProcTypes::*;
 import Memory::*;
 import WideMemBRAM::*;
-import MemUtil::*;
-import CacheTypes::*;
 import Fifo::*;
 import Config::*;
 import Vector::*;
 
+function WideMemReq toWideMemReq(Addr addr, Data data);
+
+    CacheByteSelect wordsel = truncate(addr & 32'hfffffffc);
+    Bit#(CacheLineBytes) writeEn = 'b1111 << wordsel;
+    CacheLine writeLn = replicate(data);
+
+    return WideMemReq { write_en: writeEn,
+                        addr: addr,
+                        data: writeLn };
+
+endfunction
 
 interface ConnectalWrapper;
    interface FromHost connectProc;
@@ -81,12 +90,7 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
       method Action setMem (Bit#(32) addr, Bit#(32) word);
 
-         mem.req(toWideMemReq(MemReq{
-                     op:   St,
-                     addr: addr,
-                     data: word,
-                     func: SW
-                  }));
+         mem.req(toWideMemReq(addr, word));
 
          if(addr == max_ADDR) begin
             memInit <= True;

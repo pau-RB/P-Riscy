@@ -56,14 +56,6 @@ typedef enum {
 } IType deriving(Bits, Eq, FShow);
 
 typedef enum {
-	LB,
-	LH,
-	LW,
-	LBU,
-	LHU
-} LoadFunc deriving(Bits, Eq, FShow);
-
-typedef enum {
 	Eq, 
 	Neq, 
 	Lt, 

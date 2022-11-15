@@ -1,5 +1,4 @@
 import Types::*;
-import MemUtil::*;
 import Fifo::*;
 import Vector::*;
 

@@ -105,3 +105,24 @@ function CacheLine embedDCR (DataCacheReq req);
     return line;
 
 endfunction
+
+function Data extendLoad( Data value, Addr addr, LoadFunc func );
+
+    Bit#(32) wordValue = value;
+    
+    Bit#(5)  halfsel   = {(addr[1:0] & 2'b10),3'b000};
+    Bit#(16) halfValue = truncate(value>>halfsel);
+
+    Bit#(5)  bytesel   = {(addr[1:0] & 2'b11),3'b000};
+    Bit#(8)  byteValue = truncate(value>>bytesel);
+
+    case(func)
+        LB:  return signExtend(byteValue);
+        LH:  return signExtend(halfValue);
+        LW:  return signExtend(wordValue);
+        LBU: return zeroExtend(byteValue);
+        LHU: return zeroExtend(halfValue);
+        default: return value;
+    endcase
+
+endfunction
