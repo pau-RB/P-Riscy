@@ -31,3 +31,8 @@ interface WideMem;
     method Action req(WideMemReq r);
     method ActionValue#(CacheLine) resp;
 endinterface
+
+//////////// BRAM ////////////
+
+typedef 12 WMBAddrSz;
+typedef Bit#(WMBAddrSz) WMBAddr;

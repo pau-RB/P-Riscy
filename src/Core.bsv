@@ -4,10 +4,8 @@ import VerifMaster::*;
 
 // types
 import Types::*;
-import MemTypes::*;
 import ProcTypes::*;
-import CacheTypes::*;
-
+import LSUTypes::*;
 
 // include
 import Fifo::*;
@@ -16,9 +14,7 @@ import Ehr::*;
 
 // mem
 import MemUtil::*;
-import Cache::*;
 import WideMemSplit::*;
-import LSUTypes::*;
 import LSU::*;
 
 // front

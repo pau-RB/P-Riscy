@@ -1,4 +1,3 @@
-import MemTypes::*;
 import Vector::*;
 import RegFile::*;
 import Fifo::*;

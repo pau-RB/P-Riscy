@@ -3,7 +3,6 @@ import Core::*;
 import VerifMaster::*;
 import Types::*;
 import ProcTypes::*;
-import MemTypes::*;
 import Memory::*;
 import WideMemBRAM::*;
 import MemUtil::*;

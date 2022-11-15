@@ -1,6 +1,5 @@
 import Types::*;
 import ProcTypes::*;
-import MemTypes::*;
 import Config::*;
 import Fifo::*;
 import Ehr::*;

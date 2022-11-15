@@ -1,5 +1,4 @@
 import Types::*;
-import MemTypes::*;
 import MemUtil::*;
 import BRAM::*;
 

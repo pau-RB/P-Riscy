@@ -1,8 +1,6 @@
 import Types::*;
-import Memory::*;
 import Vector::*;
 import ProcTypes::*;
-import MemTypes::*;
 
 
 //////////// LOCAL DATA-BASED MEMORY ////////////

@@ -19,7 +19,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 import Types::*;
 import ProcTypes::*;
-import MemTypes::*;
 import Vector::*;
 import Ehr::*;
 import ConfigReg::*;
