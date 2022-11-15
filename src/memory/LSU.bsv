@@ -31,6 +31,7 @@ module mkNullDataCache (BareDataCache ifc);
 endmodule
 
 typedef struct{
+	Bool	req;
     MemOp	op;
     Addr	addr;
 } BramReq deriving(Eq, Bits, FShow);
@@ -43,36 +44,36 @@ module mkDirectDataCache (BareDataCache ifc);
 
 	BRAM_DUAL_PORT_BE#(CacheIndex, CacheLine, CacheLineBytes) bram  <- mkBRAMCore2BE(valueOf(CacheRows), False);
 	Fifo#(1,BramReq) bramReq <- mkStageFifo();
-	Fifo#(1,CacheLineNum) bramWBReq <- mkStageFifo();
 	// Use port a for R and port b for W, important in Join (both operations)
 
-	method ActionValue#(Bool) req(DataCacheReq r) if(!bramWBReq.notEmpty());
+	method ActionValue#(Bool) req(DataCacheReq r) if(!bramReq.notEmpty());
 
-		Addr                 addr     = r.addr;
-		CacheTag             tag      = truncateLSB(addr);
-		CacheIndex           index    = truncate(addr >> valueOf(TLog#(CacheLineBytes)));
-		Bit#(CacheLineBytes) write_en = writeEnDCR(r);
-		CacheLine            write_ln = embedDCR(r);
+		Addr                 addr    = r.addr;
+		CacheTag             tag     = truncateLSB(addr);
+		CacheIndex           index   = truncate(addr >> valueOf(TLog#(CacheLineBytes)));
+		Bit#(CacheLineBytes) writeEn = writeEnDCR(r);
+		CacheLine            writeLn = embedDCR(r);
 
-		if (valid[index] && (tags[index] == tag)) begin
+		if (valid[index] && (tags[index] == tag)) begin // hit
 
-			bramReq.enq(BramReq{ op  : r.op,
+			bramReq.enq(BramReq{ req : True,
+			                     op  : r.op,
 								 addr: r.addr});
 
 			if(r.op == Ld) begin
 				bram.a.put('0, index, ?);
 			end else if (r.op == St) begin
-				bram.b.put(write_en, index, write_ln);
+				bram.b.put(writeEn, index, writeLn);
 				dirty[index] <= True;
 			end else if(r.op == Join) begin
 				bram.a.put('0, index, ?);
-				bram.b.put(write_en, index, write_ln);
+				bram.b.put(writeEn, index, writeLn);
 				dirty[index] <= True;
 			end
 
 			return True;
 
-		end else begin
+		end else begin // miss
 
 			return False;
 
@@ -80,43 +81,48 @@ module mkDirectDataCache (BareDataCache ifc);
 
 	endmethod
 
-    method ActionValue#(DataCacheResp) resp;
+    method ActionValue#(DataCacheResp) resp() if(bramReq.first().req);
 
-    	MemOp op   = bramReq.first().op;
-    	Addr  addr = bramReq.first().addr;
-		bramReq.deq();
-
+    	MemOp           op         = bramReq.first().op;
+    	Addr            addr       = bramReq.first().addr;
 		CacheWordSelect wordSelect = truncate(addr >> 2);
 
-		CacheLine line = bram.a.read;
+		CacheLine line = bram.a.read; bramReq.deq();
+
 		return tagged Valid line[wordSelect];
 
     endmethod
 
     method Action put(DataCacheWB wb) if(!bramReq.notEmpty());
 
-    	CacheLineNum num = wb.num;
-    	CacheLine line = wb.line;
+    	CacheLineNum num   = wb.num;
+    	CacheLine    line  = wb.line;
+    	CacheTag     tag   = truncateLSB(num);
+		CacheIndex   index = truncate(num);
 
-    	CacheTag   tag   = truncateLSB(num);
-		CacheIndex index = truncate(num);
-
-		bram.a.put('0, index, ?   );
-		bram.b.put('1, index, line);
 		valid[index] <= True;
 		dirty[index] <= False;
 		tags [index] <= tag;
 
+		bram.b.put('1, index, line);
+
 		if(valid[index] && dirty[index]) begin
-			bramWBReq.enq({tags[index],index});
+			bramReq.enq(BramReq{ req : False,
+			                     op  : ?,
+			                     addr: {{tags[index],index},'0}});
+			bram.a.put('0, index, ? );
 		end
 
     endmethod
 
-    method ActionValue#(DataCacheWB) get();
-    	bramWBReq.deq();
-    	return DataCacheWB { num: bramWBReq.first(),
-    						line: bram.a.read };
+    method ActionValue#(DataCacheWB) get() if(!bramReq.first().req);
+
+    	CacheLineNum num   = truncateLSB(bramReq.first().addr);
+    	CacheLine    line  = bram.a.read; bramReq.deq();
+
+    	return DataCacheWB { num:  num,
+    	                     line: line};
+
     endmethod
 
 endmodule
