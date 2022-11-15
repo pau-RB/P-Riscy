@@ -6,7 +6,6 @@ import Vector::*;
 typedef struct{
     MemOp	op;
     Addr	addr;
-    Bool	hit;
 } BramReq deriving(Eq, Bits, FShow);
 
 typedef struct{
@@ -25,7 +24,7 @@ typedef struct {
 
 interface BareDataCache;
     method Bool isHit(DataCacheReq r);
-	method ActionValue#(Bool) req(DataCacheReq r);
+	method Action req(DataCacheReq r);
     method ActionValue#(DataCacheResp) resp;
     method Action put(DataCacheWB wb);
     method ActionValue#(DataCacheWB) get();

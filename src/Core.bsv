@@ -430,7 +430,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		let wToken     = resp.transId;
 		let commitInst = wToken.inst;
 		let feID       = wToken.feID;
-		Data loadRes   = 'haff;
+		Data loadRes   = 'hdeadbeef;
 
 		if(commitInst.iType == Ld) begin
 
