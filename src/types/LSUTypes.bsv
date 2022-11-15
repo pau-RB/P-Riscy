@@ -4,11 +4,6 @@ import Vector::*;
 //////////// BARE DATA CACHE ////////////
 
 typedef struct{
-    MemOp	op;
-    Addr	addr;
-} BramReq deriving(Eq, Bits, FShow);
-
-typedef struct{
     MemOp		op;
     StoreFunc	func;
     Addr		addr;
@@ -23,8 +18,7 @@ typedef struct {
 } DataCacheWB deriving(Eq, Bits, FShow);
 
 interface BareDataCache;
-    method Bool isHit(DataCacheReq r);
-	method Action req(DataCacheReq r);
+	method ActionValue#(Bool) req(DataCacheReq r);
     method ActionValue#(DataCacheResp) resp;
     method Action put(DataCacheWB wb);
     method ActionValue#(DataCacheWB) get();

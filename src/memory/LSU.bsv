@@ -12,8 +12,8 @@ typedef Bit#(TLog#(CacheLineWords)) CacheOffset;
 
 module mkNullDataCache (BareDataCache ifc);
 
-	method Action req(DataCacheReq r);
-
+	method ActionValue#(Bool) req(DataCacheReq r);
+		return True;
 	endmethod
 
     method ActionValue#(DataCacheResp) resp;
@@ -30,6 +30,11 @@ module mkNullDataCache (BareDataCache ifc);
 
 endmodule
 
+typedef struct{
+    MemOp	op;
+    Addr	addr;
+} BramReq deriving(Eq, Bits, FShow);
+
 module mkDirectDataCache (BareDataCache ifc);
 
 	Vector#(CacheRows,Reg#(Bool))     valid <- replicateM(mkReg(False));
@@ -41,17 +46,7 @@ module mkDirectDataCache (BareDataCache ifc);
 	Fifo#(1,CacheLineNum) bramWBReq <- mkStageFifo();
 	// Use port a for R and port b for W, important in Join (both operations)
 
-	method Bool isHit(DataCacheReq r) if(!bramWBReq.notEmpty());
-
-		Addr                 addr     = r.addr;
-		CacheTag             tag      = truncateLSB(addr);
-		CacheIndex           index    = truncate(addr >> valueOf(TLog#(CacheLineBytes)));
-
-		return (valid[index] && (tags[index] == tag));
-
-	endmethod
-
-	method Action req(DataCacheReq r) if(!bramWBReq.notEmpty());
+	method ActionValue#(Bool) req(DataCacheReq r) if(!bramWBReq.notEmpty());
 
 		Addr                 addr     = r.addr;
 		CacheTag             tag      = truncateLSB(addr);
@@ -59,18 +54,28 @@ module mkDirectDataCache (BareDataCache ifc);
 		Bit#(CacheLineBytes) write_en = writeEnDCR(r);
 		CacheLine            write_ln = embedDCR(r);
 
-		bramReq.enq(BramReq{ op  : r.op,
-							 addr: r.addr});
+		if (valid[index] && (tags[index] == tag)) begin
 
-		if(r.op == Ld) begin
-			bram.a.put('0, index, ?);
-		end else if (r.op == St) begin
-			bram.b.put(write_en, index, write_ln);
-			dirty[index] <= True;
-		end else if(r.op == Join) begin
-			bram.a.put('0, index, ?);
-			bram.b.put(write_en, index, write_ln);
-			dirty[index] <= True;
+			bramReq.enq(BramReq{ op  : r.op,
+								 addr: r.addr});
+
+			if(r.op == Ld) begin
+				bram.a.put('0, index, ?);
+			end else if (r.op == St) begin
+				bram.b.put(write_en, index, write_ln);
+				dirty[index] <= True;
+			end else if(r.op == Join) begin
+				bram.a.put('0, index, ?);
+				bram.b.put(write_en, index, write_ln);
+				dirty[index] <= True;
+			end
+
+			return True;
+
+		end else begin
+
+			return False;
+
 		end
 
 	endmethod
@@ -133,11 +138,10 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 		if(mshr.notEmpty()) begin
 
 			let r = mshr.first(); mshr.deq();
-
-			dataCache.req(DataCacheReq{ op:   r.op,
-			                            func: r.func,
-			                            addr: r.addr,
-			                            data: r.data });
+			let hit <- dataCache.req(DataCacheReq{ op:   r.op,
+			                                       func: r.func,
+			                                       addr: r.addr,
+			                                       data: r.data });
 			dataCacheReq.enq(r.transId);
 			dataCacheOld.enq(True);
 			dataCacheHit.enq(True);
@@ -174,17 +178,13 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 		let r = reqQ.first();
 
-		let hit = dataCache.isHit(DataCacheReq{ op:   r.op,
-		                                        func: r.func,
-		                                        addr: r.addr,
-		                                        data: r.data });
+		let hit <- dataCache.req(DataCacheReq{ op:   r.op,
+		                                       func: r.func,
+		                                       addr: r.addr,
+		                                       data: r.data });
 
 		if(hit) begin
 
-			dataCache.req(DataCacheReq{ op:   r.op,
-			                            func: r.func,
-			                            addr: r.addr,
-			                            data: r.data });
 			dataCacheReq.enq(r.transId);
 			dataCacheOld.enq(False);
 			dataCacheHit.enq(True);
