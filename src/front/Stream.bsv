@@ -226,7 +226,7 @@ module mkStream (WideMem l1I, Stream ifc);
 	// Debug
 
 	method StreamStatus currentState();
-		return state[0];
+		return state[1];
 	endmethod
 
 	method Addr currentPC();

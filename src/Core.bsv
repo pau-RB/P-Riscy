@@ -47,8 +47,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	//////////// EXT STATE ////////////
 
 	Reg#(Bool)                  coreStarted    <- mkReg(False);
-	Reg#(Data)                  numCommit      <- mkReg(0);
-	Reg#(Data)                  numCycles      <- mkReg(0);
+	Ehr#(2,Data)                numCommit      <- mkEhr(0);
+	Ehr#(2,Data)                numCycles      <- mkEhr(0);
 	Fifo#(THQ_LEN,CommitReport) commitReportQ  <- mkPipelineFifo();
 	Fifo#(THQ_LEN,Message)      messageReportQ <- mkPipelineFifo();
 
@@ -252,6 +252,10 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	NTTX nttx <- mkNTTX(rf, verif);
 
+	Ehr#(2,Bool)            perf_doWB     <- mkEhr(False);
+	Ehr#(2,Bool)            perf_doMissWB <- mkEhr(False);
+	Ehr#(2,Maybe#(WBToken)) perf_wToken   <- mkEhr(tagged Invalid);
+
 	rule do_wb;
 
 		let wToken = wrbackQ.first(); wrbackQ.deq();
@@ -270,7 +274,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 			end else begin
 
-				numCommit <= numCommit+1;
+				numCommit[0] <= numCommit[0]+1;
 
 				Data    loadRes      = '1;
 				Bool    memValid     = True;
@@ -333,21 +337,29 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				end
 
 				if (wb_ext_DEBUG == True && memValid) begin
-					commitReportQ.enq(generateCMR(numCycles, verif.getVerifID(feID), childVerifID, wToken, loadRes));
+					commitReportQ.enq(generateCMR(numCycles[0], verif.getVerifID(feID), childVerifID, wToken, loadRes));
 				end
 
 				if (msg_ext_DEBUG == True) begin
 					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
 						messageReportQ.enq(Message { verifID: verif.getVerifID(feID),
-													 cycle:   numCycles,
-													 commit:  numCommit,
+													 cycle:   numCycles[0],
+													 commit:  numCommit[0],
 													 data:    commitInst.data });
 					end
 				end
 
 				if (msg_DEBUG == True) begin
 					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
-						$display(" [id: %d ] MESSAGE | cycle: %d | commit: %d | %c ", verif.getVerifID(feID), numCycles, numCommit, commitInst.data);
+						$display(" [id: %d ] MESSAGE | cycle: %d | commit: %d | %c ", verif.getVerifID(feID), numCycles[0], numCommit[0], commitInst.data);
+					end
+				end
+
+				if(perf_DEBUG == True) begin
+					if(memValid) begin
+						perf_doWB[0] <= True;
+					end else begin
+						perf_doMissWB[0] <= True;
 					end
 				end
 
@@ -355,7 +367,16 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 		end
 
+		if(perf_DEBUG == True) begin
+			perf_wToken[0] <= tagged Valid wToken;
+		end
+
 	endrule
+
+	//////////// OLD WRBACK ////////////
+
+	Ehr#(2,Bool)            perf_old_doWB    <- mkEhr(False);
+	Ehr#(2,Maybe#(WBToken)) perf_old_wToken  <- mkEhr(tagged Invalid);
 
 	rule do_old_wb;
 
@@ -402,7 +423,12 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
     	end
 
     	if (wb_ext_DEBUG == True) begin
-    		commitReportQ.enq(generateCMR(numCycles, verif.getVerifID(feID), ?, wToken, loadRes));
+    		commitReportQ.enq(generateCMR(numCycles[0], verif.getVerifID(feID), ?, wToken, loadRes));
+		end
+
+		if(perf_DEBUG == True) begin
+			perf_old_doWB  [0] <= True;
+			perf_old_wToken[0] <= tagged Valid wToken;
 		end
 
 	endrule
@@ -410,58 +436,71 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	//////////// PERFORMANCE CNT ////////////
 
 	rule do_cnt_cycles if(coreStarted);
+		numCycles[0] <= numCycles[0]+1;
+	endrule
 
-		numCycles <= numCycles+1;
+	rule do_perf_DEBUG if(perf_DEBUG == True && coreStarted);
+		
+		perf_doWB      [1] <= False;
+		perf_doMissWB  [1] <= False;
+		perf_wToken    [1] <= tagged Invalid;
+		perf_old_doWB  [1] <= False;
+		perf_old_wToken[1] <= tagged Invalid;
 
-		if (perf_DEBUG == True) begin
-
-			FrontID hart = rrfeID;
-			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-				if(!executeQ[hart].notEmpty()) begin
-					hart = hart+1;
-				end
+		FrontID hart = rrfeID;
+		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+			if(!executeQ[hart].notEmpty()) begin
+				hart = hart+1;
 			end
-			
-			for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-
-				     if(i == 0) $write("%d ", numCycles);
-				else if(i == 1) $write("%d ", numCommit);
-				else            $write("           ");
-
-				if(stream[i].currentState() != Empty) $write("|| %d ", verif.getVerifID(fromInteger(i))); else $write("||            ");
-
-				case (stream[i].currentState())
-					Full :   $write("|| Full  ");
-					Evict:   $write("|| Evict ");
-					Ghost:   $write("|| Ghost ");
-					Dry  :   $write("|| Dry   ");
-					Empty:   $write("|| Empty ");
-					default: $write("||       ");
-				endcase
-
-				if(stream   [i].isl0Ihit) $write("h "); else $write("m ");
-				if(stream   [i].currentState() != Empty) $write("| F 0x%h |", stream[i].currentPC()); else $write("| F            |");
-				if(stream   [i].notEmpty) $write(" D 0x%h |", stream   [i].firstPC() ); else $write(" D            |");
-				if(regfetchQ[i].notEmpty) $write(" R 0x%h |", regfetchQ[i].first().pc); else $write(" R            |");
-				if(executeQ [i].notEmpty && hart == fromInteger(i)) $write(" E 0x%h |", executeQ [i].first().pc);
-				else if(executeQ [i].notEmpty) $write("%c[2;97m E 0x%h %c[0;0m|", 27, executeQ [i].first().pc, 27);
-				else $write(" E            |");
-				
-				if(memoryQ.notEmpty && (memoryQ.first().feID == fromInteger(i))) $write(" M 0x%h |",  memoryQ.first().pc); else $write("              |");
-				
-				if(wrbackQ.notEmpty && (wrbackQ.first().feID == fromInteger(i))) $write(" W 0x%h | ", wrbackQ.first().pc); else $write("              |");
-				if(wrbackQ.notEmpty && (wrbackQ.first().feID == fromInteger(i))) begin
-					$write("%c[1;33m",27);
-					$write("", showInst(wrbackQ.first().rawInst));
-					$write("%c[0m",27); 
-				end
-
-				$display("");
-			end
-
-			$write("------------------------------------------------------------------------------------------------------------------------------\n");
-
 		end
+		
+		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+
+			     if(i == 0) $write("%d ", numCycles[1]);
+			else if(i == 1) $write("%d ", numCommit[1]);
+			else            $write("           ");
+
+			if(stream[i].currentState() != Empty) $write("|| %d ", verif.getVerifID(fromInteger(i))); else $write("||            ");
+
+			case (stream[i].currentState())
+				Full :   $write("|| Full  ");
+				Evict:   $write("|| Evict ");
+				Ghost:   $write("|| Ghost ");
+				Dry  :   $write("|| Dry   ");
+				Empty:   $write("|| Empty ");
+				default: $write("||       ");
+			endcase
+
+			if(stream   [i].isl0Ihit) $write("h "); else $write("m ");
+			if(stream   [i].currentState() != Empty) $write("| F 0x%h |", stream[i].currentPC()); else $write("| F            |");
+			if(stream   [i].notEmpty) $write(" D 0x%h |", stream   [i].firstPC() ); else $write(" D            |");
+			if(regfetchQ[i].notEmpty) $write(" R 0x%h |", regfetchQ[i].first().pc); else $write(" R            |");
+			if(executeQ [i].notEmpty && hart == fromInteger(i)) $write(" E 0x%h |", executeQ [i].first().pc);
+			else if(executeQ [i].notEmpty) $write("%c[2;97m E 0x%h %c[0;0m|", 27, executeQ [i].first().pc, 27);
+			else $write(" E            |");
+
+			if(memoryQ.notEmpty && (memoryQ.first().feID == fromInteger(i))) $write(" M 0x%h |",  memoryQ.first().pc); else $write("              |");
+
+			if(isValid(perf_wToken[1]) && (fromMaybe(?,perf_wToken[1]).feID == fromInteger(i))) $write(" W 0x%h | ", fromMaybe(?,perf_wToken[1]).pc); else $write("              | ");
+
+			if(perf_doWB[1] && isValid(perf_wToken[1]) && (fromMaybe(?,perf_wToken[1]).feID == fromInteger(i))) begin
+				$write("%c[1;93m",27);
+				$write("", showInst(fromMaybe(?,perf_wToken[1]).rawInst));
+				$write("%c[0m",27);
+			end else if(perf_doMissWB[1] && isValid(perf_wToken[1]) && (fromMaybe(?,perf_wToken[1]).feID == fromInteger(i))) begin
+				$write("%c[2;97m",27);
+				$write("", showInst(fromMaybe(?,perf_wToken[1]).rawInst));
+				$write("%c[0m",27);
+			end else if(perf_old_doWB[1] && isValid(perf_old_wToken[1]) && (fromMaybe(?,perf_old_wToken[1]).feID == fromInteger(i))) begin
+				$write("%c[1;33m",27);
+				$write("", showInst(fromMaybe(?,perf_old_wToken[1]).rawInst));
+				$write("%c[0m",27);
+			end
+
+			$display("");
+		end
+
+		$write("------------------------------------------------------------------------------------------------------------------------------\n");
 
 	endrule
 
@@ -498,7 +537,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	method Data getNumCommit();
 
-		return numCommit;
+		return numCommit[0];
 
 	endmethod
 
