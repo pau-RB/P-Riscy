@@ -59,6 +59,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	BareDataCache                         l1d        <- mkDirectDataCache();
 	LSU#(WBToken)                         lsu        <- mkLSU(memSplit[valueOf(FrontWidth)], l1d);
 
+	Vector#(FrontWidth, Ehr#(2,Bool)) wbEpoch <- replicateM(mkEhr(False));
+
 	//////////// FETCH ////////////
 
 	Vector#(FrontWidth, Stream) stream;
@@ -129,25 +131,31 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
 
-		rule do_regfetch if (!sb[i].search1(regfetchQ[i].first().inst.src1) && !sb[i].search2(regfetchQ[i].first().inst.src2));
+		rule do_regfetch;
 
-			let rfToken = regfetchQ[i].first();
-			let decInst = rfToken.inst;
-				
-			let arg1    = rf[i].rd1(fromMaybe(?, decInst.src1));
-			let arg2    = rf[i].rd2(fromMaybe(?, decInst.src2));
-			let eToken  = ExecToken{
-							inst   : decInst,
-							arg1   : arg1,
-							arg2   : arg2,
-							pc     : rfToken.pc,
-							feID   : fromInteger(i),
-							epoch  : rfToken.epoch,
-							rawInst: rfToken.rawInst};
+			if (regfetchQ[i].first().epoch != wbEpoch[i][1]) begin
+				regfetchQ[i].deq();
+			end else if (!sb[i].search1(regfetchQ[i].first().inst.src1) && !sb[i].search2(regfetchQ[i].first().inst.src2)) begin
 
-			sb[i].insert(decInst.dst);
-			regfetchQ[i].deq();
-			executeQ[i].enq(eToken);
+				let rfToken = regfetchQ[i].first();
+				let decInst = rfToken.inst;
+					
+				let arg1    = rf[i].rd1(fromMaybe(?, decInst.src1));
+				let arg2    = rf[i].rd2(fromMaybe(?, decInst.src2));
+				let eToken  = ExecToken{
+								inst   : decInst,
+								arg1   : arg1,
+								arg2   : arg2,
+								pc     : rfToken.pc,
+								feID   : fromInteger(i),
+								epoch  : rfToken.epoch,
+								rawInst: rfToken.rawInst};
+
+				sb[i].insert(decInst.dst);
+				regfetchQ[i].deq();
+				executeQ[i].enq(eToken);
+
+			end
 
 		endrule
 
@@ -192,8 +200,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
  
 	//////////// MEMORY ////////////
-
-	Vector#(FrontWidth, Ehr#(2,Bool)) wbEpoch <- replicateM(mkEhr(False));
 
 	Fifo#(1,WBToken)   wrbackQ   <- mkStageFifo();
 
