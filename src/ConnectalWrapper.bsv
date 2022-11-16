@@ -3,6 +3,7 @@ import Core::*;
 import VerifMaster::*;
 import Types::*;
 import ProcTypes::*;
+import CMRTypes::*;
 import Memory::*;
 import WideMemBRAM::*;
 import Fifo::*;

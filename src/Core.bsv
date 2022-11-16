@@ -6,6 +6,7 @@ import VerifMaster::*;
 import Types::*;
 import ProcTypes::*;
 import LSUTypes::*;
+import CMRTypes::*;
 
 // include
 import Fifo::*;
@@ -331,89 +332,23 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 				end
 
-				if (wb_ext_DEBUG == True) begin
-
-					if(commitInst.iType == J || commitInst.iType == Jr || commitInst.iType == Br) begin
-						commitReportQ.enq(CommitReport {cycle:   numCycles,
-														verifID: verif.getVerifID(feID),
-														pc:      wToken.pc,
-														rawInst: wToken.rawInst,
-														iType:   commitInst.iType,
-														wbDst:   '0,
-														wbRes:   '0,
-														addr:    commitInst.addr});
-					end else if(commitInst.iType == Fork || commitInst.iType == Forkr) begin
-						commitReportQ.enq(CommitReport {cycle:   numCycles,
-														verifID: verif.getVerifID(feID),
-														pc:      wToken.pc,
-														rawInst: wToken.rawInst,
-														iType:   commitInst.iType,
-														wbDst:   '0,
-														wbRes:   childVerifID,
-														addr:    commitInst.addr});
-					end else if(commitInst.iType == Join) begin
-						if(memValid) begin
-							commitReportQ.enq(CommitReport {cycle:   numCycles,
-															verifID: verif.getVerifID(feID),
-															pc:      wToken.pc,
-															rawInst: wToken.rawInst,
-															iType:   commitInst.iType,
-															wbDst:   '0,
-															wbRes:   loadRes,
-															addr:    commitInst.addr});
-						end
-					end else if(commitInst.iType == Ld) begin
-						if(memValid) begin
-							commitReportQ.enq(CommitReport {cycle:   numCycles,
-															verifID: verif.getVerifID(feID),
-															pc:      wToken.pc,
-															rawInst: wToken.rawInst,
-															iType:   commitInst.iType,
-															wbDst:   fromMaybe('0,commitInst.dst),
-															wbRes:   loadRes,
-															addr:    commitInst.addr});
-						end
-					end else if(commitInst.iType == St) begin
-						if(memValid) begin
-							commitReportQ.enq(CommitReport {cycle:   numCycles,
-															verifID: verif.getVerifID(feID),
-															pc:      wToken.pc,
-															rawInst: wToken.rawInst,
-															iType:   commitInst.iType,
-															wbDst:   '0,
-															wbRes:   '0,
-															addr:    commitInst.addr});
-						end
-					end else begin
-						commitReportQ.enq(CommitReport {cycle:   numCycles,
-														verifID: verif.getVerifID(feID),
-														pc:      wToken.pc,
-														rawInst: wToken.rawInst,
-														iType:   commitInst.iType,
-														wbDst:   fromMaybe('0,commitInst.dst),
-														wbRes:   commitInst.data,
-														addr:    '0});
-					end
-
+				if (wb_ext_DEBUG == True && memValid) begin
+					commitReportQ.enq(generateCMR(numCycles, verif.getVerifID(feID), childVerifID, wToken, loadRes));
 				end
 
 				if (msg_ext_DEBUG == True) begin
-					
 					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
 						messageReportQ.enq(Message { verifID: verif.getVerifID(feID),
 													 cycle:   numCycles,
 													 commit:  numCommit,
 													 data:    commitInst.data });
 					end
-
 				end
 
 				if (msg_DEBUG == True) begin
-					
 					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
 						$display(" [id: %d ] MESSAGE | cycle: %d | commit: %d | %c ", verif.getVerifID(feID), numCycles, numCommit, commitInst.data);
 					end
-
 				end
 
 			end
@@ -467,36 +402,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
     	end
 
     	if (wb_ext_DEBUG == True) begin
-
-			if(commitInst.iType == Join) begin
-				commitReportQ.enq(CommitReport {cycle:   numCycles,
-												verifID: verif.getVerifID(feID),
-												pc:      wToken.pc,
-												rawInst: wToken.rawInst,
-												iType:   commitInst.iType,
-												wbDst:   '0,
-												wbRes:   loadRes,
-												addr:    commitInst.addr});
-			end else if(commitInst.iType == Ld) begin
-				commitReportQ.enq(CommitReport {cycle:   numCycles,
-												verifID: verif.getVerifID(feID),
-												pc:      wToken.pc,
-												rawInst: wToken.rawInst,
-												iType:   commitInst.iType,
-												wbDst:   fromMaybe('0,commitInst.dst),
-												wbRes:   loadRes,
-												addr:    commitInst.addr});
-			end else if(commitInst.iType == St) begin
-				commitReportQ.enq(CommitReport {cycle:   numCycles,
-												verifID: verif.getVerifID(feID),
-												pc:      wToken.pc,
-												rawInst: wToken.rawInst,
-												iType:   commitInst.iType,
-												wbDst:   '0,
-												wbRes:   '0,
-												addr:    commitInst.addr});
-			end
-
+    		commitReportQ.enq(generateCMR(numCycles, verif.getVerifID(feID), ?, wToken, loadRes));
 		end
 
 	endrule
