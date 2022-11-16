@@ -90,11 +90,14 @@ module mkStream (WideMem l1I, Stream ifc);
 
 		// Do redirect
 		let redirect = redirectQ.first(); redirectQ.deq();
-		pc[0] <= redirect.nextPc;
-		epoch <= redirect.epoch;
 
-		if(state[2] == Evict || state[2] == Dry) begin
-			state[2] <= Ghost;
+		if(redirect.redirect) begin
+			pc[0] <= redirect.nextPc;
+			epoch <= redirect.epoch;
+
+			if(state[2] == Evict || state[2] == Dry) begin
+				state[2] <= Ghost;
+			end
 		end
 
 	endrule

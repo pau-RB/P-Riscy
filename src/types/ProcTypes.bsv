@@ -207,12 +207,10 @@ typedef struct {
 } WBToken deriving (Bits, Eq, FShow);
 
 typedef struct {
-    Addr  pc;
-    Bool  epoch;
-    Addr  nextPc;
-    IType brType;
-    Bool  taken;
-    Bool  mispredict;
+	Bool lock;
+	Bool redirect;
+	Bool epoch;
+	Addr nextPc;
 } Redirect deriving (Bits, Eq, FShow);
 
 typedef struct {

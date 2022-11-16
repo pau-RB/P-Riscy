@@ -125,9 +125,12 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	//////////// REG FETCH ////////////
 
-	Vector#(FrontWidth, RFile             ) rf       <- replicateM(mkBypassRFile       );
-	Vector#(FrontWidth, Scoreboard#(8)    ) sb       <- replicateM(mkPipelineScoreboard);
-	Vector#(FrontWidth, Fifo#(1,ExecToken)) executeQ <- replicateM(mkStageFifo()       );
+	Vector#(FrontWidth, RFile             ) rf        <- replicateM(mkBypassRFile       );
+	Vector#(FrontWidth, Scoreboard#(8)    ) sb        <- replicateM(mkPipelineScoreboard);
+	Vector#(FrontWidth, Fifo#(1,ExecToken)) executeQ  <- replicateM(mkStageFifo()       );
+
+	Vector#(FrontWidth, Fifo#(1,Redirect) ) redirectQ <- replicateM(mkBypassFifo());
+	Vector#(FrontWidth, Ehr#(2,Bool)      ) rfLock    <- replicateM(mkEhr(False));
 
 	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
 
@@ -135,7 +138,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 			if (regfetchQ[i].first().epoch != wbEpoch[i][1]) begin
 				regfetchQ[i].deq();
-			end else if (!sb[i].search1(regfetchQ[i].first().inst.src1) && !sb[i].search2(regfetchQ[i].first().inst.src2)) begin
+			end else if(!rfLock[i][1] && (!sb[i].search1(regfetchQ[i].first().inst.src1) && !sb[i].search2(regfetchQ[i].first().inst.src2))) begin
 
 				let rfToken = regfetchQ[i].first();
 				let decInst = rfToken.inst;
@@ -155,12 +158,27 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				regfetchQ[i].deq();
 				executeQ[i].enq(eToken);
 
+				if(decInst.iType == Br || decInst.iType == J || decInst.iType == Jr) begin
+					rfLock[i][1] <= True;
+				end
+
 			end
 
 		endrule
 
 	end
 
+	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
+
+		rule do_rfLock;
+			Redirect r = redirectQ[i].first(); redirectQ[i].deq();
+			rfLock[i][0] <= r.lock;
+			if(r.redirect) begin
+				stream[i].redirect(r);
+			end
+		endrule
+
+	end
 
 	//////////// EXECUTE ////////////
 
@@ -294,6 +312,10 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	        	    	rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
 					end else begin
 						wbEpoch[feID][0] <= !wbEpoch[feID][0];
+						redirectQ[feID].enq(Redirect{ lock    : True,
+						                              redirect: True,
+						                              epoch   :!wbEpoch[feID][0],
+						                              nextPc  : wToken.pc+4 });
 						memValid = False;
 					end
 
@@ -302,6 +324,10 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					let resp <- lsu.resp();
 					if(!resp.valid) begin
 						wbEpoch[feID][0] <= !wbEpoch[feID][0];
+						redirectQ[feID].enq(Redirect{ lock    : True,
+						                              redirect: True,
+						                              epoch   :!wbEpoch[feID][0],
+						                              nextPc  : wToken.pc+4 });
 						memValid = False;
 					end
 
@@ -320,6 +346,10 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 						end
 					end else begin
 						wbEpoch[feID][0] <= !wbEpoch[feID][0];
+						redirectQ[feID].enq(Redirect{ lock    : True,
+						                              redirect: True,
+						                              epoch   :!wbEpoch[feID][0],
+						                              nextPc  : wToken.pc+4 });
 						memValid = False;
 					end
 
@@ -330,14 +360,16 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					end
 
 					if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
-						stream[feID].redirect(Redirect{
-												pc        : wToken.pc,
-												epoch     :!wbEpoch[feID][0],
-												nextPc    : commitInst.addr,
-											   	brType    : commitInst.iType,
-											   	taken     : commitInst.brTaken,
-											   	mispredict: commitInst.mispredict});
+						redirectQ[feID].enq(Redirect{ lock    : False,
+						                              redirect: True,
+						                              epoch   :!wbEpoch[feID][0],
+						                              nextPc  : commitInst.addr });
 						wbEpoch[feID][0] <= !wbEpoch[feID][0];
+					end else if (commitInst.iType == Br) begin
+						redirectQ[feID].enq(Redirect{ lock    : False,
+						                              redirect: False,
+						                              epoch   : ?,
+						                              nextPc  : ?});
 					end
 
 				end
@@ -396,21 +428,17 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 			loadRes = resp.data;
     	    rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
-    	    stream[feID].redirect(Redirect{ pc        : wToken.pc,
-			                                epoch     : wbEpoch[feID][0],
-			                                nextPc    : wToken.pc+4,
-			                                brType    : commitInst.iType,
-			                                taken     : commitInst.brTaken,
-			                                mispredict: commitInst.mispredict});
+    	    redirectQ[feID].enq(Redirect{ lock    : False,
+			                              redirect: False,
+			                              epoch   : ?,
+			                              nextPc  : ? });
 
     	end else if(commitInst.iType == St) begin
 
-    	    stream[feID].redirect(Redirect{ pc        : wToken.pc,
-			                                epoch     : wbEpoch[feID][0],
-			                                nextPc    : wToken.pc+4,
-			                                brType    : commitInst.iType,
-			                                taken     : commitInst.brTaken,
-			                                mispredict: commitInst.mispredict});
+    	    redirectQ[feID].enq(Redirect{ lock    : False,
+			                              redirect: False,
+			                              epoch   : ?,
+			                              nextPc  : ? });
 
     	end else if(commitInst.iType == Join) begin
 
@@ -418,12 +446,10 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			if(resp.data == '0) begin
 				stream[feID].backendKill(wbEpoch[feID][0]);
 			end else begin
-				stream[feID].redirect(Redirect{ pc        : wToken.pc,
-			                                	epoch     : wbEpoch[feID][0],
-			                                	nextPc    : wToken.pc+4,
-			                                	brType    : commitInst.iType,
-			                                	taken     : commitInst.brTaken,
-			                                	mispredict: commitInst.mispredict});
+				redirectQ[feID].enq(Redirect{ lock    : False,
+				                              redirect: False,
+				                              epoch   : ?,
+				                              nextPc  : ? });
 			end
 
     	end
