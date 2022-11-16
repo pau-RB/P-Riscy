@@ -215,7 +215,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			if(execInst.iType == Ld) begin
 
     		    lsu.req(LSUReq{ op     : Ld,
-    		                    func   : ?,
+    		                    ldFunc : execInst.ldFunc,
+    		                    stFunc : ?,
     		                    addr   : execInst.addr,
     		                    data   : ?,
     		                    transId: wToken });
@@ -223,17 +224,19 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
     		end else if(execInst.iType == St) begin
 
     		    lsu.req(LSUReq{ op     : St,
-    		                    func   : execInst.stFunc,
+    		                    ldFunc : ?,
+    		                    stFunc : execInst.stFunc,
     		                    addr   : execInst.addr,
     		                    data   : execInst.data,
     		                    transId: wToken });
 
     		end else if(execInst.iType == Join) begin
 
-    		    lsu.req(LSUReq{ op  : Join,
-    		                    func: ?,
-    		                    addr: execInst.addr,
-    		                    data: 'b1,
+    		    lsu.req(LSUReq{ op     : Join,
+    		                    ldFunc : ?,
+    		                    stFunc : ?,
+    		                    addr   : execInst.addr,
+    		                    data   : 'b1,
     		                    transId: wToken });
 
     		end
@@ -276,7 +279,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 					let resp <- lsu.resp();
 					if(resp.valid) begin
-						loadRes = extendLoad(resp.data, commitInst.addr, commitInst.ldFunc);
+						loadRes = resp.data;
 	        	    	rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
 					end else begin
 						wbEpoch[feID][0] <= !wbEpoch[feID][0];
@@ -429,7 +432,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 		if(commitInst.iType == Ld) begin
 
-			loadRes = extendLoad(resp.data, commitInst.addr, commitInst.ldFunc);
+			loadRes = resp.data;
     	    rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
     	    stream[feID].redirect(Redirect{ pc        : wToken.pc,
 			                                epoch     : wbEpoch[feID][0],

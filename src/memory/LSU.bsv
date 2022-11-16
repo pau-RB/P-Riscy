@@ -10,6 +10,82 @@ typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(CacheRows))) Cach
 typedef Bit#(TLog#(CacheRows)) CacheIndex;
 typedef Bit#(TLog#(CacheLineWords)) CacheOffset;
 
+//////////// UTILITIES ////////////
+
+function CacheLineNum cacheLineNumReq(LSUReq#(transIdType) r) provisos(Bits#(LSUReq#(transIdType),reqSz));
+    Addr a = r.addr;
+    CacheLineNum num = truncateLSB(a);
+    return num;
+endfunction
+
+function CacheLineNum cacheLineNumAddr(Addr a);
+    CacheLineNum num = truncateLSB(a);
+    return num;
+endfunction
+
+function Bit#(CacheLineBytes) writeEnDCR (DataCacheReq req);
+    
+    Bit#(CacheLineBytes) write_en = 0;
+
+    CacheByteSelect wordsel = truncate( req.addr & 32'hfffffffc );
+    CacheByteSelect halfsel = truncate( req.addr & 32'hfffffffe );
+    CacheByteSelect bytesel = truncate( req.addr & 32'hffffffff );
+
+    if( req.op == St ) begin
+        case(req.stFunc)
+            SB:  write_en = 'b1    << bytesel;
+            SH:  write_en = 'b11   << halfsel;
+            SW:  write_en = 'b1111 << wordsel;
+        endcase
+    end else if ( req.op == Join ) begin
+        write_en = 'b1111 << wordsel;
+    end
+
+    return write_en;
+
+endfunction
+
+function CacheLine embedDCR (DataCacheReq req);
+
+    Data word = '0;
+
+    if( req.op == St ) begin
+        case(req.stFunc)
+            SB:  word = {req.data[ 7:0],req.data[ 7:0],req.data[ 7:0],req.data[ 7:0]};
+            SH:  word = {req.data[15:0],req.data[15:0]};
+            SW:  word = {req.data};
+        endcase
+    end else if ( req.op == Join ) begin
+        word = {req.data};
+    end
+
+    CacheLine line = replicate(word);
+
+    return line;
+
+endfunction
+
+function Data extendLoad( Data value, Addr addr, LoadFunc func );
+
+    Bit#(32) wordValue = value;
+    
+    Bit#(5)  halfsel   = {(addr[1:0] & 2'b10),3'b000};
+    Bit#(16) halfValue = truncate(value>>halfsel);
+
+    Bit#(5)  bytesel   = {(addr[1:0] & 2'b11),3'b000};
+    Bit#(8)  byteValue = truncate(value>>bytesel);
+
+    case(func)
+        LB:  return signExtend(byteValue);
+        LH:  return signExtend(halfValue);
+        LW:  return signExtend(wordValue);
+        LBU: return zeroExtend(byteValue);
+        LHU: return zeroExtend(halfValue);
+        default: return value;
+    endcase
+
+endfunction
+
 module mkNullDataCache (BareDataCache ifc);
 
 	method ActionValue#(Bool) req(DataCacheReq r);
@@ -31,9 +107,10 @@ module mkNullDataCache (BareDataCache ifc);
 endmodule
 
 typedef struct{
-	Bool	req;
-    MemOp	op;
-    Addr	addr;
+	Bool     req;
+    MemOp    op;
+    LoadFunc ldFunc;
+    Addr     addr;
 } BramReq deriving(Eq, Bits, FShow);
 
 module mkDirectDataCache (BareDataCache ifc);
@@ -56,9 +133,10 @@ module mkDirectDataCache (BareDataCache ifc);
 
 		if (valid[index] && (tags[index] == tag)) begin // hit
 
-			bramReq.enq(BramReq{ req : True,
-			                     op  : r.op,
-								 addr: r.addr});
+			bramReq.enq(BramReq{ req   : True,
+			                     op    : r.op,
+			                     ldFunc: r.ldFunc,
+								 addr  : r.addr});
 
 			if(r.op == Ld) begin
 				bram.a.put('0, index, ?);
@@ -84,12 +162,19 @@ module mkDirectDataCache (BareDataCache ifc);
     method ActionValue#(DataCacheResp) resp() if(bramReq.first().req);
 
     	MemOp           op         = bramReq.first().op;
+    	LoadFunc        ldFunc     = bramReq.first().ldFunc;
     	Addr            addr       = bramReq.first().addr;
 		CacheWordSelect wordSelect = truncate(addr >> 2);
 
 		CacheLine line = bram.a.read; bramReq.deq();
 
-		return tagged Valid line[wordSelect];
+		Data word = line[wordSelect];
+
+		if(op==Ld) begin
+			word = extendLoad(word, addr, ldFunc);
+		end
+
+		return tagged Valid word;
 
     endmethod
 
@@ -107,9 +192,10 @@ module mkDirectDataCache (BareDataCache ifc);
 		bram.b.put('1, index, line);
 
 		if(valid[index] && dirty[index]) begin
-			bramReq.enq(BramReq{ req : False,
-			                     op  : ?,
-			                     addr: {{tags[index],index},'0}});
+			bramReq.enq(BramReq{ req    : False,
+			                     op     : ?,
+			                     ldFunc : ?,
+			                     addr   : {{tags[index],index},'0}});
 			bram.a.put('0, index, ? );
 		end
 
@@ -144,10 +230,11 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 		if(mshr.notEmpty()) begin
 
 			let r = mshr.first(); mshr.deq();
-			let hit <- dataCache.req(DataCacheReq{ op:   r.op,
-			                                       func: r.func,
-			                                       addr: r.addr,
-			                                       data: r.data });
+			let hit <- dataCache.req(DataCacheReq{ op    : r.op,
+			                                       ldFunc: r.ldFunc,
+			                                       stFunc: r.stFunc,
+			                                       addr  : r.addr,
+			                                       data  : r.data });
 			dataCacheReq.enq(r.transId);
 			dataCacheOld.enq(True);
 			dataCacheHit.enq(True);
@@ -184,10 +271,11 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 		let r = reqQ.first();
 
-		let hit <- dataCache.req(DataCacheReq{ op:   r.op,
-		                                       func: r.func,
-		                                       addr: r.addr,
-		                                       data: r.data });
+		let hit <- dataCache.req(DataCacheReq{ op    : r.op,
+		                                       ldFunc: r.ldFunc,
+		                                       stFunc: r.stFunc,
+		                                       addr  : r.addr,
+		                                       data  : r.data });
 
 		if(hit) begin
 

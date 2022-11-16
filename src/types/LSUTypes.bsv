@@ -5,7 +5,8 @@ import Vector::*;
 
 typedef struct{
     MemOp		op;
-    StoreFunc	func;
+    LoadFunc	ldFunc;
+    StoreFunc   stFunc;
     Addr		addr;
     Data		data;
 } DataCacheReq deriving(Eq, Bits, FShow);
@@ -28,7 +29,8 @@ endinterface
 
 typedef struct{
     MemOp		op;
-    StoreFunc	func;
+    LoadFunc    ldFunc;
+    StoreFunc   stFunc;
     Addr		addr;
     Data		data;
     transIdType	transId;
@@ -50,79 +52,3 @@ interface LSU#(type transIdType);
     method ActionValue#(LSUResp#(transIdType)) resp;
     method ActionValue#(LSUOldResp#(transIdType)) oldResp;
 endinterface
-
-//////////// UTILITIES ////////////
-
-function CacheLineNum cacheLineNumReq(LSUReq#(transIdType) r) provisos(Bits#(LSUReq#(transIdType),reqSz));
-    Addr a = r.addr;
-    CacheLineNum num = truncateLSB(a);
-    return num;
-endfunction
-
-function CacheLineNum cacheLineNumAddr(Addr a);
-    CacheLineNum num = truncateLSB(a);
-    return num;
-endfunction
-
-function Bit#(CacheLineBytes) writeEnDCR (DataCacheReq req);
-    
-    Bit#(CacheLineBytes) write_en = 0;
-
-    CacheByteSelect wordsel = truncate( req.addr & 32'hfffffffc );
-    CacheByteSelect halfsel = truncate( req.addr & 32'hfffffffe );
-    CacheByteSelect bytesel = truncate( req.addr & 32'hffffffff );
-
-    if( req.op == St ) begin
-        case(req.func)
-            SB:  write_en = 'b1    << bytesel;
-            SH:  write_en = 'b11   << halfsel;
-            SW:  write_en = 'b1111 << wordsel;
-        endcase
-    end else if ( req.op == Join ) begin
-        write_en = 'b1111 << wordsel;
-    end
-
-    return write_en;
-
-endfunction
-
-function CacheLine embedDCR (DataCacheReq req);
-
-    Data word = '0;
-
-    if( req.op == St ) begin
-        case(req.func)
-            SB:  word = {req.data[ 7:0],req.data[ 7:0],req.data[ 7:0],req.data[ 7:0]};
-            SH:  word = {req.data[15:0],req.data[15:0]};
-            SW:  word = {req.data};
-        endcase
-    end else if ( req.op == Join ) begin
-        word = {req.data};
-    end
-
-    CacheLine line = replicate(word);
-
-    return line;
-
-endfunction
-
-function Data extendLoad( Data value, Addr addr, LoadFunc func );
-
-    Bit#(32) wordValue = value;
-    
-    Bit#(5)  halfsel   = {(addr[1:0] & 2'b10),3'b000};
-    Bit#(16) halfValue = truncate(value>>halfsel);
-
-    Bit#(5)  bytesel   = {(addr[1:0] & 2'b11),3'b000};
-    Bit#(8)  byteValue = truncate(value>>bytesel);
-
-    case(func)
-        LB:  return signExtend(byteValue);
-        LH:  return signExtend(halfValue);
-        LW:  return signExtend(wordValue);
-        LBU: return zeroExtend(byteValue);
-        LHU: return zeroExtend(halfValue);
-        default: return value;
-    endcase
-
-endfunction
