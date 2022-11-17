@@ -123,7 +123,7 @@ module mkDirectDataCache (BareDataCache ifc);
 	Fifo#(1,BramReq) bramReq <- mkStageFifo();
 	// Use port a for R and port b for W, important in Join (both operations)
 
-	method ActionValue#(Bool) req(DataCacheReq r) if(!bramReq.notEmpty());
+	method ActionValue#(Bool) req(DataCacheReq r);
 
 		Addr                 addr    = r.addr;
 		CacheTag             tag     = truncateLSB(addr);
@@ -178,7 +178,7 @@ module mkDirectDataCache (BareDataCache ifc);
 
     endmethod
 
-    method Action put(DataCacheWB wb) if(!bramReq.notEmpty());
+    method Action put(DataCacheWB wb);
 
     	CacheLineNum num   = wb.num;
     	CacheLine    line  = wb.line;
