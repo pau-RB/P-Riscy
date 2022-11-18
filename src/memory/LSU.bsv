@@ -263,15 +263,19 @@ module mkAssociativeDataCache (BareDataCache ifc);
 
 endmodule
 
+typedef struct{
+	transIdType transId;
+	Bool        isOld;
+	Bool        isHit;
+} DataCacheToken#(type transIdType) deriving(Eq, Bits, FShow);
+
 module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provisos(Bits#(transIdType,transIdTypeSz),FShow#(transIdType));
 
-	Fifo#(1,transIdType) dataCacheReq <- mkStageFifo();
-	Fifo#(1,Bool)        dataCacheOld <- mkStageFifo();
-	Fifo#(1,Bool)        dataCacheHit <- mkStageFifo();
+	Fifo#(4,LSUReq#(transIdType))         mshr    <- mkPipelineFifo();
 
-	Fifo#(1,LSUReq#(transIdType)) reqQ  <- mkBypassFifo();
-	Fifo#(4,LSUReq#(transIdType)) mshr  <- mkPipelineFifo();
-	Fifo#(1,Addr)                 outQ  <- mkPipelineFifo();
+	Fifo#(1,LSUReq#(transIdType))         inReqQ  <- mkBypassFifo();
+	Fifo#(1,DataCacheToken#(transIdType)) dcReqQ  <- mkStageFifo();
+	Fifo#(1,Addr)                         memReqQ <- mkPipelineFifo();
 
 	Ehr#(2,Bool) flushMSHR <- mkEhr(False);
 
@@ -285,9 +289,9 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 			                                       stFunc: r.stFunc,
 			                                       addr  : r.addr,
 			                                       data  : r.data });
-			dataCacheReq.enq(r.transId);
-			dataCacheOld.enq(True);
-			dataCacheHit.enq(True);
+			dcReqQ.enq(DataCacheToken{ transId: r.transId,
+			                           isOld  : True,
+			                           isHit  : True });
 
 		end else begin
 
@@ -309,7 +313,7 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 	rule do_MEMRESP if(!flushMSHR[0]);
 
-		let num  = cacheLineNumAddr(outQ.first()); outQ.deq();
+		let num  = cacheLineNumAddr(memReqQ.first()); memReqQ.deq();
 		let line <- mem.resp();
 		dataCache.put(DataCacheWB{ num:  num,
 		                           line: line });
@@ -319,7 +323,7 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 	rule do_INREQ if(!flushMSHR[1]);
 
-		let r = reqQ.first();
+		let r = inReqQ.first();
 
 		let hit <- dataCache.req(DataCacheReq{ op    : r.op,
 		                                       ldFunc: r.ldFunc,
@@ -328,33 +332,32 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 		                                       data  : r.data });
 
 		if(hit) begin
-
-			dataCacheReq.enq(r.transId);
-			dataCacheOld.enq(False);
-			dataCacheHit.enq(True);
-			reqQ.deq();
+			dcReqQ.enq(DataCacheToken{ transId: r.transId,
+			                           isOld  : False,
+			                           isHit  : True });
+			inReqQ.deq();
 
 		end else begin
 
 			if(!mshr.notEmpty()) begin
 
-				dataCacheReq.enq(r.transId);
-				dataCacheOld.enq(False);
-				dataCacheHit.enq(False);
-				reqQ.deq();
+				dcReqQ.enq(DataCacheToken{ transId: r.transId,
+				                           isOld  : False,
+				                           isHit  : False });
+				inReqQ.deq();
 
 				mshr.enq(r);
-				outQ.enq(r.addr);
+				memReqQ.enq(r.addr);
 				mem.req(WideMemReq{ write_en: '0,
 									addr    : r.addr,
 									data    : ? });
 
 			end else if(cacheLineNumReq(mshr.first())==cacheLineNumReq(r)) begin
 
-				dataCacheReq.enq(r.transId);
-				dataCacheOld.enq(False);
-				dataCacheHit.enq(False);
-				reqQ.deq();
+				dcReqQ.enq(DataCacheToken{ transId: r.transId,
+				                           isOld  : False,
+				                           isHit  : False });
+				inReqQ.deq();
 
 				mshr.enq(r);
 
@@ -366,38 +369,34 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 	method Action req(LSUReq#(transIdType) r);
 
-		reqQ.enq(r);
+		inReqQ.enq(r);
 
 	endmethod
 
-    method ActionValue#(LSUResp#(transIdType)) resp if(dataCacheOld.first()==False);
+    method ActionValue#(LSUResp#(transIdType)) resp if(dcReqQ.first().isOld==False);
 
-		dataCacheReq.deq();
-		dataCacheOld.deq();
-		dataCacheHit.deq();
+		dcReqQ.deq();
 
-		if(dataCacheHit.first()) begin
+		if(dcReqQ.first().isHit) begin
 			let r <- dataCache.resp();
 			return LSUResp{ valid: True,
 			                data: fromMaybe(?,r),
-			                transId: dataCacheReq.first() };
+			                transId: dcReqQ.first().transId };
 		end else begin
 			return LSUResp{ valid: False,
 			                data: ?,
-			                transId: dataCacheReq.first() };
+			                transId: dcReqQ.first().transId };
 		end
 
     endmethod
 
-    method ActionValue#(LSUOldResp#(transIdType)) oldResp if(dataCacheOld.first()==True);
+    method ActionValue#(LSUOldResp#(transIdType)) oldResp if(dcReqQ.first().isOld==True);
 
-   		dataCacheReq.deq();
-		dataCacheOld.deq();
-		dataCacheHit.deq();
+   		dcReqQ.deq();
 
 		let r <- dataCache.resp();
 		return LSUOldResp{ data: fromMaybe(?,r),
-		                   transId: dataCacheReq.first() };
+		                   transId: dcReqQ.first().transId };
 
     endmethod
 
