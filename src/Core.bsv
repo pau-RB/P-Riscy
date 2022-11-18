@@ -56,7 +56,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	//////////// MEMORY ////////////
 
 	Vector#(TAdd#(FrontWidth,1), WideMem) memSplit   <- mkSplitWideMem(True, mem);
-	BareDataCache                         l1d        <- mkDirectDataCache();
+	BareDataCache                         l1d        <- mkAssociativeDataCache();
 	LSU#(WBToken)                         lsu        <- mkLSU(memSplit[valueOf(FrontWidth)], l1d);
 
 	Vector#(FrontWidth, Ehr#(2,Bool)) wbEpoch <- replicateM(mkEhr(False));

@@ -5,10 +5,12 @@ import Ehr::*;
 import Vector::*;
 import BRAMCore::*;
 
-typedef 8 CacheRows;
+typedef 8 CacheRows;   // Must be power of 2
+typedef 4 CacheColums; // Must be power of 2
 typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(CacheRows))) CacheTag;
 typedef Bit#(TLog#(CacheRows)) CacheIndex;
 typedef Bit#(TLog#(CacheLineWords)) CacheOffset;
+typedef Bit#(TLog#(CacheColums)) CacheBank;
 
 //////////// UTILITIES ////////////
 
@@ -210,6 +212,54 @@ module mkDirectDataCache (BareDataCache ifc);
     	                     line: line};
 
     endmethod
+
+endmodule
+
+module mkAssociativeDataCache (BareDataCache ifc);
+
+	Vector#(CacheColums,BareDataCache) bank <- replicateM(mkDirectDataCache());
+	Fifo#(1,CacheBank) bankHit <- mkStageFifo();
+	Reg#(CacheBank) bankPut <- mkReg(0);
+	Fifo#(1,DataCacheWB) wbFifo <- mkBypassFifo();
+
+	for (Integer i = 0; i < valueOf(CacheColums); i=i+1) begin
+		rule do_COLLECT_WB;
+			let wb <- bank[i].get();
+			wbFifo.enq(wb);
+		endrule
+	end
+
+	method ActionValue#(Bool) req(DataCacheReq r) if(!wbFifo.notEmpty());
+		Bool      hit      = False;
+		CacheBank whichHit = ?;
+		for(Integer i = 0; i < valueOf(CacheColums); i=i+1) begin
+			let hitBank <- bank[fromInteger(i)].req(r);
+			if(hitBank) begin
+				whichHit = fromInteger(i);
+				hit = True;
+			end
+		end
+		if(hit) begin
+			bankHit.enq(whichHit);
+		end
+		return hit;
+	endmethod
+
+	method ActionValue#(DataCacheResp) resp();
+		bankHit.deq();
+		let r <- bank[bankHit.first()].resp();
+		return r;
+	endmethod
+
+	method Action put(DataCacheWB wb);
+		bank[bankPut].put(wb);
+		bankPut <= bankPut+1;
+	endmethod
+
+	method ActionValue#(DataCacheWB) get();
+		wbFifo.deq();
+		return wbFifo.first();
+	endmethod
 
 endmodule
 
