@@ -276,6 +276,7 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 	Fifo#(1,LSUReq#(transIdType))         inReqQ  <- mkBypassFifo();
 	Fifo#(1,DataCacheToken#(transIdType)) dcReqQ  <- mkStageFifo();
 	Fifo#(1,Addr)                         memReqQ <- mkPipelineFifo();
+	Fifo#(1,LSUResp#(transIdType))        respQ   <- mkBypassFifo();
 
 	Ehr#(2,Bool) flushMSHR <- mkEhr(False);
 
@@ -367,37 +368,49 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 	endrule
 
-	method Action req(LSUReq#(transIdType) r);
+	rule do_RESP;
 
-		inReqQ.enq(r);
+		let r = dcReqQ.first(); dcReqQ.deq();
 
-	endmethod
+		if(r.isOld) begin
 
-    method ActionValue#(LSUResp#(transIdType)) resp if(dcReqQ.first().isOld==False);
+			let d <- dataCache.resp();
+			respQ.enq(LSUResp{ valid  : True,
+			                   isOld  : True,
+			                   data   : fromMaybe(?,d),
+			                   transId: r.transId });
 
-		dcReqQ.deq();
+		end else if(r.isHit) begin
 
-		if(dcReqQ.first().isHit) begin
-			let r <- dataCache.resp();
-			return LSUResp{ valid: True,
-			                data: fromMaybe(?,r),
-			                transId: dcReqQ.first().transId };
+			let d <- dataCache.resp();
+			respQ.enq(LSUResp{ valid  : True,
+			                   isOld  : False,
+			                   data   : fromMaybe(?,d),
+			                   transId: r.transId });
+
 		end else begin
-			return LSUResp{ valid: False,
-			                data: ?,
-			                transId: dcReqQ.first().transId };
+
+			respQ.enq(LSUResp{ valid  : False,
+			                   isOld  : False,
+			                   data   : ?,
+			                   transId: r.transId });
+
 		end
 
+	endrule
+
+	method Action req(LSUReq#(transIdType) r);
+		inReqQ.enq(r);
+	endmethod
+
+    method ActionValue#(LSUResp#(transIdType)) resp if(respQ.first().isOld==False);
+    	respQ.deq();
+    	return respQ.first();
     endmethod
 
-    method ActionValue#(LSUOldResp#(transIdType)) oldResp if(dcReqQ.first().isOld==True);
-
-   		dcReqQ.deq();
-
-		let r <- dataCache.resp();
-		return LSUOldResp{ data: fromMaybe(?,r),
-		                   transId: dcReqQ.first().transId };
-
+    method ActionValue#(LSUResp#(transIdType)) oldResp if(respQ.first().isOld==True);
+    	respQ.deq();
+    	return respQ.first();
     endmethod
 
 endmodule

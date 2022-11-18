@@ -38,17 +38,13 @@ typedef struct{
 
 typedef struct{
 	Bool		valid;
+    Bool        isOld;
     Data		data;
     transIdType	transId;
 } LSUResp#(type transIdType) deriving(Eq, Bits, FShow);
 
-typedef struct{
-    Data		data;
-    transIdType	transId;
-} LSUOldResp#(type transIdType) deriving(Eq, Bits, FShow);
-
 interface LSU#(type transIdType);
     method Action req(LSUReq#(transIdType) r);
-    method ActionValue#(LSUResp#(transIdType)) resp;
-    method ActionValue#(LSUOldResp#(transIdType)) oldResp;
+    method ActionValue#(LSUResp#(transIdType)) resp();
+    method ActionValue#(LSUResp#(transIdType)) oldResp();
 endinterface
