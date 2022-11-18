@@ -6,6 +6,7 @@ import ProcTypes::*;
 import CMRTypes::*;
 import Memory::*;
 import WideMemBRAM::*;
+import WideMemDelay::*;
 import Fifo::*;
 import Config::*;
 import Vector::*;
@@ -29,8 +30,9 @@ endinterface
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
    WideMem                    mem          <- mkWideMemBRAM;
+   WideMem                    delayedMem   <- mkWideMemDelay(mem);
    VerifMaster                verif        <- mkVerifMaster;
-   Core                       dut          <- mkCore6S(mem, verif);
+   Core                       dut          <- mkCore6S(delayedMem, verif);
    Reg#(Bool)                 memInit      <- mkReg(False);
    Fifo#(MTQ_LEN, ContToken)  mainTokenQ   <- mkCFFifo();
    Reg#(Data)                 commitTarget <- mkReg(80);

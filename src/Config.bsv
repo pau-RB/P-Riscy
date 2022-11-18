@@ -1,8 +1,8 @@
 import Types::*;
 
 // Connectal (FPGA)
-Bool wb_ext_DEBUG  = True;
-Bool msg_ext_DEBUG = False;
+Bool wb_ext_DEBUG  = False;
+Bool msg_ext_DEBUG = True;
 
 // Verilog (SIM)
 Bool msg_DEBUG     = False;
@@ -32,3 +32,6 @@ Bool lsuAssociative = True;
 
 // Verification
 typedef Bit#(32) VerifID;
+
+// Main Mem
+typedef 15 RAMLatency;
