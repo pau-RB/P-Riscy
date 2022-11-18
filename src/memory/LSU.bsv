@@ -1,3 +1,4 @@
+import Config::*;
 import Types::*;
 import LSUTypes::*;
 import Fifo::*;
@@ -5,12 +6,10 @@ import Ehr::*;
 import Vector::*;
 import BRAMCore::*;
 
-typedef 8 CacheRows;   // Must be power of 2
-typedef 4 CacheColums; // Must be power of 2
-typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(CacheRows))) CacheTag;
-typedef Bit#(TLog#(CacheRows)) CacheIndex;
+typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(LSUCacheRows))) CacheTag;
+typedef Bit#(TLog#(LSUCacheRows)) CacheIndex;
 typedef Bit#(TLog#(CacheLineWords)) CacheOffset;
-typedef Bit#(TLog#(CacheColums)) CacheBank;
+typedef Bit#(TLog#(LSUCacheColumns)) CacheBank;
 
 //////////// UTILITIES ////////////
 
@@ -117,11 +116,11 @@ typedef struct{
 
 module mkDirectDataCache (BareDataCache ifc);
 
-	Vector#(CacheRows,Reg#(Bool))     valid <- replicateM(mkReg(False));
-	Vector#(CacheRows,Reg#(Bool))     dirty <- replicateM(mkReg(False));
-	Vector#(CacheRows,Reg#(CacheTag)) tags  <- replicateM(mkReg(0));
+	Vector#(LSUCacheRows,Reg#(Bool))     valid <- replicateM(mkReg(False));
+	Vector#(LSUCacheRows,Reg#(Bool))     dirty <- replicateM(mkReg(False));
+	Vector#(LSUCacheRows,Reg#(CacheTag)) tags  <- replicateM(mkReg(0));
 
-	BRAM_DUAL_PORT_BE#(CacheIndex, CacheLine, CacheLineBytes) bram  <- mkBRAMCore2BE(valueOf(CacheRows), False);
+	BRAM_DUAL_PORT_BE#(CacheIndex, CacheLine, CacheLineBytes) bram  <- mkBRAMCore2BE(valueOf(LSUCacheRows), False);
 	Fifo#(1,BramReq) bramReq <- mkStageFifo();
 	// Use port a for R and port b for W, important in Join (both operations)
 
@@ -217,12 +216,12 @@ endmodule
 
 module mkAssociativeDataCache (BareDataCache ifc);
 
-	Vector#(CacheColums,BareDataCache) bank <- replicateM(mkDirectDataCache());
+	Vector#(LSUCacheColumns,BareDataCache) bank <- replicateM(mkDirectDataCache());
 	Fifo#(1,CacheBank) bankHit <- mkStageFifo();
 	Reg#(CacheBank) bankPut <- mkReg(0);
 	Fifo#(1,DataCacheWB) wbFifo <- mkBypassFifo();
 
-	for (Integer i = 0; i < valueOf(CacheColums); i=i+1) begin
+	for (Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
 		rule do_COLLECT_WB;
 			let wb <- bank[i].get();
 			wbFifo.enq(wb);
@@ -232,7 +231,7 @@ module mkAssociativeDataCache (BareDataCache ifc);
 	method ActionValue#(Bool) req(DataCacheReq r) if(!wbFifo.notEmpty());
 		Bool      hit      = False;
 		CacheBank whichHit = ?;
-		for(Integer i = 0; i < valueOf(CacheColums); i=i+1) begin
+		for(Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
 			let hitBank <- bank[fromInteger(i)].req(r);
 			if(hitBank) begin
 				whichHit = fromInteger(i);
