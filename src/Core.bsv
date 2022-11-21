@@ -55,9 +55,10 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	//////////// MEMORY ////////////
 
-	Vector#(TAdd#(FrontWidth,1), WideMem) memSplit   <- mkSplitWideMem(True, mem);
-	BareDataCache                         l1d        <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
-	LSU#(WBToken)                         lsu        <- mkLSU(memSplit[valueOf(FrontWidth)], l1d);
+	Vector#(2, WideMem)          mainSplit  <- mkSplitWideMem(True, mem);
+	Vector#(FrontWidth, WideMem) instSplit  <- mkSplitWideMem(True, mainSplit[0]);
+	BareDataCache                l1d        <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
+	LSU#(WBToken)                lsu        <- mkLSU(mainSplit[1], l1d);
 
 	Vector#(FrontWidth, Ehr#(2,Bool)) wbEpoch <- replicateM(mkEhr(False));
 
@@ -66,7 +67,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	Vector#(FrontWidth, Stream) stream;
 
 	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
-		stream[i] <- mkStream(memSplit[i]);
+		stream[i] <- mkStream(instSplit[i]);
 	end
 
 
