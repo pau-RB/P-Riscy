@@ -20,6 +20,7 @@ import LSU::*;
 // front
 import Decoder::*;
 import Stream::*;
+import Fetch::*;
 
 // back
 import Scoreboard::*;
@@ -56,7 +57,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	//////////// MEMORY ////////////
 
 	Vector#(2, WideMem)          mainSplit  <- mkSplitWideMem(True, mem);
-	Vector#(FrontWidth, WideMem) instSplit  <- mkSplitWideMem(True, mainSplit[0]);
 	BareDataCache                l1d        <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
 	LSU#(WBToken)                lsu        <- mkLSU(mainSplit[1], l1d);
 
@@ -64,12 +64,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	//////////// FETCH ////////////
 
-	Vector#(FrontWidth, Stream) stream;
-
-	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
-		stream[i] <- mkStream(instSplit[i]);
-	end
-
+	Vector#(FrontWidth, Stream) stream <- mkFetch(mainSplit[0]);
 
 	//////////// DECODE ////////////
 
