@@ -54,6 +54,13 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
    endrule
 
+   rule relayLSR;
+
+        LSUStat lsu <- dut.getLSR();
+        ind.reportLSR(lsu.verifID, lsu.cycle, lsu.commit, lsu.data, lsu.hLd, lsu.hSt, lsu.hJoin, lsu.mLd, lsu.mSt, lsu.mJoin, lsu.dLd, lsu.dSt, lsu.dJoin);
+
+   endrule
+
    rule doEvict if(roundRobin && dut.getNumCommit() == commitTarget);
 
       if(mainTokenQ.notEmpty) begin

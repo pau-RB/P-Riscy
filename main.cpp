@@ -112,11 +112,40 @@ class ToHost: public ToHostWrapper {
 
             Message msg;
             msg.verifID = verifID;
-            msg.cycle   = cycle;
-            msg.commit  = commit;
-            msg.data    = data;
+            msg.cycle   = cycle  ;
+            msg.commit  = commit ;
+            msg.data    = data   ;
 
             inter->print_MSG_dut(msg);
+
+        }
+
+        virtual void reportLSR ( const uint32_t verifID, const uint32_t cycle,
+                                 const uint32_t commit, const uint32_t data,
+                                 const uint32_t hLd,     const uint32_t hSt,   const uint32_t hJoin,
+                                 const uint32_t mLd,     const uint32_t mSt,   const uint32_t mJoin,
+                                 const uint32_t dLd,     const uint32_t dSt,   const uint32_t dJoin){
+
+            if(error_detected) {
+                return;
+            }
+
+            LSUStat lsr;
+            lsr.verifID = verifID;
+            lsr.cycle   = cycle  ;
+            lsr.commit  = commit ;
+            lsr.data    = data   ;
+            lsr.hLd     = hLd    ;
+            lsr.hSt     = hSt    ;
+            lsr.hJoin   = hJoin  ;
+            lsr.mLd     = mLd    ;
+            lsr.mSt     = mSt    ;
+            lsr.mJoin   = mJoin  ;
+            lsr.dLd     = dLd    ;
+            lsr.dSt     = dSt    ;
+            lsr.dJoin   = dJoin  ;
+
+            inter->print_LSR_dut(lsr);
 
         }
     

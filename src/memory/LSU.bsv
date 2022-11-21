@@ -1,5 +1,6 @@
 import Config::*;
 import Types::*;
+import CMRTypes::*;
 import LSUTypes::*;
 import Fifo::*;
 import Ehr::*;
@@ -279,6 +280,16 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 	Ehr#(2,Bool) flushMSHR <- mkEhr(False);
 
+    Reg#(Data) hLd   <- mkReg(0);
+    Reg#(Data) hSt   <- mkReg(0);
+    Reg#(Data) hJoin <- mkReg(0);
+    Reg#(Data) mLd   <- mkReg(0);
+    Reg#(Data) mSt   <- mkReg(0);
+    Reg#(Data) mJoin <- mkReg(0);
+    Reg#(Data) dLd   <- mkReg(0);
+    Reg#(Data) dSt   <- mkReg(0);
+    Reg#(Data) dJoin <- mkReg(0);
+
 	rule do_RETRY if(flushMSHR[0]);
 
 		if(mshr.notEmpty()) begin
@@ -323,6 +334,8 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 	rule do_INREQ if(!flushMSHR[1]);
 
+		Bool delayed = False;
+
 		let r = inReqQ.first();
 
 		let hit <- dataCache.req(DataCacheReq{ op    : r.op,
@@ -337,32 +350,54 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 			                           isHit  : True });
 			inReqQ.deq();
 
+		end else if(!mshr.notEmpty()) begin
+
+			dcReqQ.enq(DataCacheToken{ transId: r.transId,
+			                           isOld  : False,
+			                           isHit  : False });
+			inReqQ.deq();
+
+			mshr.enq(r);
+			memReqQ.enq(r.addr);
+			mem.req(WideMemReq{ write_en: '0,
+								addr    : r.addr,
+								data    : ? });
+
+		end else if(cacheLineNumReq(mshr.first())==cacheLineNumReq(r)) begin
+
+			dcReqQ.enq(DataCacheToken{ transId: r.transId,
+			                           isOld  : False,
+			                           isHit  : False });
+			inReqQ.deq();
+
+			mshr.enq(r);
+
 		end else begin
 
-			if(!mshr.notEmpty()) begin
+			delayed = True;
 
-				dcReqQ.enq(DataCacheToken{ transId: r.transId,
-				                           isOld  : False,
-				                           isHit  : False });
-				inReqQ.deq();
+		end
 
-				mshr.enq(r);
-				memReqQ.enq(r.addr);
-				mem.req(WideMemReq{ write_en: '0,
-									addr    : r.addr,
-									data    : ? });
-
-			end else if(cacheLineNumReq(mshr.first())==cacheLineNumReq(r)) begin
-
-				dcReqQ.enq(DataCacheToken{ transId: r.transId,
-				                           isOld  : False,
-				                           isHit  : False });
-				inReqQ.deq();
-
-				mshr.enq(r);
-
+		if(lsu_ext_DEBUG) begin
+			if (hit) begin
+				case (r.op)
+					Ld:   hLd   <= hLd+1;
+					St:   hSt   <= hSt+1;
+					Join: hJoin <= hJoin+1;
+				endcase
+			end else if(!delayed) begin
+				case (r.op)
+					Ld:   mLd   <= mLd+1;
+					St:   mSt   <= mSt+1;
+					Join: mJoin <= mJoin+1;
+				endcase
+			end else begin
+				case (r.op)
+					Ld:   dLd   <= dLd+1;
+					St:   dSt   <= dSt+1;
+					Join: dJoin <= dJoin+1;
+				endcase
 			end
-
 		end
 
 	endrule
@@ -402,14 +437,30 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 		inReqQ.enq(r);
 	endmethod
 
-    method ActionValue#(LSUResp#(transIdType)) resp if(respQ.first().isOld==False);
-    	respQ.deq();
-    	return respQ.first();
-    endmethod
+	method ActionValue#(LSUResp#(transIdType)) resp if(respQ.first().isOld==False);
+		respQ.deq();
+		return respQ.first();
+	endmethod
 
-    method ActionValue#(LSUResp#(transIdType)) oldResp if(respQ.first().isOld==True);
-    	respQ.deq();
-    	return respQ.first();
-    endmethod
+	method ActionValue#(LSUResp#(transIdType)) oldResp if(respQ.first().isOld==True);
+		respQ.deq();
+		return respQ.first();
+	endmethod
+
+	method LSUStat getStat();
+		return LSUStat{ verifID: ?,
+		                cycle  : ?,
+		                commit : ?,
+		                data   : ?,
+		                hLd    : hLd,
+		                hSt    : hSt,
+		                hJoin  : hJoin,
+		                mLd    : mLd,
+		                mSt    : mSt,
+		                mJoin  : mJoin,
+		                dLd    : dLd,
+		                dSt    : dSt,
+		                dJoin  : dJoin };
+	endmethod
 
 endmodule

@@ -61,4 +61,20 @@ typedef struct {
 	Data	data;
 } Message;
 
+typedef struct {
+	VerifID verifID;
+	Data    cycle;
+	Data    commit;
+	Data	data;
+	Data    hLd;
+    Data    hSt;
+    Data    hJoin;
+    Data    mLd;
+    Data    mSt;
+    Data    mJoin;
+    Data    dLd;
+    Data    dSt;
+    Data    dJoin;
+} LSUStat;
+
 #endif

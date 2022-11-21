@@ -1,7 +1,7 @@
 #ifndef MMIO_H
 #define MMIO_H
 
-int getchar();
 int putchar(int c);
+int printLSR();
 
 #endif

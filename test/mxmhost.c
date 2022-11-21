@@ -78,9 +78,9 @@ int main() {
   C[0][0] = 0;
   D[0][0] = 0;
 
-  putchar('S');
+  printLSR('S');
   mxm((int*)A,(int*)B,(int*)C);
-  putchar('E');
+  printLSR('E');
 
   for (int i = 0; i < msz; ++i)
     for (int j = 0; j < msz; ++j)

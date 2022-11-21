@@ -53,11 +53,70 @@ void Interpreter::print_CMR_dut(const CommitReport cmr) {
 
 void Interpreter::print_MSG_dut(const Message msg) {
 
-	std::string phrase = " [id:     ] MESSAGE | cycle:          | commit:          | ";
+    std::string phrase;
+
+    phrase = "----------------------------------------------------------------------------";
+    printf("%s \n", phrase.c_str());
+
+	phrase = " [id:     ] MESSAGE | cycle:          | commit:          |";
 	overwrite(phrase, std::to_string(msg.verifID),  6, 3 );
     overwrite(phrase, std::to_string(msg.cycle  ), 29, 8 );
     overwrite(phrase, std::to_string(msg.commit ), 48, 8 );
     printf("%s %c\n", phrase.c_str(), (char)msg.data);
+
+    phrase = "----------------------------------------------------------------------------";
+    printf("%s \n", phrase.c_str());
+
+    fflush(stdout);
+
+}
+
+void Interpreter::print_LSR_dut(const LSUStat lsu) {
+
+    std::string phrase;
+
+    phrase = "----------------------------------------------------------------------------";
+    printf("%s \n", phrase.c_str());
+
+    std::string data(1, (char)lsu.data);
+
+    phrase = " [id:     ] LSR     | cycle:          | commit:          | data:           |";
+    overwrite(phrase, std::to_string(lsu.verifID   ),  6, 3 );
+    overwrite(phrase, std::to_string(lsu.cycle     ), 29, 8 );
+    overwrite(phrase, std::to_string(lsu.commit    ), 48, 8 );
+    overwrite(phrase,                data           , 67, 8 );
+    printf("%s \n", phrase.c_str());
+
+    phrase = "                    |-----------------|------------------|-----------------|";
+    printf("%s \n", phrase.c_str());
+
+    phrase = "                    | tLd:            | tSt:             | tJoin:          |";
+    overwrite(phrase, std::to_string(lsu.hLd  +lsu.mLd  +lsu.dLd  ),  29, 8 );
+    overwrite(phrase, std::to_string(lsu.hSt  +lsu.mSt  +lsu.dSt  ),  48, 8 );
+    overwrite(phrase, std::to_string(lsu.hJoin+lsu.mJoin+lsu.dJoin),  67, 8 );
+    printf("%s \n", phrase.c_str());
+
+    phrase = "                    | hLd:            | hSt:             | hJoin:          |";
+    overwrite(phrase, std::to_string(lsu.hLd  ),  29, 8 );
+    overwrite(phrase, std::to_string(lsu.hSt  ),  48, 8 );
+    overwrite(phrase, std::to_string(lsu.hJoin),  67, 8 );
+    printf("%s \n", phrase.c_str());
+
+    phrase = "                    | mLd:            | mSt:             | mJoin:          |";
+    overwrite(phrase, std::to_string(lsu.mLd  ),  29, 8 );
+    overwrite(phrase, std::to_string(lsu.mSt  ),  48, 8 );
+    overwrite(phrase, std::to_string(lsu.mJoin),  67, 8 );
+    printf("%s \n", phrase.c_str());
+
+    phrase = "                    | dLd:            | dSt:             | dJoin:          |";
+    overwrite(phrase, std::to_string(lsu.dLd  ),  29, 8 );
+    overwrite(phrase, std::to_string(lsu.dSt  ),  48, 8 );
+    overwrite(phrase, std::to_string(lsu.dJoin),  67, 8 );
+    printf("%s \n", phrase.c_str());
+
+    phrase = "----------------------------------------------------------------------------";
+    printf("%s \n", phrase.c_str());
+
     fflush(stdout);
 
 }

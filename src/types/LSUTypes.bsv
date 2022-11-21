@@ -1,4 +1,5 @@
 import Types::*;
+import CMRTypes::*;
 import Vector::*;
 
 //////////// BARE DATA CACHE ////////////
@@ -47,4 +48,5 @@ interface LSU#(type transIdType);
     method Action req(LSUReq#(transIdType) r);
     method ActionValue#(LSUResp#(transIdType)) resp();
     method ActionValue#(LSUResp#(transIdType)) oldResp();
+    method LSUStat getStat();
 endinterface

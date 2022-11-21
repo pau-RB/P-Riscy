@@ -1,16 +1,18 @@
 import Types::*;
 
 // Connectal (FPGA)
-Bool wb_ext_DEBUG  = False;
+Bool  wb_ext_DEBUG = False;
 Bool msg_ext_DEBUG = True;
+Bool lsu_ext_DEBUG = True;
 
 // Verilog (SIM)
 Bool msg_DEBUG     = False;
 Bool perf_DEBUG    = False;
 
 // MSG relay
-typedef	80 THQ_LEN;
-Addr	msg_ADDR  = 'h0fff0;
+typedef	20 THQ_LEN;
+Addr	msg_ADDR  = 'h3fff0;
+Addr	lsu_ADDR  = 'h3fff4;
 Addr	max_ADDR  = 'h3fffc;
 
 // Round Robin

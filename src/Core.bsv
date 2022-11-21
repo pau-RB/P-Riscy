@@ -40,6 +40,7 @@ interface Core;
 	method ActionValue#(ContToken)    getContToken();
 	method ActionValue#(CommitReport) getCMR();
 	method ActionValue#(Message)      getMSG();
+	method ActionValue#(LSUStat)      getLSR();
 
 endinterface
 
@@ -52,6 +53,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	Ehr#(2,Data)                numCycles      <- mkEhr(0);
 	Fifo#(THQ_LEN,CommitReport) commitReportQ  <- mkPipelineFifo();
 	Fifo#(THQ_LEN,Message)      messageReportQ <- mkPipelineFifo();
+	Fifo#(THQ_LEN,LSUStat)      lsuStatReportQ <- mkPipelineFifo();
 
 
 	//////////// MEMORY ////////////
@@ -383,6 +385,17 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					end
 				end
 
+				if (lsu_ext_DEBUG == True) begin
+					if(commitInst.iType == St && commitInst.addr == lsu_ADDR) begin
+						LSUStat lsr = lsu.getStat();
+						lsr.verifID = verif.getVerifID(feID);
+						lsr.cycle   = numCycles[0];
+						lsr.commit  = numCommit[0];
+						lsr.data    = commitInst.data;
+						lsuStatReportQ.enq(lsr);
+					end
+				end
+
 				if (msg_DEBUG == True) begin
 					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
 						$display(" [id: %d ] MESSAGE | cycle: %d | commit: %d | %c ", verif.getVerifID(feID), numCycles[0], numCommit[0], commitInst.data);
@@ -547,6 +560,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			coreStarted <= True;
 			commitReportQ.clear();
 			messageReportQ.clear();	
+			lsuStatReportQ.clear();
 		end
 
 	endmethod
@@ -586,6 +600,13 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	method ActionValue#(Message) getMSG();
 
 		let latest = messageReportQ.first(); messageReportQ.deq();
+		return latest;
+
+	endmethod
+
+	method ActionValue#(LSUStat) getLSR();
+
+		let latest = lsuStatReportQ.first(); lsuStatReportQ.deq();
 		return latest;
 
 	endmethod
