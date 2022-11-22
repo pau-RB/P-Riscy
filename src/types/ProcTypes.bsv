@@ -170,13 +170,13 @@ typedef struct {
 	Data        inst;
 	Addr        pc;
 	Bool        ghost;
-	Bool        epoch;
+	Epoch       epoch;
 } DecToken deriving(Bits, Eq);
 
 typedef struct {
 	DecodedInst inst;
 	Addr        pc;
-	Bool        epoch;
+	Epoch       epoch;
 	Data        rawInst;
 } RFToken deriving (Bits, Eq);
 
@@ -186,7 +186,7 @@ typedef struct {
 	Data        arg2;
 	Addr        pc;
 	FrontID     feID;
-	Bool        epoch;
+	Epoch       epoch;
 	Data        rawInst;
 } ExecToken deriving (Bits, Eq);
 
@@ -194,7 +194,7 @@ typedef struct {
 	ExecInst    inst;
 	Addr        pc;
 	FrontID     feID;
-	Bool        epoch;
+	Epoch       epoch;
 	Data        rawInst;
 } MemToken deriving (Bits, Eq);
 
@@ -202,15 +202,16 @@ typedef struct {
 	ExecInst    inst;
 	Addr        pc;
 	FrontID     feID;
-	Bool        epoch;
+	Epoch       epoch;
 	Data        rawInst;
 } WBToken deriving (Bits, Eq, FShow);
 
 typedef struct {
-	Bool lock;
-	Bool redirect;
-	Bool epoch;
-	Addr nextPc;
+	Bool        lock;
+	Bool        kill;
+	Bool        redirect;
+	Epoch       epoch;
+	Addr        nextPc;
 } Redirect deriving (Bits, Eq, FShow);
 
 typedef struct {

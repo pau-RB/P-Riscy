@@ -9,6 +9,8 @@ typedef Bit#(DataSz) Data;
 typedef 32 InstSz;
 typedef Bit#(InstSz) Instruction;
 
+typedef Bit#(2) Epoch;
+
 typedef 16                                        CacheLineWords;
 typedef TMul#(CacheLineWords, 4)                  CacheLineBytes;
 typedef Bit#( TLog#(CacheLineBytes) )             CacheByteSelect;

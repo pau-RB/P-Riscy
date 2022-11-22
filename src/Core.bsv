@@ -63,7 +63,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	BareDataCache                l1d        <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
 	LSU#(WBToken)                lsu        <- mkLSU(mainSplit[1], l1d);
 
-	Vector#(FrontWidth, Ehr#(2,Bool)) wbEpoch <- replicateM(mkEhr(False));
+	Vector#(FrontWidth, Ehr#(2,Epoch)) wbEpoch <- replicateM(mkEhr('0));
 
 	//////////// FETCH ////////////
 
@@ -172,7 +172,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		rule do_rfLock;
 			Redirect r = redirectQ[i].first(); redirectQ[i].deq();
 			rfLock[i][0] <= r.lock;
-			if(r.redirect) begin
+			if(r.redirect || r.kill) begin
 				stream[i].redirect(r);
 			end
 		endrule
@@ -310,10 +310,11 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 						loadRes = resp.data;
 	        	    	rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
 					end else begin
-						wbEpoch[feID][0] <= !wbEpoch[feID][0];
+						wbEpoch[feID][0] <= wbEpoch[feID][0]+1;
 						redirectQ[feID].enq(Redirect{ lock    : True,
+						                              kill    : False,
 						                              redirect: True,
-						                              epoch   :!wbEpoch[feID][0],
+						                              epoch   : wbEpoch[feID][0]+1,
 						                              nextPc  : wToken.pc+4 });
 						memValid = False;
 					end
@@ -322,10 +323,11 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 					let resp <- lsu.resp();
 					if(!resp.valid) begin
-						wbEpoch[feID][0] <= !wbEpoch[feID][0];
+						wbEpoch[feID][0] <= wbEpoch[feID][0]+1;
 						redirectQ[feID].enq(Redirect{ lock    : True,
+							                          kill    : False,
 						                              redirect: True,
-						                              epoch   :!wbEpoch[feID][0],
+						                              epoch   : wbEpoch[feID][0]+1,
 						                              nextPc  : wToken.pc+4 });
 						memValid = False;
 					end
@@ -340,14 +342,19 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					if(resp.valid) begin
 						loadRes = resp.data;
 						if(resp.data == '0) begin
-							stream[feID].backendKill(!wbEpoch[feID][0]);
-							wbEpoch[feID][0] <= !wbEpoch[feID][0];
+							wbEpoch[feID][0] <= wbEpoch[feID][0]+1;
+							redirectQ[feID].enq(Redirect{ lock    : False,
+    	    	                                          kill    : True,
+			                                              redirect: False,
+			                                              epoch   : wbEpoch[feID][0]+1,
+			                                              nextPc  : ? });
 						end
 					end else begin
-						wbEpoch[feID][0] <= !wbEpoch[feID][0];
+						wbEpoch[feID][0] <= wbEpoch[feID][0]+1;
 						redirectQ[feID].enq(Redirect{ lock    : True,
+							                          kill    : False,
 						                              redirect: True,
-						                              epoch   :!wbEpoch[feID][0],
+						                              epoch   : wbEpoch[feID][0]+1,
 						                              nextPc  : wToken.pc+4 });
 						memValid = False;
 					end
@@ -360,12 +367,14 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 					if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
 						redirectQ[feID].enq(Redirect{ lock    : False,
+							                          kill    : False,
 						                              redirect: True,
-						                              epoch   :!wbEpoch[feID][0],
+						                              epoch   : wbEpoch[feID][0]+1,
 						                              nextPc  : commitInst.addr });
-						wbEpoch[feID][0] <= !wbEpoch[feID][0];
+						wbEpoch[feID][0] <= wbEpoch[feID][0]+1;
 					end else if (commitInst.iType == Br) begin
 						redirectQ[feID].enq(Redirect{ lock    : False,
+							                          kill    : False,
 						                              redirect: False,
 						                              epoch   : ?,
 						                              nextPc  : ?});
@@ -440,6 +449,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			loadRes = resp.data;
     	    rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
     	    redirectQ[feID].enq(Redirect{ lock    : False,
+    	    	                          kill    : False,
 			                              redirect: False,
 			                              epoch   : ?,
 			                              nextPc  : ? });
@@ -447,6 +457,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
     	end else if(commitInst.iType == St) begin
 
     	    redirectQ[feID].enq(Redirect{ lock    : False,
+    	    	                          kill    : False,
 			                              redirect: False,
 			                              epoch   : ?,
 			                              nextPc  : ? });
@@ -455,9 +466,15 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
     		loadRes = resp.data;
 			if(resp.data == '0) begin
-				stream[feID].backendKill(wbEpoch[feID][0]);
+				wbEpoch[feID][0] <= wbEpoch[feID][0]+1;
+				redirectQ[feID].enq(Redirect{ lock    : False,
+    		                                  kill    : True,
+			                                  redirect: False,
+			                                  epoch   : wbEpoch[feID][0]+1,
+			                                  nextPc  : ? });
 			end else begin
 				redirectQ[feID].enq(Redirect{ lock    : False,
+					                          kill    : False,
 				                              redirect: False,
 				                              epoch   : ?,
 				                              nextPc  : ? });

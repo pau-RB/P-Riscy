@@ -21,7 +21,6 @@ interface Stream;
 	method Action                 redirect(Redirect r);
 
 	// Thread control - from downstream
-	method Action                 backendKill(Bool epoch);
 	method Action                 backendDry();
 
 	// Thread control - from upstream
@@ -38,10 +37,8 @@ interface Stream;
 
 endinterface
 
-// evict < "do_wb" < do_Kill < Redirect < Fetch < l1Iresp < do_dry < l1Ireq < start/available
-// 0        1        1         2          2       2         2        3        3
-//
-// Kill     C Fetch
+// evict < "do_wb" < Redirect < Fetch < l1Iresp < do_dry < l1Ireq < start/available
+// 0        1        2          2       2         2        3        3
 //
 // Redirect C Fetch
 // Redirect C do_dry
@@ -56,11 +53,10 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	Ehr#(4,StreamStatus)   state     <- mkEhr(Empty);
 	Ehr#(2,Addr)           pc        <- mkEhr('0);
-	Reg#(Bool)             epoch     <- mkReg(False);
+	Reg#(Epoch)            epoch     <- mkReg('0);
 
 	Fifo#(1,DecToken)      inst      <- mkStageFifo();
 	Fifo#(1,Redirect)      redirectQ <- mkBypassFifo();
-	Fifo#(1,Bool)          killQ     <- mkBypassFifo();
 	Fifo#(1,void)          dryQ      <- mkBypassFifo();
 	
 	Reg #(CacheLine)       l0I       <- mkRegU();
@@ -75,15 +71,6 @@ module mkStream (WideMem l1I, Stream ifc);
 	CacheLineNum pcline = truncateLSB(pc[0]);
 	Bool l0Ihit = (pcline==l0Iline)&&l0Ival;
 
-	// 0 - Consider kills
-	rule do_kill if(state[1] != Empty);
-
-		Bool newEpoch = killQ.first(); killQ.deq();
-		epoch    <= newEpoch;
-		state[1] <= Empty;
-
-	endrule
-
 	// 1 - Consider redirect
 
 	rule do_redirect if (state[2] == Full || state[2] == Evict || state[2] == Ghost || state[2] == Dry);
@@ -91,7 +78,10 @@ module mkStream (WideMem l1I, Stream ifc);
 		// Do redirect
 		let redirect = redirectQ.first(); redirectQ.deq();
 
-		if(redirect.redirect) begin
+		if(redirect.kill) begin
+			epoch <= redirect.epoch;
+			state[2] <= Empty;
+		end else if(redirect.redirect) begin
 			pc[0] <= redirect.nextPc;
 			epoch <= redirect.epoch;
 
@@ -202,10 +192,6 @@ module mkStream (WideMem l1I, Stream ifc);
 	endmethod
 
 	// Thread control - from downstream
-	method Action backendKill(Bool epoch)   if(state[1] != Empty);
-		killQ.enq(epoch);
-	endmethod
-
 	method Action backendDry()    if(state[1] == Dry);
 		dryQ.enq(?);
 	endmethod
