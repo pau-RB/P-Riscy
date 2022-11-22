@@ -65,6 +65,7 @@ typedef struct {
 	VerifID verifID;
 	Data    cycle;
 	Data    commit;
+	Data    empty;
 	Data	data;
 	Data    hLd;
     Data    hSt;

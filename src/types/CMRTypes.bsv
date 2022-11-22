@@ -6,34 +6,35 @@ typedef struct {
 	Data    cycle;
 	VerifID verifID;
 	Addr    pc;
-	Data  	rawInst;
-	IType 	iType;
-	RIndx 	wbDst;   // 0 if no wb
-	Data  	wbRes;   // ALU/Load result, childverifID for fork/forkr, memread for Join
-	Addr  	addr;    // nextpc for branch, addr for LSU, nextpc for fork/forkr
+	Data    rawInst;
+	IType   iType;
+	RIndx   wbDst;   // 0 if no wb
+	Data    wbRes;   // ALU/Load result, childverifID for fork/forkr, memread for Join
+	Addr    addr;    // nextpc for branch, addr for LSU, nextpc for fork/forkr
 } CommitReport deriving (Bits, Eq);
 
 typedef struct {
 	VerifID verifID;
 	Data    cycle;
 	Data    commit;
-	Data	data;
+	Data    data;
 } Message deriving (Bits, Eq);
 
 typedef struct{
 	VerifID verifID;
 	Data    cycle;
 	Data    commit;
-	Data	data;
-    Data    hLd;
-    Data    hSt;
-    Data    hJoin;
-    Data    mLd;
-    Data    mSt;
-    Data    mJoin;
-    Data    dLd;
-    Data    dSt;
-    Data    dJoin;
+	Data    empty;
+	Data    data;
+	Data    hLd;
+	Data    hSt;
+	Data    hJoin;
+	Data    mLd;
+	Data    mSt;
+	Data    mJoin;
+	Data    dLd;
+	Data    dSt;
+	Data    dJoin;
 } LSUStat deriving(Eq, Bits, FShow);
 
 // Construct CMR
