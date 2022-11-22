@@ -57,7 +57,7 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
    rule relayLSR;
 
         LSUStat lsu <- dut.getLSR();
-        ind.reportLSR(lsu.verifID, lsu.cycle, lsu.commit, lsu.data, lsu.hLd, lsu.hSt, lsu.hJoin, lsu.mLd, lsu.mSt, lsu.mJoin, lsu.dLd, lsu.dSt, lsu.dJoin);
+        ind.reportLSR(lsu.verifID, lsu.cycle, lsu.commit, lsu.empty, lsu.data, lsu.hLd, lsu.hSt, lsu.hJoin, lsu.mLd, lsu.mSt, lsu.mJoin, lsu.dLd, lsu.dSt, lsu.dJoin);
 
    endrule
 

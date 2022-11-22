@@ -121,7 +121,7 @@ class ToHost: public ToHostWrapper {
         }
 
         virtual void reportLSR ( const uint32_t verifID, const uint32_t cycle,
-                                 const uint32_t commit, const uint32_t data,
+                                 const uint32_t commit,  const uint32_t empty, const uint32_t data,
                                  const uint32_t hLd,     const uint32_t hSt,   const uint32_t hJoin,
                                  const uint32_t mLd,     const uint32_t mSt,   const uint32_t mJoin,
                                  const uint32_t dLd,     const uint32_t dSt,   const uint32_t dJoin){
@@ -134,6 +134,7 @@ class ToHost: public ToHostWrapper {
             lsr.verifID = verifID;
             lsr.cycle   = cycle  ;
             lsr.commit  = commit ;
+            lsr.empty   = empty  ;
             lsr.data    = data   ;
             lsr.hLd     = hLd    ;
             lsr.hSt     = hSt    ;

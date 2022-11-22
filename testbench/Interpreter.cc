@@ -80,11 +80,18 @@ void Interpreter::print_LSR_dut(const LSUStat lsu) {
 
     std::string data(1, (char)lsu.data);
 
-    phrase = " [id:     ] LSR     | cycle:          | commit:          | data:           |";
+    phrase = " [id:     ] LSR     | data:                                                |";
     overwrite(phrase, std::to_string(lsu.verifID   ),  6, 3 );
+    overwrite(phrase,                    data       , 29, 8 );
+    printf("%s \n", phrase.c_str());
+
+    phrase = "                    |-----------------|------------------|-----------------|";
+    printf("%s \n", phrase.c_str());
+
+    phrase = "                    | cycle:          | commit:          | empty:          |";
     overwrite(phrase, std::to_string(lsu.cycle     ), 29, 8 );
     overwrite(phrase, std::to_string(lsu.commit    ), 48, 8 );
-    overwrite(phrase,                data           , 67, 8 );
+    overwrite(phrase, std::to_string(lsu.empty     ), 67, 8 );
     printf("%s \n", phrase.c_str());
 
     phrase = "                    |-----------------|------------------|-----------------|";

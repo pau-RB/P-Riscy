@@ -451,6 +451,7 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 		return LSUStat{ verifID: ?,
 		                cycle  : ?,
 		                commit : ?,
+		                empty  : ?,
 		                data   : ?,
 		                hLd    : hLd,
 		                hSt    : hSt,

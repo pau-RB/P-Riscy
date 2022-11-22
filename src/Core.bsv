@@ -51,6 +51,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	Reg#(Bool)                  coreStarted    <- mkReg(False);
 	Ehr#(2,Data)                numCommit      <- mkEhr(0);
 	Ehr#(2,Data)                numCycles      <- mkEhr(0);
+	Reg#(Data)                  numEmpty       <- mkReg(0);
 	Fifo#(THQ_LEN,CommitReport) commitReportQ  <- mkPipelineFifo();
 	Fifo#(THQ_LEN,Message)      messageReportQ <- mkPipelineFifo();
 	Fifo#(THQ_LEN,LSUStat)      lsuStatReportQ <- mkPipelineFifo();
@@ -391,6 +392,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 						lsr.verifID = verif.getVerifID(feID);
 						lsr.cycle   = numCycles[0];
 						lsr.commit  = numCommit[0];
+						lsr.empty   = numEmpty;
 						lsr.data    = commitInst.data;
 						lsuStatReportQ.enq(lsr);
 					end
@@ -480,6 +482,20 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		numCycles[0] <= numCycles[0]+1;
 	endrule
 
+	rule do_EMPTYCNT if(lsu_ext_DEBUG == True && coreStarted);
+
+        Bool empty = True;
+        for (Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
+            if(stream[i].currentState() != Empty && stream[i].isl0Ihit()) begin
+                empty = False;
+            end
+        end
+        if (empty) begin
+            numEmpty <= numEmpty+1;
+        end
+
+    endrule
+
 	rule do_perf_DEBUG if(perf_DEBUG == True && coreStarted);
 		
 		perf_doWB      [1] <= False;
@@ -489,10 +505,13 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		perf_old_wToken[1] <= tagged Invalid;
 
 		FrontID hart = rrfeID;
-		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(!executeQ[hart].notEmpty()) begin
-				hart = hart+1;
+		if(valueOf(FrontWidth) != 1) begin
+			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+				if(!executeQ[hart].notEmpty()) begin
+					hart = (hart == lastFrontID) ? '0 : hart+1;
+				end
 			end
+			rrfeID <= (hart == lastFrontID) ? '0 : hart+1;
 		end
 		
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin

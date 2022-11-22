@@ -6,5 +6,5 @@ endinterface
 interface ToHost;
 	method Action reportCMR(Bit#(32) cycle, Bit#(32) verifID, Bit#(32) pc, Bit#(32) rawInst, Bit#(8) iType, Bit#(8) wbDst, Bit#(32) wbRes, Bit#(32) addr);
 	method Action reportMSG(Bit#(32) verifID, Bit#(32) cycle, Bit#(32) commit, Bit#(32) data);
-	method Action reportLSR(Bit#(32) verifID, Bit#(32) cycle, Bit#(32) commit, Bit#(32) data, Bit#(32) hLd, Bit#(32) hSt, Bit#(32) hJoin, Bit#(32) mLd, Bit#(32) mSt, Bit#(32) mJoin, Bit#(32) dLd, Bit#(32) dSt, Bit#(32) dJoin );
+	method Action reportLSR(Bit#(32) verifID, Bit#(32) cycle, Bit#(32) commit, Bit#(32) empty, Bit#(32) data, Bit#(32) hLd, Bit#(32) hSt, Bit#(32) hJoin, Bit#(32) mLd, Bit#(32) mSt, Bit#(32) mJoin, Bit#(32) dLd, Bit#(32) dSt, Bit#(32) dJoin );
 endinterface
