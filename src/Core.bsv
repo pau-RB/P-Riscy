@@ -511,7 +511,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					hart = (hart == lastFrontID) ? '0 : hart+1;
 				end
 			end
-			rrfeID <= (hart == lastFrontID) ? '0 : hart+1;
 		end
 		
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
