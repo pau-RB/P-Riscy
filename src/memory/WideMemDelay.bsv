@@ -1,35 +1,46 @@
-import Config::*;
 import Types::*;
 import Fifo::*;
 import Vector::*;
 
-typedef TSub#(RAMLatency,2) DelayLatency;
+interface DelayedWideMem#(numeric type delayLatency);
+    interface WideMem delayed;
+    interface WideMem direct;
+endinterface
 
-module mkWideMemDelay(WideMem mem, WideMem ifc);
+module mkWideMemDelay(WideMem mem, DelayedWideMem#(delayLatency) ifc);
 
-	Vector#(DelayLatency, Fifo#(1,CacheLine)) forward <- replicateM(mkStageFifo());
+	Vector#(delayLatency, Fifo#(1,WideMemReq)) forward <- replicateM(mkStageFifo());
 	let inQ = forward[0];
-	let outQ = forward[valueof(DelayLatency)-1];
+	let outQ = forward[valueof(delayLatency)-1];
 
-	for (Integer i = 0; i < valueOf(DelayLatency)-1; i=i+1) begin
+	for (Integer i = 0; i < valueOf(delayLatency)-1; i=i+1) begin
 		rule do_FORWARD;
 			forward[fromInteger(i)+1].enq(forward[fromInteger(i)].first());
 			forward[fromInteger(i)].deq();
 		endrule
 	end
 
-	rule do_RECEIVE;
-		let d <- mem.resp();
-		inQ.enq(d);
+	rule do_SEND;
+		mem.req(outQ.first());
+		outQ.deq();
 	endrule
 
-	method Action req(WideMemReq r);
-		mem.req(r);
-	endmethod
+	interface WideMem delayed;
 
-	method ActionValue#(CacheLine) resp;
-		outQ.deq();
-		return outQ.first();
-    endmethod
+		method Action req(WideMemReq r);
+			inQ.enq(r);
+		endmethod
+
+		method ActionValue#(CacheLine) resp = mem.resp();
+
+	endinterface
+
+	interface WideMem direct;
+
+		method Action req(WideMemReq r) = mem.req(r);
+
+		method ActionValue#(CacheLine) resp = mem.resp();
+
+	endinterface
 
 endmodule

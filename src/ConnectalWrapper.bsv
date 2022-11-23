@@ -29,14 +29,14 @@ endinterface
 
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
-   WideMem                    mem          <- mkWideMemBRAM;
-   WideMem                    delayedMem   <- mkWideMemDelay(mem);
-   VerifMaster                verif        <- mkVerifMaster;
-   Core                       dut          <- mkCore6S(delayedMem, verif);
-   Reg#(Bool)                 memInit      <- mkReg(False);
-   Fifo#(MTQ_LEN, ContToken)  mainTokenQ   <- mkCFFifo();
-   Reg#(Data)                 commitTarget <- mkReg(80);
-   Reg#(FrontID)              evictTarget  <- mkReg(0);
+   WideMem                              mainBRAM     <- mkWideMemBRAM();
+   DelayedWideMem#(TSub#(RAMLatency,2)) mainMem      <- mkWideMemDelay(mainBRAM);
+   VerifMaster                          verif        <- mkVerifMaster();
+   Core                                 dut          <- mkCore6S(mainMem.delayed, verif);
+   Reg#(Bool)                           memInit      <- mkReg(False);
+   Fifo#(MTQ_LEN, ContToken)            mainTokenQ   <- mkCFFifo();
+   Reg#(Data)                           commitTarget <- mkReg(80);
+   Reg#(FrontID)                        evictTarget  <- mkReg(0);
 
    rule relayCMR;
 
@@ -100,7 +100,7 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
       method Action setMem (Bit#(32) addr, Bit#(32) word);
 
-         mem.req(toWideMemReq(addr, word));
+         mainMem.direct.req(toWideMemReq(addr, word));
 
          if(addr == max_ADDR) begin
             memInit <= True;
