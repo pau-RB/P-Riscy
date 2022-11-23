@@ -32,6 +32,8 @@ tandem_mm tandem_compare(CommitReport spike, CommitReport dut) {
 
 	if(dut.rawInst != spike.rawInst) {
 		tandem_report("Raw instruction mismatch!");
+		tandem_data("Spike inst", spike.rawInst);
+		tandem_data("Dut inst  ", dut.rawInst);
 		return tandem_mm::rawInst;
 	}
 

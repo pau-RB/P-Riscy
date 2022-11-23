@@ -172,7 +172,7 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 		if(nextpcline != l0Iline) begin
     		l1I.req({nextpcline,'0});
-    		l1Ireq.enq(pcline);
+    		l1Ireq.enq(nextpcline);
     	end
 
 	endrule
