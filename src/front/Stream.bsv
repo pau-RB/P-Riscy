@@ -49,7 +49,7 @@ endinterface
 //
 // l1Iresp  C l1Ireq
 //
-module mkStream (WideMem l1I, Stream ifc);
+module mkStream (ReadWideMem l1I, Stream ifc);
 
 	Ehr#(4,StreamStatus)   state     <- mkEhr(Empty);
 	Ehr#(2,Addr)           pc        <- mkEhr('0);
@@ -171,10 +171,7 @@ module mkStream (WideMem l1I, Stream ifc);
 		CacheLineNum nextpcline = truncateLSB(pc[1]);
 
 		if(nextpcline != l0Iline) begin
-    		l1I.req(WideMemReq {
-        	        		write_en: '0,
-        	        		addr:     {nextpcline,'0},
-        	        		data:     ?             });
+    		l1I.req({nextpcline,'0});
     		l1Ireq.enq(pcline);
     	end
 
