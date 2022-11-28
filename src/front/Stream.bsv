@@ -150,10 +150,13 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 	rule do_l1Iresp;
 
 		CacheLine data <- l1I.resp();
+		l1Ireq.deq();
 
-		l0I        <= data;
-		l0Iline[0] <= l1Ireq.first(); l1Ireq.deq();
-		l0Ival [0] <= True;
+		if(l1Ireq.first() == nextpcline) begin
+			l0I        <= data;
+			l0Iline[0] <= l1Ireq.first();
+			l0Ival [0] <= True;
+		end
 
 	endrule
 
