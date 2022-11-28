@@ -3,7 +3,6 @@ import CMRTypes::*;
 import Config::*;
 import Stream::*;
 import L1I::*;
-import ReadWideMemSplit::*;
 import Vector::*;
 
 interface Fetch#(numeric type n);
