@@ -21,11 +21,12 @@ typedef struct {
 } Message deriving (Bits, Eq);
 
 typedef struct{
-	VerifID verifID;
-	Data    cycle;
-	Data    commit;
+	Data    hit;
+	Data    miss;
 	Data    empty;
-	Data    data;
+} FetchStat deriving(Eq, Bits, FShow);
+
+typedef struct{
 	Data    hLd;
 	Data    hSt;
 	Data    hJoin;
@@ -36,6 +37,15 @@ typedef struct{
 	Data    dSt;
 	Data    dJoin;
 } LSUStat deriving(Eq, Bits, FShow);
+
+typedef struct{
+	VerifID   verifID;
+	Data      cycle;
+	Data      commit;
+	Data      data;
+	FetchStat fetch;
+	LSUStat   lsu;
+} MemStat deriving(Eq, Bits, FShow);
 
 // Construct CMR
 function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID childVerifID, WBToken wToken, Data lsuRes);

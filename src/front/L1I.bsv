@@ -18,7 +18,13 @@ typedef struct{
     Addr        addr;
 } BramReq#(type transIdType) deriving(Eq, Bits, FShow);
 
-module mkDirectL1I(WideMem mem, Vector#(n, ReadWideMem) ifc);
+interface L1I#(numeric type n);
+    interface Vector#(n, ReadWideMem) port;
+    method Data getNumHit();
+    method Data getNumMiss();
+endinterface
+
+module mkDirectL1I(WideMem mem, L1I#(n) ifc);
 
     BRAM_PORT#(CacheIndex, CacheEntry) bram <- mkBRAMCore1(valueOf(L1ICacheRows), False);
     Vector#(L1ICacheRows, Reg#(Bool)) valid <- replicateM(mkReg(False));
@@ -29,6 +35,9 @@ module mkDirectL1I(WideMem mem, Vector#(n, ReadWideMem) ifc);
 
     Vector#(n, Fifo#(1,ReadWideMemResp)) respQ <- replicateM(mkPipelineFifo());
     Vector#(n, Reg#(Bool)) busy <- replicateM(mkReg(False));
+
+    Reg#(Data) numHit  <- mkReg(0);
+    Reg#(Data) numMiss <- mkReg(0);
 
     rule do_BRAMRESP;
 
@@ -41,12 +50,20 @@ module mkDirectL1I(WideMem mem, Vector#(n, ReadWideMem) ifc);
 
         if (valid[index] && (entry.tag == tag)) begin // hit
             respQ[transID].enq(entry.line);
+
+            if(mem_ext_DEBUG == True) begin
+                numHit <= numHit+1;    
+            end
         end else begin // miss
             mem.req(WideMemReq{ write_en: '0,
                                 addr    : addr,
                                 data    : ? });
             memReqQ.enq(BramReq{ transID: transID,
                                  addr   : addr });
+
+            if(mem_ext_DEBUG == True) begin
+                numMiss <= numMiss+1;    
+            end
         end
 
     endrule
@@ -88,6 +105,15 @@ module mkDirectL1I(WideMem mem, Vector#(n, ReadWideMem) ifc);
 
             endinterface);
     end
-    return wideMemIfcs;
+
+    interface port = wideMemIfcs;
+
+    method Data getNumHit();
+        return numHit;
+    endmethod
+
+    method Data getNumMiss();
+        return numMiss;
+    endmethod
 
 endmodule

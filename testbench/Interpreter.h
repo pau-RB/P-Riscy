@@ -22,7 +22,7 @@ class Interpreter {
 		void print_CMR_spk(const CommitReport cmr);
 		void print_CMR_dut(const CommitReport cmr);
 		void print_MSG_dut(const Message msg);
-		void print_LSR_dut(const LSUStat lsr);
+		void print_MSR_dut(const MemStat msr);
 		void print_stats(const std::map<VerifID, uint32_t> commit_thread);
 
 	private:

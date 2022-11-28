@@ -40,7 +40,7 @@ interface Core;
 	method ActionValue#(ContToken)    getContToken();
 	method ActionValue#(CommitReport) getCMR();
 	method ActionValue#(Message)      getMSG();
-	method ActionValue#(LSUStat)      getLSR();
+	method ActionValue#(MemStat)      getMSR();
 
 endinterface
 
@@ -51,10 +51,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	Reg#(Bool)                  coreStarted    <- mkReg(False);
 	Ehr#(2,Data)                numCommit      <- mkEhr(0);
 	Ehr#(2,Data)                numCycles      <- mkEhr(0);
-	Reg#(Data)                  numEmpty       <- mkReg(0);
 	Fifo#(THQ_LEN,CommitReport) commitReportQ  <- mkPipelineFifo();
 	Fifo#(THQ_LEN,Message)      messageReportQ <- mkPipelineFifo();
-	Fifo#(THQ_LEN,LSUStat)      lsuStatReportQ <- mkPipelineFifo();
+	Fifo#(THQ_LEN,MemStat)      memStatReportQ <- mkPipelineFifo();
 
 
 	//////////// MEMORY ////////////
@@ -67,7 +66,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	//////////// FETCH ////////////
 
-	Vector#(FrontWidth, Stream) stream <- mkFetch(mainSplit[0]);
+	Fetch#(FrontWidth) fetch <- mkFetch(mainSplit[0], coreStarted);
+	Vector#(FrontWidth, Stream) stream = fetch.stream;
 
 	//////////// DECODE ////////////
 
@@ -395,15 +395,17 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					end
 				end
 
-				if (lsu_ext_DEBUG == True) begin
+				if (mem_ext_DEBUG == True) begin
 					if(commitInst.iType == St && commitInst.addr == lsu_ADDR) begin
-						LSUStat lsr = lsu.getStat();
-						lsr.verifID = verif.getVerifID(feID);
-						lsr.cycle   = numCycles[0];
-						lsr.commit  = numCommit[0];
-						lsr.empty   = numEmpty;
-						lsr.data    = commitInst.data;
-						lsuStatReportQ.enq(lsr);
+						FetchStat fsr = fetch.getStat();
+						LSUStat   lsr = lsu.getStat();
+						MemStat   msr = MemStat{ verifID: verif.getVerifID(feID),
+						                         cycle  : numCycles[0],
+						                         commit : numCommit[0],
+						                         data   : commitInst.data,
+						                         fetch  : fsr,
+						                         lsu    : lsr };
+						memStatReportQ.enq(msr);
 					end
 				end
 
@@ -499,20 +501,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		numCycles[0] <= numCycles[0]+1;
 	endrule
 
-	rule do_EMPTYCNT if(lsu_ext_DEBUG == True && coreStarted);
-
-        Bool empty = True;
-        for (Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
-            if(stream[i].currentState() != Empty && stream[i].isl0Ihit()) begin
-                empty = False;
-            end
-        end
-        if (empty) begin
-            numEmpty <= numEmpty+1;
-        end
-
-    endrule
-
 	rule do_perf_DEBUG if(perf_DEBUG == True && coreStarted);
 		
 		perf_doWB      [1] <= False;
@@ -595,7 +583,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			coreStarted <= True;
 			commitReportQ.clear();
 			messageReportQ.clear();	
-			lsuStatReportQ.clear();
+			memStatReportQ.clear();
 		end
 
 	endmethod
@@ -639,9 +627,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	endmethod
 
-	method ActionValue#(LSUStat) getLSR();
+	method ActionValue#(MemStat) getMSR();
 
-		let latest = lsuStatReportQ.first(); lsuStatReportQ.deq();
+		let latest = memStatReportQ.first(); memStatReportQ.deq();
 		return latest;
 
 	endmethod

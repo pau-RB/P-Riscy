@@ -71,33 +71,38 @@ void Interpreter::print_MSG_dut(const Message msg) {
 
 }
 
-void Interpreter::print_LSR_dut(const LSUStat lsu) {
+void Interpreter::print_MSR_dut(const MemStat msr) {
+
+    LSUStat   lsu   = msr.lsu;
+    FetchStat fetch = msr.fetch;
 
     std::string phrase;
 
     phrase = "----------------------------------------------------------------------------";
     printf("%s \n", phrase.c_str());
 
-    std::string data(1, (char)lsu.data);
+    std::string data(1, (char)msr.data);
 
-    phrase = " [id:     ] LSR     | data:                                                |";
-    overwrite(phrase, std::to_string(lsu.verifID   ),  6, 3 );
-    overwrite(phrase,                    data       , 29, 8 );
+    phrase = " [id:     ] MSR     | cycle:          | commit:          | data:           |";
+    overwrite(phrase, std::to_string(msr.verifID   ),  6, 3 );
+    overwrite(phrase, std::to_string(msr.cycle     ), 29, 8 );
+    overwrite(phrase, std::to_string(msr.commit    ), 48, 8 );
+    overwrite(phrase,                    data       , 67, 8 );
     printf("%s \n", phrase.c_str());
 
     phrase = "                    |-----------------|------------------|-----------------|";
     printf("%s \n", phrase.c_str());
 
-    phrase = "                    | cycle:          | commit:          | empty:          |";
-    overwrite(phrase, std::to_string(lsu.cycle     ), 29, 8 );
-    overwrite(phrase, std::to_string(lsu.commit    ), 48, 8 );
-    overwrite(phrase, std::to_string(lsu.empty     ), 67, 8 );
+    phrase = "            Fetch   | hit:            | miss:            | empty:          |";
+    overwrite(phrase, std::to_string(fetch.hit     ), 29, 8 );
+    overwrite(phrase, std::to_string(fetch.miss    ), 48, 8 );
+    overwrite(phrase, std::to_string(fetch.empty   ), 67, 8 );
     printf("%s \n", phrase.c_str());
 
     phrase = "                    |-----------------|------------------|-----------------|";
     printf("%s \n", phrase.c_str());
 
-    phrase = "                    | tLd:            | tSt:             | tJoin:          |";
+    phrase = "            LSU     | tLd:            | tSt:             | tJoin:          |";
     overwrite(phrase, std::to_string(lsu.hLd  +lsu.mLd  +lsu.dLd  ),  29, 8 );
     overwrite(phrase, std::to_string(lsu.hSt  +lsu.mSt  +lsu.dSt  ),  48, 8 );
     overwrite(phrase, std::to_string(lsu.hJoin+lsu.mJoin+lsu.dJoin),  67, 8 );

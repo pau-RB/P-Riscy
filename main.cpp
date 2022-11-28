@@ -120,8 +120,8 @@ class ToHost: public ToHostWrapper {
 
         }
 
-        virtual void reportLSR ( const uint32_t verifID, const uint32_t cycle,
-                                 const uint32_t commit,  const uint32_t empty, const uint32_t data,
+        virtual void reportMSR ( const uint32_t verifID, const uint32_t cycle, const uint32_t commit, const uint32_t data,
+                                 const uint32_t hit,     const uint32_t miss,  const uint32_t empty, 
                                  const uint32_t hLd,     const uint32_t hSt,   const uint32_t hJoin,
                                  const uint32_t mLd,     const uint32_t mSt,   const uint32_t mJoin,
                                  const uint32_t dLd,     const uint32_t dSt,   const uint32_t dJoin){
@@ -130,23 +130,32 @@ class ToHost: public ToHostWrapper {
                 return;
             }
 
-            LSUStat lsr;
-            lsr.verifID = verifID;
-            lsr.cycle   = cycle  ;
-            lsr.commit  = commit ;
-            lsr.empty   = empty  ;
-            lsr.data    = data   ;
-            lsr.hLd     = hLd    ;
-            lsr.hSt     = hSt    ;
-            lsr.hJoin   = hJoin  ;
-            lsr.mLd     = mLd    ;
-            lsr.mSt     = mSt    ;
-            lsr.mJoin   = mJoin  ;
-            lsr.dLd     = dLd    ;
-            lsr.dSt     = dSt    ;
-            lsr.dJoin   = dJoin  ;
+            FetchStat fetch;
+            LSUStat   lsu;
+            MemStat   msr;
 
-            inter->print_LSR_dut(lsr);
+            fetch.hit   = hit    ;
+            fetch.miss  = miss   ;
+            fetch.empty = empty  ;
+
+            lsu.hLd     = hLd    ;
+            lsu.hSt     = hSt    ;
+            lsu.hJoin   = hJoin  ;
+            lsu.mLd     = mLd    ;
+            lsu.mSt     = mSt    ;
+            lsu.mJoin   = mJoin  ;
+            lsu.dLd     = dLd    ;
+            lsu.dSt     = dSt    ;
+            lsu.dJoin   = dJoin  ;
+
+            msr.verifID = verifID;
+            msr.cycle   = cycle  ;
+            msr.commit  = commit ;
+            msr.data    = data   ;
+            msr.fetch   = fetch  ;
+            msr.lsu     = lsu    ;
+
+            inter->print_MSR_dut(msr);
 
         }
     

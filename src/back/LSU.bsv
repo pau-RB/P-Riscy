@@ -378,7 +378,7 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 		end
 
-		if(lsu_ext_DEBUG) begin
+		if(mem_ext_DEBUG) begin
 			if (hit) begin
 				case (r.op)
 					Ld:   hLd   <= hLd+1;
@@ -448,20 +448,15 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 	endmethod
 
 	method LSUStat getStat();
-		return LSUStat{ verifID: ?,
-		                cycle  : ?,
-		                commit : ?,
-		                empty  : ?,
-		                data   : ?,
-		                hLd    : hLd,
-		                hSt    : hSt,
-		                hJoin  : hJoin,
-		                mLd    : mLd,
-		                mSt    : mSt,
-		                mJoin  : mJoin,
-		                dLd    : dLd,
-		                dSt    : dSt,
-		                dJoin  : dJoin };
+		return LSUStat{ hLd      : hLd,
+		                hSt      : hSt,
+		                hJoin    : hJoin,
+		                mLd      : mLd,
+		                mSt      : mSt,
+		                mJoin    : mJoin,
+		                dLd      : dLd,
+		                dSt      : dSt,
+		                dJoin    : dJoin };
 	endmethod
 
 endmodule

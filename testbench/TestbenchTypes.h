@@ -62,11 +62,12 @@ typedef struct {
 } Message;
 
 typedef struct {
-	VerifID verifID;
-	Data    cycle;
-	Data    commit;
-	Data    empty;
-	Data	data;
+	Data    hit;
+    Data    miss;
+    Data    empty;
+} FetchStat;
+
+typedef struct {
 	Data    hLd;
     Data    hSt;
     Data    hJoin;
@@ -77,5 +78,14 @@ typedef struct {
     Data    dSt;
     Data    dJoin;
 } LSUStat;
+
+typedef struct {
+	VerifID   verifID;
+	Data      cycle;
+	Data      commit;
+	Data	  data;
+	FetchStat fetch;
+	LSUStat   lsu;
+} MemStat;
 
 #endif

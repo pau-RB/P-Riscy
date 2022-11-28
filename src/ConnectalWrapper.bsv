@@ -54,10 +54,14 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
    endrule
 
-   rule relayLSR;
+   rule relayMSR;
 
-        LSUStat lsu <- dut.getLSR();
-        ind.reportLSR(lsu.verifID, lsu.cycle, lsu.commit, lsu.empty, lsu.data, lsu.hLd, lsu.hSt, lsu.hJoin, lsu.mLd, lsu.mSt, lsu.mJoin, lsu.dLd, lsu.dSt, lsu.dJoin);
+         MemStat msr <- dut.getMSR();
+         ind.reportMSR(msr.verifID, msr.cycle, msr.commit, msr.data,
+                       msr.fetch.hit, msr.fetch.miss, msr.fetch.empty,
+                       msr.lsu.hLd, msr.lsu.hSt, msr.lsu.hJoin,
+                       msr.lsu.mLd, msr.lsu.mSt, msr.lsu.mJoin,
+                       msr.lsu.dLd, msr.lsu.dSt, msr.lsu.dJoin);
 
    endrule
 
