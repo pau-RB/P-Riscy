@@ -1,5 +1,6 @@
 import Config::*;
 import Types::*;
+import Ehr::*;
 import Fifo::*;
 import BRAMCore::*;
 import Vector::*;
@@ -34,7 +35,7 @@ module mkDirectL1I(WideMem mem, L1I#(n) ifc);
     Fifo#(TAdd#(n,1), BramReq#(Bit#(TLog#(n)))) memReqQ <- mkPipelineFifo();
 
     Vector#(n, Fifo#(1,ReadWideMemResp)) respQ <- replicateM(mkPipelineFifo());
-    Vector#(n, Reg#(Bool)) busy <- replicateM(mkReg(False));
+    Vector#(n, Ehr#(2,Bool)) busy <- replicateM(mkEhr(False));
 
     Reg#(Data) numHit  <- mkReg(0);
     Reg#(Data) numMiss <- mkReg(0);
@@ -89,17 +90,17 @@ module mkDirectL1I(WideMem mem, L1I#(n) ifc);
         wideMemIfcs[i] =
             (interface ReadWideMem;
 
-                method Action req(ReadWideMemReq addr) if(!busy[fromInteger(i)]);
+                method Action req(ReadWideMemReq addr) if(!busy[fromInteger(i)][1]);
                     CacheIndex index = truncate(addr >> valueOf(TLog#(CacheLineBytes)));
                     bram.put(False, index, ?);
                     bramReq.enq(BramReq{ transID: fromInteger(i),
                                          addr   : addr });
-                    busy[fromInteger(i)] <= True;
+                    busy[fromInteger(i)][1] <= True;
                 endmethod
 
                 method ActionValue#(ReadWideMemResp) resp;
                     respQ[fromInteger(i)].deq();
-                    busy[fromInteger(i)] <= False;
+                    busy[fromInteger(i)][0] <= False;
                     return respQ[fromInteger(i)].first();
                 endmethod
 
