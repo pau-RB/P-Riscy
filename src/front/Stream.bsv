@@ -60,16 +60,18 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 	Fifo#(1,void)          dryQ      <- mkBypassFifo();
 	
 	Reg #(CacheLine)       l0I       <- mkRegU();
-	Reg #(CacheLineNum)    l0Iline   <- mkRegU();
-	Reg #(Bool)            l0Ival    <- mkReg(False);
+	Ehr #(2, CacheLineNum) l0Iline   <- mkEhr(?);
+	Ehr #(2, Bool)         l0Ival    <- mkEhr(False);
 	Fifo#(1, CacheLineNum) l1Ireq    <- mkPipelineFifo();
 
 	// Note: After pc+4 we might request a new line. Then, we might receive
 	// a redirect request and generate a new L1I request. When getting the
 	// responses, we will only keep the last ones
 
-	CacheLineNum pcline = truncateLSB(pc[0]);
-	Bool l0Ihit = (pcline==l0Iline)&&l0Ival;
+	CacheLineNum pcline     = truncateLSB(pc[0]);
+	CacheLineNum nextpcline = truncateLSB(pc[1]);
+	Bool l0Ihit     = (pcline==l0Iline[0])&&l0Ival[0];
+	Bool nextl0Ihit = (nextpcline==l0Iline[1])&&l0Ival[1];
 
 	// 1 - Consider redirect
 
@@ -149,9 +151,9 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 		CacheLine data <- l1I.resp();
 
-		l0I     <= data;
-		l0Iline <= l1Ireq.first(); l1Ireq.deq();
-		l0Ival  <= True;
+		l0I        <= data;
+		l0Iline[0] <= l1Ireq.first(); l1Ireq.deq();
+		l0Ival [0] <= True;
 
 	endrule
 
@@ -168,9 +170,7 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 	rule do_l1Ireq if (state[3] == Full);
 
-		CacheLineNum nextpcline = truncateLSB(pc[1]);
-
-		if(nextpcline != l0Iline) begin
+		if(!nextl0Ihit) begin
     		l1I.req({nextpcline,'0});
     		l1Ireq.enq(nextpcline);
     	end
