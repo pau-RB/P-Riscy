@@ -2,11 +2,15 @@ import Types::*;
 import Fifo::*;
 import Vector::*;
 
+interface SplitWideMem#(numeric type n, numeric type m);
+    interface Vector#(n, WideMem) port;
+endinterface
+
 module mkSplitWideMem(  Bool initDone, WideMem mem,
-                        Vector#(n, WideMem) ifc );
+                        SplitWideMem#(n, m) ifc);
 
     Vector#(n, Fifo#(2, WideMemReq)) reqFifos <- replicateM(mkCFFifo);
-    Fifo#(TAdd#(n,1), Bit#(TLog#(n))) reqSource <- mkCFFifo;
+    Fifo#(m, Bit#(TLog#(n))) reqSource <- mkCFFifo;
     Vector#(n, Fifo#(2, WideMemResp)) respFifos <- replicateM(mkCFFifo);
 
     rule doWideMemReq(initDone);
@@ -52,5 +56,7 @@ module mkSplitWideMem(  Bool initDone, WideMem mem,
                 endmethod
             endinterface);
     end
-    return wideMemIfcs;
+
+    interface port = wideMemIfcs;
+
 endmodule

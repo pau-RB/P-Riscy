@@ -58,15 +58,15 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	//////////// MEMORY ////////////
 
-	Vector#(2, WideMem)          mainSplit  <- mkSplitWideMem(True, mem);
-	BareDataCache                l1d        <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
-	LSU#(WBToken)                lsu        <- mkLSU(mainSplit[1], l1d);
+	SplitWideMem#(FrontWidth,TMul#(2,FrontWidth)) mainSplit <- mkSplitWideMem(True, mem);
+	BareDataCache                                 l1d       <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
+	LSU#(WBToken)                                 lsu       <- mkLSU(mainSplit.port[1], l1d);
 
 	Vector#(FrontWidth, Ehr#(2,Epoch)) wbEpoch <- replicateM(mkEhr('0));
 
 	//////////// FETCH ////////////
 
-	Fetch#(FrontWidth) fetch <- mkFetch(mainSplit[0], coreStarted);
+	Fetch#(FrontWidth) fetch <- mkFetch(mainSplit.port[0], coreStarted);
 	Vector#(FrontWidth, Stream) stream = fetch.stream;
 
 	//////////// DECODE ////////////
