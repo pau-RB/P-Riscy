@@ -263,22 +263,28 @@ module mkAssociativeDataCache (BareDataCache ifc);
 
 endmodule
 
+typedef Bit#(TLog#(LSUmshrW)) LSUmshrId;
+
 typedef struct{
 	transIdType transId;
 	Bool        isOld;
 	Bool        isHit;
 } DataCacheToken#(type transIdType) deriving(Eq, Bits, FShow);
 
+typedef struct{
+	Addr        addr;
+	LSUmshrId   mshr;
+} MemReqToken deriving(Eq, Bits, FShow);
+
 module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provisos(Bits#(transIdType,transIdTypeSz),FShow#(transIdType));
 
-	Fifo#(4,LSUReq#(transIdType))         mshr    <- mkPipelineFifo();
+	Vector#(LSUmshrW, Fifo#(LSUmshrD,LSUReq#(transIdType))) mshr      <- replicateM(mkPipelineFifo());
+	Ehr#(2,Maybe#(LSUmshrId))                               flushMSHR <- mkEhr(tagged Invalid);
 
-	Fifo#(1,LSUReq#(transIdType))         inReqQ  <- mkBypassFifo();
-	Fifo#(1,DataCacheToken#(transIdType)) dcReqQ  <- mkStageFifo();
-	Fifo#(1,Addr)                         memReqQ <- mkPipelineFifo();
-	Fifo#(1,LSUResp#(transIdType))        respQ   <- mkBypassFifo();
-
-	Ehr#(2,Bool) flushMSHR <- mkEhr(False);
+	Fifo#(1, LSUReq#(transIdType))         inReqQ  <- mkBypassFifo();
+	Fifo#(1, DataCacheToken#(transIdType)) dcReqQ  <- mkStageFifo();
+	Fifo#(LSUmshrW, MemReqToken)           memReqQ <- mkPipelineFifo();
+	Fifo#(1, LSUResp#(transIdType))        respQ   <- mkBypassFifo();
 
     Reg#(Data) hLd   <- mkReg(0);
     Reg#(Data) hSt   <- mkReg(0);
@@ -290,11 +296,13 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
     Reg#(Data) dSt   <- mkReg(0);
     Reg#(Data) dJoin <- mkReg(0);
 
-	rule do_RETRY if(flushMSHR[0]);
+	rule do_RETRY if(isValid(flushMSHR[0]));
 
-		if(mshr.notEmpty()) begin
+		LSUmshrId mshrId = fromMaybe(?,flushMSHR[0]);
 
-			let r = mshr.first(); mshr.deq();
+		if(mshr[mshrId].notEmpty()) begin
+
+			let r = mshr[mshrId].first(); mshr[mshrId].deq();
 			let hit <- dataCache.req(DataCacheReq{ op    : r.op,
 			                                       ldFunc: r.ldFunc,
 			                                       stFunc: r.stFunc,
@@ -306,7 +314,7 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 		end else begin
 
-			flushMSHR[0] <= False;
+			flushMSHR[0] <= tagged Invalid;
 
 		end
 
@@ -322,27 +330,42 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 	endrule
 
-	rule do_MEMRESP if(!flushMSHR[0]);
+	rule do_MEMRESP if(!isValid(flushMSHR[0]));
 
-		let num  = cacheLineNumAddr(memReqQ.first()); memReqQ.deq();
+		let num  = cacheLineNumAddr(memReqQ.first().addr); memReqQ.deq();
 		let line <- mem.resp();
 		dataCache.put(DataCacheWB{ num:  num,
 		                           line: line });
-		flushMSHR[0] <= True;
+		flushMSHR[0] <= tagged Valid memReqQ.first().mshr;
 
 	endrule
 
-	rule do_INREQ if(!flushMSHR[1]);
+	rule do_INREQ if(!isValid(flushMSHR[1]));
 
-		Bool delayed = False;
+		LSUReq#(transIdType) r = inReqQ.first();
 
-		let r = inReqQ.first();
+		// Try data cache
+		Bool hit <- dataCache.req(DataCacheReq{ op    : r.op,
+		                                        ldFunc: r.ldFunc,
+		                                        stFunc: r.stFunc,
+		                                        addr  : r.addr,
+		                                        data  : r.data });
 
-		let hit <- dataCache.req(DataCacheReq{ op    : r.op,
-		                                       ldFunc: r.ldFunc,
-		                                       stFunc: r.stFunc,
-		                                       addr  : r.addr,
-		                                       data  : r.data });
+		// Try matching an older mshr
+		Maybe#(LSUmshrId) isMatch = tagged Invalid;
+		for (Integer i = 0; i < valueOf(LSUmshrW); i = i+1) begin
+			if(mshr[fromInteger(i)].notEmpty() && cacheLineNumReq(mshr[fromInteger(i)].first()) == cacheLineNumReq(r)) begin
+				isMatch = tagged Valid fromInteger(i);
+			end
+		end
+
+		// Try to allocate a new mshr
+		Maybe#(LSUmshrId) isEmpty = tagged Invalid;
+		for (Integer i = 0; i < valueOf(LSUmshrW); i = i+1) begin
+			if(!mshr[fromInteger(i)].notEmpty()) begin
+				isEmpty = tagged Valid fromInteger(i);
+			end
+		end
 
 		if(hit) begin
 			dcReqQ.enq(DataCacheToken{ transId: r.transId,
@@ -350,31 +373,29 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 			                           isHit  : True });
 			inReqQ.deq();
 
-		end else if(!mshr.notEmpty()) begin
+		end else if(isValid(isMatch)) begin
 
 			dcReqQ.enq(DataCacheToken{ transId: r.transId,
 			                           isOld  : False,
 			                           isHit  : False });
 			inReqQ.deq();
 
-			mshr.enq(r);
-			memReqQ.enq(r.addr);
+			mshr[fromMaybe(?,isMatch)].enq(r);
+
+		end else if(isValid(isEmpty)) begin
+
+			dcReqQ.enq(DataCacheToken{ transId: r.transId,
+			                           isOld  : False,
+			                           isHit  : False });
+			inReqQ.deq();
+
+			mshr[fromMaybe(?,isEmpty)].enq(r);
+
+			memReqQ.enq(MemReqToken{ addr: r.addr,
+			                         mshr: fromMaybe(?,isEmpty) });
 			mem.req(WideMemReq{ write_en: '0,
 								addr    : r.addr,
 								data    : ? });
-
-		end else if(cacheLineNumReq(mshr.first())==cacheLineNumReq(r)) begin
-
-			dcReqQ.enq(DataCacheToken{ transId: r.transId,
-			                           isOld  : False,
-			                           isHit  : False });
-			inReqQ.deq();
-
-			mshr.enq(r);
-
-		end else begin
-
-			delayed = True;
 
 		end
 
@@ -385,7 +406,7 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 					St:   hSt   <= hSt+1;
 					Join: hJoin <= hJoin+1;
 				endcase
-			end else if(!delayed) begin
+			end else if(isValid(isMatch) || isValid(isEmpty)) begin
 				case (r.op)
 					Ld:   mLd   <= mLd+1;
 					St:   mSt   <= mSt+1;

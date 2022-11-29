@@ -27,12 +27,14 @@ typedef Bit#(TLog#(FrontWidth)) FrontID;
 FrontID lastFrontID = fromInteger(valueOf(FrontWidth)-1);
 
 // L1I
-typedef 16 L1ICacheRows;    // Must be power of 2
+typedef 16 L1ICacheRows;   // Must be power of 2
 
 // LSU
 typedef 8 LSUCacheRows;    // Must be power of 2
 typedef 4 LSUCacheColumns; // Must be power of 2
 Bool lsuAssociative = True;
+typedef FrontWidth LSUmshrW;
+typedef FrontWidth LSUmshrD;
 
 // Verification
 typedef Bit#(32) VerifID;
