@@ -409,12 +409,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					end
 				end
 
-				if (msg_DEBUG == True) begin
-					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
-						$display(" [id: %d ] MESSAGE | cycle: %d | commit: %d | %c ", verif.getVerifID(feID), numCycles[0], numCommit[0], commitInst.data);
-					end
-				end
-
 				if(perf_DEBUG == True) begin
 					if(memValid) begin
 						perf_doWB[0] <= True;

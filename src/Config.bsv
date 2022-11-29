@@ -6,7 +6,6 @@ Bool msg_ext_DEBUG = True;
 Bool mem_ext_DEBUG = True;
 
 // Verilog (SIM)
-Bool msg_DEBUG     = False;
 Bool perf_DEBUG    = False;
 
 // MSG relay
