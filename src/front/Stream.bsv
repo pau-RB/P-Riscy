@@ -171,12 +171,10 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 	// 5 - Interact with l1I
 
-	rule do_l1Ireq if (state[3] == Full);
+	rule do_l1Ireq if (state[3] == Full && !nextl0Ihit);
 
-		if(!nextl0Ihit) begin
-    		l1I.req({nextpcline,'0});
-    		l1Ireq.enq(nextpcline);
-    	end
+    	l1I.req({nextpcline,'0});
+    	l1Ireq.enq(nextpcline);
 
 	endrule
 
