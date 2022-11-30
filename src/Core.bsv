@@ -64,10 +64,12 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	Vector#(FrontWidth, Ehr#(2,Epoch)) wbEpoch <- replicateM(mkEhr('0));
 
+
 	//////////// FETCH ////////////
 
 	Fetch#(FrontWidth) fetch <- mkFetch(mainSplit.port[0], coreStarted);
 	Vector#(FrontWidth, Stream) stream = fetch.stream;
+
 
 	//////////// DECODE ////////////
 
@@ -77,45 +79,26 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 		rule do_decode;
 
-			let dToken  <- stream[i].fetch();
-			let inst    = dToken.inst;
+			DecToken dToken <- stream[i].fetch();
 
-			if(dToken.ghost) begin
-				DecodedInst decInst = DecodedInst{
-				                   		iType  : Ghost,
-				                   		aluFunc: ?,
-				                   		mulFunc: ?,
-				                   		ldFunc : ?,
-				                   		stFunc : ?,
-				                   		brFunc : NT,
-				                   		dst    : tagged Invalid,
-				                   		src1   : tagged Invalid,
-				                   		src2   : tagged Invalid,
-				                   		imm    : tagged Invalid};
+			DecodedInst decInst = (isValid(dToken.inst) ? decode(fromMaybe('hdeadbeef, dToken.inst)) :
+			                                              DecodedInst{ iType  : Ghost,
+			                                                           aluFunc: ?,
+			                                                           mulFunc: ?,
+			                                                           ldFunc : ?,
+			                                                           stFunc : ?,
+			                                                           brFunc : NT,
+			                                                           dst    : tagged Invalid,
+			                                                           src1   : tagged Invalid,
+			                                                           src2   : tagged Invalid,
+			                                                           imm    : tagged Invalid } );
 
-				Addr        pc      = dToken.pc;
-				RFToken     rfToken = RFToken{
-										inst   : decInst,
-										pc     : pc,
-										epoch  : dToken.epoch,
-										rawInst: inst};
+			RFToken rfToken = RFToken{ inst   : decInst,
+			                           pc     : dToken.pc,
+			                           epoch  : dToken.epoch,
+			                           rawInst: fromMaybe('hdeadbeef, dToken.inst) };
 
-				regfetchQ[i].enq(rfToken);
-
-			end else begin
-
-				DecodedInst decInst = decode(inst);
-
-				Addr        pc      = dToken.pc;
-				RFToken     rfToken = RFToken{
-										inst   : decInst,
-										pc     : pc,
-										epoch  : dToken.epoch,
-										rawInst: inst};
-
-				regfetchQ[i].enq(rfToken);
-
-			end
+			regfetchQ[i].enq(rfToken);
 
 		endrule
 

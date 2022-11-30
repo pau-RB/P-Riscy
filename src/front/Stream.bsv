@@ -103,9 +103,8 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 			// Fetch real instruction
 			CacheWordSelect wordSelect = truncate(pc[0] >> 2);
-			inst.enq(DecToken{ inst:  l0I[wordSelect],
-							   pc:    pc[0],
-							   ghost: False,
+			inst.enq(DecToken{ inst : tagged Valid l0I[wordSelect],
+							   pc   : pc[0],
 							   epoch: epoch});
 			pc[0] <= pc[0]+4;
 
@@ -115,9 +114,8 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 				// Fetch real instruction
 				CacheWordSelect wordSelect = truncate(pc[0] >> 2);
-				inst.enq(DecToken{ inst:  l0I[wordSelect],
-								   pc:    pc[0],
-								   ghost: False,
+				inst.enq(DecToken{ inst : tagged Valid l0I[wordSelect],
+								   pc   : pc[0],
 								   epoch: epoch});
 				pc[0] <= pc[0]+4;
 
@@ -125,9 +123,8 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 				
 				// Fetch ghost
 				state[2] <= Dry;
-				inst.enq(DecToken{ inst:  ?,
-								   pc:    pc[0],
-								   ghost: True,
+				inst.enq(DecToken{ inst : tagged Invalid,
+								   pc   : pc[0],
 								   epoch: epoch});
 
 			end
@@ -136,9 +133,8 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 			
 			// Fetch ghost
 			state[2] <= Dry;
-			inst.enq(DecToken{ inst:  ?,
-							   pc:    pc[0],
-							   ghost: True,
+			inst.enq(DecToken{ inst : tagged Invalid,
+							   pc   : pc[0],
 							   epoch: epoch});
 
 		end

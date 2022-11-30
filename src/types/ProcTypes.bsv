@@ -167,9 +167,8 @@ Bit#(3) fnPRIV   = 3'b000;
 Bit#(12) privSCALL    = 12'h000;
 
 typedef struct {
-	Data        inst;
+	Maybe#(Data)inst;
 	Addr        pc;
-	Bool        ghost;
 	Epoch       epoch;
 } DecToken deriving(Bits, Eq);
 
