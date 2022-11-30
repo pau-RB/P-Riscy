@@ -120,6 +120,8 @@ function ExecInst exec(DecodedInst dInst, Data rVal1, Data rVal2, Addr pc, Addr 
                  (pc+4) :
                dInst.iType==Auipc ?
                  (pc + fromMaybe(?, dInst.imm)) :
+               dInst.iType==Join ?
+                 'd1 :
                dInst.iType==Mul ?
                  mulRes : 
                  aluRes;

@@ -136,7 +136,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		rule do_regfetch;
 
 			if (regfetchQ[i].first().epoch != wbEpoch[i][1]) begin
+
 				regfetchQ[i].deq();
+
 			end else if(!rfLock[i][1] && (!sb[i].search1(regfetchQ[i].first().inst.src1) && !sb[i].search2(regfetchQ[i].first().inst.src2))) begin
 
 				let rfToken = regfetchQ[i].first();
@@ -222,48 +224,28 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	rule do_mem;
 
-		let mToken   = memoryQ.first(); memoryQ.deq();
-		let execInst = mToken.inst;
-		let feID     = mToken.feID;
+		let mToken = memoryQ.first(); memoryQ.deq();
+		let wToken = WBToken{ inst   : mToken.inst,
+		                      pc     : mToken.pc,
+		                      feID   : mToken.feID,
+		                      epoch  : mToken.epoch,
+		                      rawInst: mToken.rawInst};
 
-		let wToken   = WBToken{
-							inst: execInst,
-							pc: mToken.pc,
-							feID: mToken.feID,
-							epoch: mToken.epoch,
-							rawInst: mToken.rawInst};
+		Maybe#(MemOp) memOp = case (mToken.inst.iType)
+			Ld  : tagged Valid Ld;
+			St  : tagged Valid St;
+			Join: tagged Valid Join;
+			default: tagged Invalid;
+		endcase;
 
-		if (mToken.epoch == wbEpoch[feID][1]) begin
+		if (mToken.epoch == wbEpoch[mToken.feID][1] && isValid(memOp)) begin
 			// Prevent instruction from requesting MEM operations if epoch is changed
-
-			if(execInst.iType == Ld) begin
-
-    		    lsu.req(LSUReq{ op     : Ld,
-    		                    ldFunc : execInst.ldFunc,
-    		                    stFunc : ?,
-    		                    addr   : execInst.addr,
-    		                    data   : ?,
-    		                    transId: wToken });
-
-    		end else if(execInst.iType == St) begin
-
-    		    lsu.req(LSUReq{ op     : St,
-    		                    ldFunc : ?,
-    		                    stFunc : execInst.stFunc,
-    		                    addr   : execInst.addr,
-    		                    data   : execInst.data,
-    		                    transId: wToken });
-
-    		end else if(execInst.iType == Join) begin
-
-    		    lsu.req(LSUReq{ op     : Join,
-    		                    ldFunc : ?,
-    		                    stFunc : ?,
-    		                    addr   : execInst.addr,
-    		                    data   : 'b1,
-    		                    transId: wToken });
-
-    		end
+    		lsu.req(LSUReq{ op     : fromMaybe(?,memOp),
+    		                ldFunc : mToken.inst.ldFunc,
+    		                stFunc : mToken.inst.stFunc,
+    		                addr   : mToken.inst.addr,
+    		                data   : mToken.inst.data,
+    		                transId: wToken });
     	end
 
 		wrbackQ.enq(wToken);
