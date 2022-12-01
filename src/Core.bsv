@@ -246,10 +246,18 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	rule do_wb;
 
+		// Upstream actions
+		Vector#(FrontWidth, Maybe#(void    )) sbRemove    = replicate(tagged Invalid);
+		Vector#(FrontWidth, Maybe#(RFwb    )) rfWriteBack = replicate(tagged Invalid);
+		Vector#(FrontWidth, Maybe#(void    )) stDry       = replicate(tagged Invalid);
+		Vector#(FrontWidth, Maybe#(Epoch   )) stEpoch     = replicate(tagged Invalid);
+		Vector#(FrontWidth, Maybe#(Redirect)) stRedirect  = replicate(tagged Invalid);
+
+		// WB
 		let wToken = wrbackQ.first(); wrbackQ.deq();
 		let feID   = wToken.feID;
 
-		sb[feID].remove();
+		sbRemove[feID] = tagged Valid(?);
 
 		if (wToken.epoch == wbEpoch[feID][0])  begin
 
@@ -258,7 +266,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			if(commitInst.iType == Ghost) begin
 
 				nttx.evict(feID, wToken.pc);
-				stream[feID].backendDry();
+				stDry[feID] = tagged Valid(?);
 
 			end else begin
 
@@ -273,14 +281,14 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					let resp <- lsu.resp();
 					if(resp.valid) begin
 						loadRes = resp.data;
-	        	    	rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
+	        	    	rfWriteBack[feID] = tagged Valid RFwb{dst: fromMaybe(?, commitInst.dst), res: loadRes};
 					end else begin
-						wbEpoch[feID][0] <= wbEpoch[feID][0]+1;
-						redirectQ[feID].enq(Redirect{ lock    : True,
-						                              kill    : False,
-						                              redirect: True,
-						                              epoch   : wbEpoch[feID][0]+1,
-						                              nextPc  : wToken.pc+4 });
+						stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
+						stRedirect[feID] = tagged Valid Redirect{ lock    : True,
+						                                          kill    : False,
+						                                          redirect: True,
+						                                          epoch   : wbEpoch[feID][0]+1,
+						                                          nextPc  : wToken.pc+4 };
 						memValid = False;
 					end
 
@@ -288,12 +296,12 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 					let resp <- lsu.resp();
 					if(!resp.valid) begin
-						wbEpoch[feID][0] <= wbEpoch[feID][0]+1;
-						redirectQ[feID].enq(Redirect{ lock    : True,
-							                          kill    : False,
-						                              redirect: True,
-						                              epoch   : wbEpoch[feID][0]+1,
-						                              nextPc  : wToken.pc+4 });
+						stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
+						stRedirect[feID] = tagged Valid Redirect{ lock    : True,
+							                                      kill    : False,
+						                                          redirect: True,
+						                                          epoch   : wbEpoch[feID][0]+1,
+						                                          nextPc  : wToken.pc+4 };
 						memValid = False;
 					end
 
@@ -307,42 +315,42 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					if(resp.valid) begin
 						loadRes = resp.data;
 						if(resp.data == '0) begin
-							wbEpoch[feID][0] <= wbEpoch[feID][0]+1;
-							redirectQ[feID].enq(Redirect{ lock    : False,
-    	    	                                          kill    : True,
-			                                              redirect: False,
-			                                              epoch   : wbEpoch[feID][0]+1,
-			                                              nextPc  : ? });
+							stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
+							stRedirect[feID] = tagged Valid Redirect{ lock    : False,
+    	    	                                                      kill    : True,
+			                                                          redirect: False,
+			                                                          epoch   : wbEpoch[feID][0]+1,
+			                                                          nextPc  : ? };
 						end
 					end else begin
-						wbEpoch[feID][0] <= wbEpoch[feID][0]+1;
-						redirectQ[feID].enq(Redirect{ lock    : True,
-							                          kill    : False,
-						                              redirect: True,
-						                              epoch   : wbEpoch[feID][0]+1,
-						                              nextPc  : wToken.pc+4 });
+						stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
+						stRedirect[feID] = tagged Valid Redirect{ lock    : True,
+						                                          kill    : False,
+						                                          redirect: True,
+						                                          epoch   : wbEpoch[feID][0]+1,
+						                                          nextPc  : wToken.pc+4 };
 						memValid = False;
 					end
 
 	        	end else begin
 
 	        		if(isValid(commitInst.dst)) begin
-						rf[feID].wr(fromMaybe(?, commitInst.dst), commitInst.data);
+						rfWriteBack[feID] = tagged Valid RFwb{dst: fromMaybe(?, commitInst.dst), res: commitInst.data};
 					end
 
 					if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
-						redirectQ[feID].enq(Redirect{ lock    : False,
-							                          kill    : False,
-						                              redirect: True,
-						                              epoch   : wbEpoch[feID][0]+1,
-						                              nextPc  : commitInst.addr });
-						wbEpoch[feID][0] <= wbEpoch[feID][0]+1;
+						stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
+						stRedirect[feID] = tagged Valid Redirect{ lock    : False,
+						                                          kill    : False,
+						                                          redirect: True,
+						                                          epoch   : wbEpoch[feID][0]+1,
+						                                          nextPc  : commitInst.addr };
 					end else if (commitInst.iType == Br) begin
-						redirectQ[feID].enq(Redirect{ lock    : False,
-							                          kill    : False,
-						                              redirect: False,
-						                              epoch   : ?,
-						                              nextPc  : ?});
+						stRedirect[feID] = tagged Valid Redirect{ lock    : False,
+						                                          kill    : False,
+						                                          redirect: False,
+						                                          epoch   : ?,
+						                                          nextPc  : ?};
 					end
 
 				end
@@ -386,6 +394,28 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 		end
 
+		// Send upstream actions
+
+		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+
+			if(isValid(sbRemove[i])) begin
+				sb[i].remove();
+			end
+
+			rf[i].wr(fromMaybe(RFwb{dst: '0, res: 'hdeadbeef}, rfWriteBack[i]));
+
+			if(isValid(stDry[i])) begin
+				stream[i].backendDry();
+			end
+
+			wbEpoch[i][0] <= fromMaybe(wbEpoch[i][0], stEpoch[i]);
+
+			if(isValid(stRedirect[i])) begin
+				redirectQ[i].enq(fromMaybe(?,stRedirect[i]));
+			end
+
+		end
+
 		if(perf_DEBUG == True) begin
 			perf_wToken[0] <= tagged Valid wToken;
 		end
@@ -408,7 +438,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		if(commitInst.iType == Ld) begin
 
 			loadRes = resp.data;
-    	    rf[feID].wr(fromMaybe(?, commitInst.dst), loadRes);
+    	    rf[feID].wr(RFwb{dst: fromMaybe(?, commitInst.dst), res: loadRes});
     	    redirectQ[feID].enq(Redirect{ lock    : False,
     	    	                          kill    : False,
 			                              redirect: False,

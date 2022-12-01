@@ -30,7 +30,7 @@ interface RFile;
     method Action setH( CacheLine data );
 
     // Individual access
-    method Action wr ( RIndx rindx, Data data );
+    method Action wr ( RFwb  wb    );
     method Data   rd1( RIndx rindx );
     method Data   rd2( RIndx rindx );
 
@@ -68,9 +68,9 @@ module mkBypassRFile( RFile );
     endmethod
 
     // Individual access
-    method Action wr( RIndx rindx, Data data );
-        if(rindx!=0) begin
-            rfile[rindx][1] <= data;
+    method Action wr( RFwb wb );
+        if(wb.dst!=0) begin
+            rfile[wb.dst][1] <= wb.res;
         end
     endmethod
 

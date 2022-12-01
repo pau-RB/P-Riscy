@@ -214,6 +214,11 @@ typedef struct {
 } Redirect deriving (Bits, Eq, FShow);
 
 typedef struct {
+	RIndx       dst;
+	Data        res;
+} RFwb deriving (Bits, Eq, FShow);
+
+typedef struct {
 	VerifID   verifID;
 	Addr      pc;
 	CacheLine rfL;
