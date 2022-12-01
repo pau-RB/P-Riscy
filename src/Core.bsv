@@ -203,9 +203,11 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
  
 	//////////// MEMORY ////////////
 
-	Fifo#(1,WBToken)   wrbackQ   <- mkStageFifo();
+	Fifo#(1,Vector#(BackWidth, Maybe#(WBToken))) wrbackQ <- mkStageFifo();
 
 	rule do_mem;
+
+		Vector#(BackWidth, Maybe#(WBToken)) toWB = replicate(tagged Invalid);
 
 		let mToken = memoryQ.first(); memoryQ.deq();
 		let wToken = WBToken{ inst   : mToken.inst,
@@ -231,7 +233,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
     		                transId: wToken });
     	end
 
-		wrbackQ.enq(wToken);
+    	toWB[0] = tagged Valid wToken;
+
+		wrbackQ.enq(toWB);
 
 	endrule
 
@@ -254,87 +258,175 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		Vector#(FrontWidth, Maybe#(Redirect)) stRedirect  = replicate(tagged Invalid);
 
 		// WB
-		let wToken = wrbackQ.first(); wrbackQ.deq();
-		let feID   = wToken.feID;
+		Vector#(BackWidth, Maybe#(WBToken)) toWB = wrbackQ.first(); wrbackQ.deq();
+		Data numWB = 0;
 
-		sbRemove[feID] = tagged Valid(?);
+		// LSU Pipeline WB
+		if(isValid(toWB[0])) begin
 
-		if (wToken.epoch == wbEpoch[feID][0])  begin
+			let wToken = fromMaybe(?, toWB[0]);
+			let feID   = wToken.feID;
 
-			let commitInst = wToken.inst;
+			sbRemove[feID] = tagged Valid(?);
 
-			if(commitInst.iType == Ghost) begin
+			if (wToken.epoch == wbEpoch[feID][0])  begin
 
-				nttx.evict(feID, wToken.pc);
-				stDry[feID] = tagged Valid(?);
+				let commitInst = wToken.inst;
 
-			end else begin
+				if(commitInst.iType == Ghost) begin
 
-				numCommit[0] <= numCommit[0]+1;
+					nttx.evict(feID, wToken.pc);
+					stDry[feID] = tagged Valid(?);
 
-				Data    loadRes      = '1;
-				Bool    memValid     = True;
-				VerifID childVerifID = '0;
+				end else begin
 
-				if(commitInst.iType == Ld) begin
+					numWB = numWB+1;
 
-					let resp <- lsu.resp();
-					if(resp.valid) begin
-						loadRes = resp.data;
-	        	    	rfWriteBack[feID] = tagged Valid RFwb{dst: fromMaybe(?, commitInst.dst), res: loadRes};
-					end else begin
-						stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
-						stRedirect[feID] = tagged Valid Redirect{ lock    : True,
-						                                          kill    : False,
-						                                          redirect: True,
-						                                          epoch   : wbEpoch[feID][0]+1,
-						                                          nextPc  : wToken.pc+4 };
-						memValid = False;
-					end
+					Data    loadRes      = '1;
+					Bool    memValid     = True;
+					VerifID childVerifID = '0;
 
-	        	end else if(commitInst.iType == St) begin
+					if(commitInst.iType == Ld) begin
 
-					let resp <- lsu.resp();
-					if(!resp.valid) begin
-						stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
-						stRedirect[feID] = tagged Valid Redirect{ lock    : True,
-							                                      kill    : False,
-						                                          redirect: True,
-						                                          epoch   : wbEpoch[feID][0]+1,
-						                                          nextPc  : wToken.pc+4 };
-						memValid = False;
-					end
+						let resp <- lsu.resp();
+						if(resp.valid) begin
+							loadRes = resp.data;
+		        	    	rfWriteBack[feID] = tagged Valid RFwb{dst: fromMaybe(?, commitInst.dst), res: loadRes};
+						end else begin
+							stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
+							stRedirect[feID] = tagged Valid Redirect{ lock    : True,
+							                                          kill    : False,
+							                                          redirect: True,
+							                                          epoch   : wbEpoch[feID][0]+1,
+							                                          nextPc  : wToken.pc+4 };
+							memValid = False;
+						end
 
-	        	end else if(commitInst.iType == Fork || commitInst.iType == Forkr) begin
+		        	end else if(commitInst.iType == St) begin
 
-					childVerifID <- nttx.efork(feID, commitInst.addr);
+						let resp <- lsu.resp();
+						if(!resp.valid) begin
+							stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
+							stRedirect[feID] = tagged Valid Redirect{ lock    : True,
+								                                      kill    : False,
+							                                          redirect: True,
+							                                          epoch   : wbEpoch[feID][0]+1,
+							                                          nextPc  : wToken.pc+4 };
+							memValid = False;
+						end
 
-				end else if(commitInst.iType == Join) begin
+		        	end else if(commitInst.iType == Fork || commitInst.iType == Forkr) begin
 
-					let resp <- lsu.resp();
-					if(resp.valid) begin
-						loadRes = resp.data;
-						if(resp.data == '0) begin
+						childVerifID <- nttx.efork(feID, commitInst.addr);
+
+					end else if(commitInst.iType == Join) begin
+
+						let resp <- lsu.resp();
+						if(resp.valid) begin
+							loadRes = resp.data;
+							if(resp.data == '0) begin
+								stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
+								stRedirect[feID] = tagged Valid Redirect{ lock    : False,
+	    	    	                                                      kill    : True,
+				                                                          redirect: False,
+				                                                          epoch   : wbEpoch[feID][0]+1,
+				                                                          nextPc  : ? };
+							end
+						end else begin
+							stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
+							stRedirect[feID] = tagged Valid Redirect{ lock    : True,
+							                                          kill    : False,
+							                                          redirect: True,
+							                                          epoch   : wbEpoch[feID][0]+1,
+							                                          nextPc  : wToken.pc+4 };
+							memValid = False;
+						end
+
+		        	end else begin
+
+		        		if(isValid(commitInst.dst)) begin
+							rfWriteBack[feID] = tagged Valid RFwb{dst: fromMaybe(?, commitInst.dst), res: commitInst.data};
+						end
+
+						if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
 							stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
 							stRedirect[feID] = tagged Valid Redirect{ lock    : False,
-    	    	                                                      kill    : True,
-			                                                          redirect: False,
-			                                                          epoch   : wbEpoch[feID][0]+1,
-			                                                          nextPc  : ? };
+							                                          kill    : False,
+							                                          redirect: True,
+							                                          epoch   : wbEpoch[feID][0]+1,
+							                                          nextPc  : commitInst.addr };
+						end else if (commitInst.iType == Br) begin
+							stRedirect[feID] = tagged Valid Redirect{ lock    : False,
+							                                          kill    : False,
+							                                          redirect: False,
+							                                          epoch   : ?,
+							                                          nextPc  : ?};
 						end
-					end else begin
-						stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
-						stRedirect[feID] = tagged Valid Redirect{ lock    : True,
-						                                          kill    : False,
-						                                          redirect: True,
-						                                          epoch   : wbEpoch[feID][0]+1,
-						                                          nextPc  : wToken.pc+4 };
-						memValid = False;
+
 					end
 
-	        	end else begin
+					if (wb_ext_DEBUG == True && memValid) begin
+						commitReportQ.enq(generateCMR(numCycles[0], verif.getVerifID(feID), childVerifID, wToken, loadRes));
+					end
 
-	        		if(isValid(commitInst.dst)) begin
+					if (msg_ext_DEBUG == True) begin
+						if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
+							messageReportQ.enq(Message { verifID: verif.getVerifID(feID),
+														 cycle:   numCycles[0],
+														 commit:  numCommit[0],
+														 data:    commitInst.data });
+						end
+					end
+
+					if (mem_ext_DEBUG == True) begin
+						if(commitInst.iType == St && commitInst.addr == lsu_ADDR) begin
+							FetchStat fsr = fetch.getStat();
+							LSUStat   lsr = lsu.getStat();
+							MemStat   msr = MemStat{ verifID: verif.getVerifID(feID),
+							                         cycle  : numCycles[0],
+							                         commit : numCommit[0],
+							                         data   : commitInst.data,
+							                         fetch  : fsr,
+							                         lsu    : lsr };
+							memStatReportQ.enq(msr);
+						end
+					end
+
+					if(perf_DEBUG == True) begin
+						if(memValid) begin
+							perf_doWB[0] <= True;
+						end else begin
+							perf_doMissWB[0] <= True;
+						end
+					end
+
+				end
+
+			end
+
+			if(perf_DEBUG == True) begin
+				perf_wToken[0] <= tagged Valid wToken;
+			end
+
+		end
+
+		// GP Pipeline WB
+		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
+
+			if(isValid(toWB[i])) begin
+
+				let wToken = fromMaybe(?, toWB[i]);
+				let feID   = wToken.feID;
+
+				sbRemove[feID] = tagged Valid(?);
+
+				if (wToken.epoch == wbEpoch[feID][0])  begin
+
+					let commitInst = wToken.inst;
+
+					numWB = numWB+1;
+
+					if(isValid(commitInst.dst)) begin
 						rfWriteBack[feID] = tagged Valid RFwb{dst: fromMaybe(?, commitInst.dst), res: commitInst.data};
 					end
 
@@ -355,47 +447,14 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 				end
 
-				if (wb_ext_DEBUG == True && memValid) begin
-					commitReportQ.enq(generateCMR(numCycles[0], verif.getVerifID(feID), childVerifID, wToken, loadRes));
-				end
-
-				if (msg_ext_DEBUG == True) begin
-					if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
-						messageReportQ.enq(Message { verifID: verif.getVerifID(feID),
-													 cycle:   numCycles[0],
-													 commit:  numCommit[0],
-													 data:    commitInst.data });
-					end
-				end
-
-				if (mem_ext_DEBUG == True) begin
-					if(commitInst.iType == St && commitInst.addr == lsu_ADDR) begin
-						FetchStat fsr = fetch.getStat();
-						LSUStat   lsr = lsu.getStat();
-						MemStat   msr = MemStat{ verifID: verif.getVerifID(feID),
-						                         cycle  : numCycles[0],
-						                         commit : numCommit[0],
-						                         data   : commitInst.data,
-						                         fetch  : fsr,
-						                         lsu    : lsr };
-						memStatReportQ.enq(msr);
-					end
-				end
-
-				if(perf_DEBUG == True) begin
-					if(memValid) begin
-						perf_doWB[0] <= True;
-					end else begin
-						perf_doMissWB[0] <= True;
-					end
-				end
-
 			end
 
 		end
 
-		// Send upstream actions
+		// Num  commit
+		numCommit[0] <= numCommit[0]+numWB;
 
+		// Send upstream actions
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 
 			if(isValid(sbRemove[i])) begin
@@ -414,10 +473,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				redirectQ[i].enq(fromMaybe(?,stRedirect[i]));
 			end
 
-		end
-
-		if(perf_DEBUG == True) begin
-			perf_wToken[0] <= tagged Valid wToken;
 		end
 
 	endrule
