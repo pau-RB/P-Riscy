@@ -166,10 +166,12 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	//////////// EXECUTE ////////////
 
-	Fifo#(1,MemToken) memoryQ <- mkStageFifo();
+	Fifo#(1,Vector#(BackWidth, Maybe#(MemToken))) memoryQ <- mkStageFifo();
 	Reg#(FrontID)     rrfeID  <- mkReg(0);
 
 	rule do_execute;
+
+		Vector#(BackWidth, Maybe#(MemToken)) toMem = replicate(tagged Invalid);
 
 		FrontID hart = rrfeID;
 
@@ -194,7 +196,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 							epoch  : eToken.epoch,
 							rawInst: eToken.rawInst};
 
-			memoryQ.enq(mToken);
+			toMem[0] = tagged Valid mToken;
+			memoryQ.enq(toMem);
 
 		end
 
@@ -207,33 +210,53 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	rule do_mem;
 
-		Vector#(BackWidth, Maybe#(WBToken)) toWB = replicate(tagged Invalid);
+		Vector#(BackWidth, Maybe#(MemToken)) toMem = memoryQ.first(); memoryQ.deq();
+		Vector#(BackWidth, Maybe#(WBToken))  toWB  = replicate(tagged Invalid);
 
-		let mToken = memoryQ.first(); memoryQ.deq();
-		let wToken = WBToken{ inst   : mToken.inst,
-		                      pc     : mToken.pc,
-		                      feID   : mToken.feID,
-		                      epoch  : mToken.epoch,
-		                      rawInst: mToken.rawInst};
+		if(isValid(toMem[0])) begin
 
-		Maybe#(MemOp) memOp = case (mToken.inst.iType)
-			Ld  : tagged Valid Ld;
-			St  : tagged Valid St;
-			Join: tagged Valid Join;
-			default: tagged Invalid;
-		endcase;
+			let mToken = fromMaybe(?, toMem[0]);
+			let wToken = WBToken{ inst   : mToken.inst,
+			                      pc     : mToken.pc,
+			                      feID   : mToken.feID,
+			                      epoch  : mToken.epoch,
+			                      rawInst: mToken.rawInst};
+			toWB[0] = tagged Valid wToken;
 
-		if (mToken.epoch == wbEpoch[mToken.feID][1] && isValid(memOp)) begin
-			// Prevent instruction from requesting MEM operations if epoch is changed
-    		lsu.req(LSUReq{ op     : fromMaybe(?,memOp),
-    		                ldFunc : mToken.inst.ldFunc,
-    		                stFunc : mToken.inst.stFunc,
-    		                addr   : mToken.inst.addr,
-    		                data   : mToken.inst.data,
-    		                transId: wToken });
-    	end
+			// Send LSU req, if the instruction is valid
+			Maybe#(MemOp) memOp = case (mToken.inst.iType)
+				Ld  : tagged Valid Ld;
+				St  : tagged Valid St;
+				Join: tagged Valid Join;
+				default: tagged Invalid;
+			endcase;
 
-    	toWB[0] = tagged Valid wToken;
+			if (mToken.epoch == wbEpoch[mToken.feID][1] && isValid(memOp)) begin
+
+	    		lsu.req(LSUReq{ op     : fromMaybe(?,memOp),
+	    		                ldFunc : mToken.inst.ldFunc,
+	    		                stFunc : mToken.inst.stFunc,
+	    		                addr   : mToken.inst.addr,
+	    		                data   : mToken.inst.data,
+	    		                transId: wToken });
+
+	    	end
+
+	    end
+
+	    for(Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
+	    	if(isValid(toMem[i])) begin
+
+	    		let mToken = fromMaybe(?, toMem[i]);
+				let wToken = WBToken{ inst   : mToken.inst,
+				                      pc     : mToken.pc,
+				                      feID   : mToken.feID,
+				                      epoch  : mToken.epoch,
+				                      rawInst: mToken.rawInst};
+				toWB[i] = tagged Valid wToken;
+
+			end
+	    end
 
 		wrbackQ.enq(toWB);
 
@@ -587,7 +610,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			else if(executeQ [i].notEmpty) $write("%c[2;97m E 0x%h %c[0;0m|", 27, executeQ [i].first().pc, 27);
 			else $write(" E            |");
 
-			if(memoryQ.notEmpty && (memoryQ.first().feID == fromInteger(i))) $write(" M 0x%h |",  memoryQ.first().pc); else $write("              |");
+			if(memoryQ.notEmpty && (fromMaybe(?,memoryQ.first()[0]).feID == fromInteger(i))) $write(" M 0x%h |",  fromMaybe(?,memoryQ.first()[0]).pc); else $write("              |");
 
 			if(isValid(perf_wToken[1]) && (fromMaybe(?,perf_wToken[1]).feID == fromInteger(i))) $write(" W 0x%h | ", fromMaybe(?,perf_wToken[1]).pc); else $write("              | ");
 
