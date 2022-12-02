@@ -173,21 +173,31 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	//////////// EXECUTE ////////////
 
 	Fifo#(1,Vector#(BackWidth,Maybe#(MemToken))) memoryQ <- mkStageFifo();
-	Vector#(BackWidth,Reg#(FrontID))             rrfeID  <- replicateM(mkReg('0));
+
+	Ehr#(2,Vector#(FrontWidth,Maybe#(ExecToken))) perf_exec_inst  <- mkEhr(replicate(tagged Invalid));
+	Ehr#(2,Vector#(FrontWidth,Bool             )) perf_exec_taken <- mkEhr(replicate(False));
 
 	rule do_execute if(coreStarted);
 
-		Vector#(FrontWidth,Bool) taken = replicate(False);
+		Vector#(FrontWidth,Maybe#(ExecToken)) inst  = replicate(tagged Invalid);
+		Vector#(FrontWidth,Bool             ) taken = replicate(False);
 		Bool anyTaken = False;
 
 		Vector#(BackWidth, Maybe#(ExecToken)) toExec = replicate(tagged Invalid);
 		Vector#(BackWidth, Maybe#(MemToken) ) toMem  = replicate(tagged Invalid);
 
+		// Candidate instructions
+		for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
+			if(executeQ[j].notEmpty()) begin
+				inst[j] = tagged Valid executeQ[j].first();
+			end
+		end
+
 		// GP Pipeline hart
 		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
 			for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
-				if(executeQ[j].notEmpty() && !isMemOp(executeQ[j].first()) && !taken[j] && !isValid(toExec[i])) begin
-					toExec[i] = tagged Valid executeQ[j].first();
+				if(isValid(inst[j]) && !isMemOp(fromMaybe(?,inst[j])) && !taken[j] && !isValid(toExec[i])) begin
+					toExec[i] = tagged Valid fromMaybe(?,inst[j]);
 					taken [j] = True; anyTaken = True;
 				end
 			end
@@ -195,15 +205,15 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 		// Mem Pipeline hart
 		for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
-			if(executeQ[j].notEmpty() && !taken[j] && !isValid(toExec[0])) begin
-				toExec[0] = tagged Valid executeQ[j].first();
+			if(isValid(inst[j]) && !taken[j] && !isValid(toExec[0])) begin
+				toExec[0] = tagged Valid fromMaybe(?,inst[j]);
 				taken [j] = True; anyTaken = True;
 			end
 		end
 
 		// Dequeue taken instructions
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(taken[i] && executeQ[i].notEmpty()) begin
+			if(taken[i]) begin
 				executeQ[i].deq();
 			end
 		end
@@ -228,12 +238,19 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			memoryQ.enq(toMem);
 		end
 
+		if(perf_DEBUG) begin
+			perf_exec_taken[0] <= taken;
+			perf_exec_inst [0] <= inst;		
+		end
+
 	endrule
 
  
 	//////////// MEMORY ////////////
 
 	Fifo#(1,Vector#(BackWidth, Maybe#(WBToken))) wrbackQ <- mkStageFifo();
+
+	Ehr#(2,Vector#(BackWidth,Maybe#(MemToken))) perf_mem_inst  <- mkEhr(replicate(tagged Invalid));
 
 	rule do_mem;
 
@@ -287,6 +304,10 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 		wrbackQ.enq(toWB);
 
+		if(perf_DEBUG) begin
+			perf_mem_inst[0] <= toMem;
+		end
+
 	endrule
 
 
@@ -294,9 +315,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	NTTX nttx <- mkNTTX(rf, verif);
 
-	Ehr#(2,Bool)            perf_doWB     <- mkEhr(False);
-	Ehr#(2,Bool)            perf_doMissWB <- mkEhr(False);
-	Ehr#(2,Maybe#(WBToken)) perf_wToken   <- mkEhr(tagged Invalid);
+	Ehr#(2,Vector#(BackWidth, Maybe#(WBToken))) perf_wb_inst  <- mkEhr(replicate(tagged Invalid));
+	Vector#(BackWidth, Ehr#(2,Bool))            perf_wb_valid <- replicateM(mkEhr(False        ));
+	Vector#(BackWidth, Ehr#(2,Bool))            perf_wb_miss  <- replicateM(mkEhr(False        ));
 
 	rule do_wb;
 
@@ -443,19 +464,12 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					end
 
 					if(perf_DEBUG == True) begin
-						if(memValid) begin
-							perf_doWB[0] <= True;
-						end else begin
-							perf_doMissWB[0] <= True;
-						end
+						perf_wb_valid[0][0] <= True;
+						perf_wb_miss [0][0] <= !memValid;
 					end
 
 				end
 
-			end
-
-			if(perf_DEBUG == True) begin
-				perf_wToken[0] <= tagged Valid wToken;
 			end
 
 		end
@@ -499,6 +513,10 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 						commitReportQ.port[i].enq(generateCMR(numCycles[0], verif.getVerifID(feID), ?, wToken, ?));
 					end
 
+					if(perf_DEBUG == True) begin
+						perf_wb_valid[i][0] <= True;
+					end
+
 				end
 
 			end
@@ -527,6 +545,10 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				redirectQ[i].enq(fromMaybe(?,stRedirect[i]));
 			end
 
+		end
+
+		if(perf_DEBUG == True) begin
+			perf_wb_inst[0] <= toWB;
 		end
 
 	endrule
@@ -600,22 +622,19 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	endrule
 
 	rule do_perf_DEBUG if(perf_DEBUG == True && coreStarted);
-		
-		perf_doWB      [1] <= False;
-		perf_doMissWB  [1] <= False;
-		perf_wToken    [1] <= tagged Invalid;
+
+		perf_exec_inst[1] <= replicate(tagged Invalid);
+		perf_mem_inst [1] <= replicate(tagged Invalid);
+		perf_wb_inst  [1] <= replicate(tagged Invalid);
+
+		for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
+			perf_wb_valid[j][1] <= False;
+			perf_wb_miss [j][1] <= False;
+		end
+
 		perf_old_doWB  [1] <= False;
 		perf_old_wToken[1] <= tagged Invalid;
 
-		FrontID hart = rrfeID[0];
-		if(valueOf(FrontWidth) != 1) begin
-			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-				if(!executeQ[hart].notEmpty()) begin
-					hart = (hart == lastFrontID) ? '0 : hart+1;
-				end
-			end
-		end
-		
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 
 			     if(i == 0) $write("%d ", numCycles[1]);
@@ -637,23 +656,42 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			if(stream   [i].currentState() != Empty) $write("| F 0x%h |", stream[i].currentPC()); else $write("| F            |");
 			if(stream   [i].notEmpty) $write(" D 0x%h |", stream   [i].firstPC() ); else $write(" D            |");
 			if(regfetchQ[i].notEmpty) $write(" R 0x%h |", regfetchQ[i].first().pc); else $write(" R            |");
-			if(executeQ [i].notEmpty && hart == fromInteger(i)) $write(" E 0x%h |", executeQ [i].first().pc);
-			else if(executeQ [i].notEmpty) $write("%c[2;97m E 0x%h %c[0;0m|", 27, executeQ [i].first().pc, 27);
+			
+			if(perf_exec_taken[1][i]) $write(" E 0x%h |", fromMaybe(?,perf_exec_inst[1][i]).pc);
+			else if(isValid(perf_exec_inst[1][i])) $write("%c[2;97m E 0x%h %c[0;0m|", 27, fromMaybe(?,perf_exec_inst[1][i]).pc, 27);
 			else $write(" E            |");
 
-			if(memoryQ.notEmpty && (fromMaybe(?,memoryQ.first()[0]).feID == fromInteger(i))) $write(" M 0x%h |",  fromMaybe(?,memoryQ.first()[0]).pc); else $write("              |");
+			Bool mem = False;
+			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
+				if(isValid(perf_mem_inst[1][j]) && (fromMaybe(?,perf_mem_inst[1][j]).feID == fromInteger(i))) begin
+					$write(" M 0x%h |",  fromMaybe(?,perf_mem_inst[1][j]).pc);
+					mem = True;
+				end
+			end
+			if(!mem) $write("              |");
 
-			if(isValid(perf_wToken[1]) && (fromMaybe(?,perf_wToken[1]).feID == fromInteger(i))) $write(" W 0x%h | ", fromMaybe(?,perf_wToken[1]).pc); else $write("              | ");
+			Bool wb = False;
+			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
+				if(isValid(perf_wb_inst[1][j]) && (fromMaybe(?,perf_wb_inst[1][j]).feID == fromInteger(i))) begin
+					$write(" W 0x%h | ", fromMaybe(?,perf_wb_inst[1][j]).pc);
+					wb = True;
+				end
+			end
+			if(!wb) $write("              | ");
 
-			if(perf_doWB[1] && isValid(perf_wToken[1]) && (fromMaybe(?,perf_wToken[1]).feID == fromInteger(i))) begin
-				$write("%c[1;93m",27);
-				$write("", showInst(fromMaybe(?,perf_wToken[1]).rawInst));
-				$write("%c[0m",27);
-			end else if(perf_doMissWB[1] && isValid(perf_wToken[1]) && (fromMaybe(?,perf_wToken[1]).feID == fromInteger(i))) begin
-				$write("%c[2;97m",27);
-				$write("", showInst(fromMaybe(?,perf_wToken[1]).rawInst));
-				$write("%c[0m",27);
-			end else if(perf_old_doWB[1] && isValid(perf_old_wToken[1]) && (fromMaybe(?,perf_old_wToken[1]).feID == fromInteger(i))) begin
+			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
+				if(perf_wb_valid[j][1] && !perf_wb_miss[j][1] && (fromMaybe(?,perf_wb_inst[1][j]).feID == fromInteger(i))) begin
+					$write("%c[1;93m",27);
+					$write("", showInst(fromMaybe(?,perf_wb_inst[1][j]).rawInst));
+					$write("%c[0m",27);
+				end else if(perf_wb_miss[j][1] && (fromMaybe(?,perf_wb_inst[1][j]).feID == fromInteger(i))) begin
+					$write("%c[2;97m",27);
+					$write("", showInst(fromMaybe(?,perf_wb_inst[1][j]).rawInst));
+					$write("%c[0m",27);
+				end
+			end
+
+			if(perf_old_doWB[1] && isValid(perf_old_wToken[1]) && (fromMaybe(?,perf_old_wToken[1]).feID == fromInteger(i))) begin
 				$write("%c[1;33m",27);
 				$write("", showInst(fromMaybe(?,perf_old_wToken[1]).rawInst));
 				$write("%c[0m",27);
