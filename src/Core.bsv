@@ -29,16 +29,11 @@ import Execution::*;
 import NTTX::*;
 
 
-//function Bool isMemOp(ExecToken inst);
-//	return (inst.inst.iType == Ld   || inst.inst.iType == St    ||
-//	        inst.inst.iType == Fork || inst.inst.iType == Forkr || 
-//	        inst.inst.iType == Join || inst.inst.iType == Ghost   );
-//endfunction
-
 function Bool isMemOp(ExecToken inst);
-	return True;
+	return (inst.inst.iType == Ld   || inst.inst.iType == St    ||
+	        inst.inst.iType == Fork || inst.inst.iType == Forkr || 
+	        inst.inst.iType == Join || inst.inst.iType == Ghost   );
 endfunction
-
 
 interface Core;
 
@@ -187,14 +182,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		Vector#(BackWidth, Maybe#(ExecToken)) toExec = replicate(tagged Invalid);
 		Vector#(BackWidth, Maybe#(MemToken) ) toMem  = replicate(tagged Invalid);
 
-		// Mem Pipeline hart
-		for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
-			if(executeQ[j].notEmpty() && isMemOp(executeQ[j].first()) && !taken[j] && !isValid(toExec[0])) begin
-				toExec[0] = tagged Valid executeQ[j].first();
-				taken [j] = True; anyTaken = True;
-			end
-		end
-
 		// GP Pipeline hart
 		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
 			for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
@@ -202,6 +189,14 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					toExec[i] = tagged Valid executeQ[j].first();
 					taken [j] = True; anyTaken = True;
 				end
+			end
+		end
+
+		// Mem Pipeline hart
+		for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
+			if(executeQ[j].notEmpty() && !taken[j] && !isValid(toExec[0])) begin
+				toExec[0] = tagged Valid executeQ[j].first();
+				taken [j] = True; anyTaken = True;
 			end
 		end
 
