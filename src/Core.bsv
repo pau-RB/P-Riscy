@@ -184,30 +184,23 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		Vector#(FrontWidth,Bool) taken = replicate(False);
 		Bool anyTaken = False;
 
-		Vector#(BackWidth, FrontID          ) hart   = replicate('0            );
 		Vector#(BackWidth, Maybe#(ExecToken)) toExec = replicate(tagged Invalid);
 		Vector#(BackWidth, Maybe#(MemToken) ) toMem  = replicate(tagged Invalid);
 
 		// Mem Pipeline hart
 		for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
-			if(executeQ[hart[0]].notEmpty() && isMemOp(executeQ[hart[0]].first()) && !taken[hart[0]]) begin
-				taken[hart[0]] = True;
-				anyTaken = True;
-				toExec[0] = tagged Valid executeQ[hart[0]].first();
-			end else begin
-				hart[0] = (hart[0] == lastFrontID) ? '0 : hart[0]+1;
+			if(executeQ[j].notEmpty() && isMemOp(executeQ[j].first()) && !taken[j] && !isValid(toExec[0])) begin
+				toExec[0] = tagged Valid executeQ[j].first();
+				taken [j] = True; anyTaken = True;
 			end
 		end
 
 		// GP Pipeline hart
 		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
 			for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
-				if(executeQ[hart[i]].notEmpty() && !isMemOp(executeQ[hart[i]].first()) && !taken[hart[i]]) begin
-					taken[hart[i]] = True;
-					anyTaken = True;
-					toExec[0] = tagged Valid executeQ[hart[i]].first();
-				end else begin
-					hart[i] = (hart[i] == lastFrontID) ? '0 : hart[i]+1;
+				if(executeQ[j].notEmpty() && !isMemOp(executeQ[j].first()) && !taken[j] && !isValid(toExec[i])) begin
+					toExec[i] = tagged Valid executeQ[j].first();
+					taken [j] = True; anyTaken = True;
 				end
 			end
 		end
