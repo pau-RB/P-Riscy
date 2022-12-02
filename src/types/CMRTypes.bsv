@@ -11,7 +11,7 @@ typedef struct {
 	RIndx   wbDst;   // 0 if no wb
 	Data    wbRes;   // ALU/Load result, childverifID for fork/forkr, memread for Join
 	Addr    addr;    // nextpc for branch, addr for LSU, nextpc for fork/forkr
-} CommitReport deriving (Bits, Eq);
+} CommitReport deriving (Bits, Eq, FShow);
 
 typedef struct {
 	VerifID verifID;

@@ -10,6 +10,7 @@ import CMRTypes::*;
 
 // include
 import Fifo::*;
+import MFifo::*;
 import Vector::*;
 import Ehr::*;
 
@@ -53,12 +54,12 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	//////////// EXT STATE ////////////
 
-	Reg#(Bool)                  coreStarted    <- mkReg(False);
-	Ehr#(2,Data)                numCommit      <- mkEhr(0);
-	Ehr#(2,Data)                numCycles      <- mkEhr(0);
-	Fifo#(THQ_LEN,CommitReport) commitReportQ  <- mkPipelineFifo();
-	Fifo#(THQ_LEN,Message)      messageReportQ <- mkPipelineFifo();
-	Fifo#(THQ_LEN,MemStat)      memStatReportQ <- mkPipelineFifo();
+	Reg#(Bool)                             coreStarted    <- mkReg(False);
+	Ehr#(2,Data)                           numCommit      <- mkEhr(0);
+	Ehr#(2,Data)                           numCycles      <- mkEhr(0);
+	MFifo#(THQ_LEN,BackWidth,CommitReport) commitReportQ  <- mkPipelineMFifo();
+	Fifo#(THQ_LEN,Message)                 messageReportQ <- mkPipelineFifo();
+	Fifo#(THQ_LEN,MemStat)                 memStatReportQ <- mkPipelineFifo();
 
 
 	//////////// MEMORY ////////////
@@ -415,7 +416,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 					end
 
 					if (wb_ext_DEBUG == True && memValid) begin
-						commitReportQ.enq(generateCMR(numCycles[0], verif.getVerifID(feID), childVerifID, wToken, loadRes));
+						commitReportQ.port[0].enq(generateCMR(numCycles[0], verif.getVerifID(feID), childVerifID, wToken, loadRes));
 					end
 
 					if (msg_ext_DEBUG == True) begin
@@ -492,6 +493,10 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 						                                          redirect: False,
 						                                          epoch   : ?,
 						                                          nextPc  : ?};
+					end
+
+					if (wb_ext_DEBUG == True) begin
+						commitReportQ.port[i].enq(generateCMR(numCycles[0], verif.getVerifID(feID), ?, wToken, ?));
 					end
 
 				end
@@ -577,8 +582,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
     	end
 
-    	if (wb_ext_DEBUG == True) begin
-    		commitReportQ.enq(generateCMR(numCycles[0], verif.getVerifID(feID), ?, wToken, loadRes));
+		if (wb_ext_DEBUG == True) begin
+			commitReportQ.port[0].enq(generateCMR(numCycles[0], verif.getVerifID(feID), ?, wToken, loadRes));
 		end
 
 		if(perf_DEBUG == True) begin
