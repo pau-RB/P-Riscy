@@ -29,6 +29,16 @@ import Execution::*;
 import NTTX::*;
 
 
+//function Bool isMemOp(ExecToken inst);
+//	return (inst.inst.iType == Ld   || inst.inst.iType == St    ||
+//	        inst.inst.iType == Fork || inst.inst.iType == Forkr || 
+//	        inst.inst.iType == Join || inst.inst.iType == Ghost   );
+//endfunction
+
+function Bool isMemOp(ExecToken inst);
+	return True;
+endfunction
+
 
 interface Core;
 
@@ -166,39 +176,67 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	//////////// EXECUTE ////////////
 
-	Fifo#(1,Vector#(BackWidth, Maybe#(MemToken))) memoryQ <- mkStageFifo();
-	Reg#(FrontID)     rrfeID  <- mkReg(0);
+	Fifo#(1,Vector#(BackWidth,Maybe#(MemToken))) memoryQ <- mkStageFifo();
+	Vector#(BackWidth,Reg#(FrontID))             rrfeID  <- replicateM(mkReg('0));
 
-	rule do_execute;
+	rule do_execute if(coreStarted);
 
-		Vector#(BackWidth, Maybe#(MemToken)) toMem = replicate(tagged Invalid);
+		Vector#(FrontWidth,Bool) taken = replicate(False);
+		Bool anyTaken = False;
 
-		FrontID hart = rrfeID;
+		Vector#(BackWidth, FrontID          ) hart   = replicate('0            );
+		Vector#(BackWidth, Maybe#(ExecToken)) toExec = replicate(tagged Invalid);
+		Vector#(BackWidth, Maybe#(MemToken) ) toMem  = replicate(tagged Invalid);
 
-		if(valueOf(FrontWidth) != 1) begin
-			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-				if(!executeQ[hart].notEmpty()) begin
-					hart = (hart == lastFrontID) ? '0 : hart+1;
-				end
+		// Mem Pipeline hart
+		for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
+			if(executeQ[hart[0]].notEmpty() && isMemOp(executeQ[hart[0]].first()) && !taken[hart[0]]) begin
+				taken[hart[0]] = True;
+				anyTaken = True;
+				toExec[0] = tagged Valid executeQ[hart[0]].first();
+			end else begin
+				hart[0] = (hart[0] == lastFrontID) ? '0 : hart[0]+1;
 			end
-			rrfeID <= (hart == lastFrontID) ? '0 : hart+1;
 		end
 
-		if (executeQ[hart].notEmpty()) begin
+		// GP Pipeline hart
+		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
+			for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
+				if(executeQ[hart[i]].notEmpty() && !isMemOp(executeQ[hart[i]].first()) && !taken[hart[i]]) begin
+					taken[hart[i]] = True;
+					anyTaken = True;
+					toExec[0] = tagged Valid executeQ[hart[i]].first();
+				end else begin
+					hart[i] = (hart[i] == lastFrontID) ? '0 : hart[i]+1;
+				end
+			end
+		end
 
-			let eToken = executeQ[hart].first(); executeQ[hart].deq();
+		// Dequeue taken instructions
+		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+			if(taken[i] && executeQ[i].notEmpty()) begin
+				executeQ[i].deq();
+			end
+		end
 
-			let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
-			let mToken   = MemToken{
-							inst   : execInst,
-							pc     : eToken.pc,
-							feID   : eToken.feID,
-							epoch  : eToken.epoch,
-							rawInst: eToken.rawInst};
+		// Instruction Execute
+		for (Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
+			if(isValid(toExec[i])) begin
+				let eToken = fromMaybe(?,toExec[i]);
+				let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
+				let mToken   = MemToken{
+								inst   : execInst,
+								pc     : eToken.pc,
+								feID   : eToken.feID,
+								epoch  : eToken.epoch,
+								rawInst: eToken.rawInst};
 
-			toMem[0] = tagged Valid mToken;
+				toMem[i] = tagged Valid mToken;
+			end
+		end
+
+		if(anyTaken) begin
 			memoryQ.enq(toMem);
-
 		end
 
 	endrule
@@ -576,7 +614,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		perf_old_doWB  [1] <= False;
 		perf_old_wToken[1] <= tagged Invalid;
 
-		FrontID hart = rrfeID;
+		FrontID hart = rrfeID[0];
 		if(valueOf(FrontWidth) != 1) begin
 			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 				if(!executeQ[hart].notEmpty()) begin
