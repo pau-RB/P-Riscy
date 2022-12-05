@@ -248,14 +248,14 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
  
 	//////////// MEMORY ////////////
 
-	Fifo#(1,Vector#(BackWidth, Maybe#(WBToken))) wrbackQ <- mkStageFifo();
+	Fifo#(1,Vector#(BackWidth, Maybe#(WBToken))) commitQ <- mkStageFifo();
 
 	Ehr#(2,Vector#(BackWidth,Maybe#(MemToken))) perf_mem_inst  <- mkEhr(replicate(tagged Invalid));
 
 	rule do_mem;
 
-		Vector#(BackWidth, Maybe#(MemToken)) toMem = memoryQ.first(); memoryQ.deq();
-		Vector#(BackWidth, Maybe#(WBToken))  toWB  = replicate(tagged Invalid);
+		Vector#(BackWidth, Maybe#(MemToken)) toMem    = memoryQ.first(); memoryQ.deq();
+		Vector#(BackWidth, Maybe#(WBToken))  toCommit = replicate(tagged Invalid);
 
 		if(isValid(toMem[0])) begin
 
@@ -265,7 +265,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			                      feID   : mToken.feID,
 			                      epoch  : mToken.epoch,
 			                      rawInst: mToken.rawInst};
-			toWB[0] = tagged Valid wToken;
+			toCommit[0] = tagged Valid wToken;
 
 			// Send LSU req, if the instruction is valid
 			Maybe#(MemOp) memOp = case (mToken.inst.iType)
@@ -297,12 +297,12 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				                      feID   : mToken.feID,
 				                      epoch  : mToken.epoch,
 				                      rawInst: mToken.rawInst};
-				toWB[i] = tagged Valid wToken;
+				toCommit[i] = tagged Valid wToken;
 
 			end
 	    end
 
-		wrbackQ.enq(toWB);
+		commitQ.enq(toCommit);
 
 		if(perf_DEBUG) begin
 			perf_mem_inst[0] <= toMem;
@@ -311,7 +311,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	endrule
 
 
-	//////////// WRBACK ////////////
+	//////////// COMMIT ////////////
 
 	NTTX nttx <- mkNTTX(rf, verif);
 
@@ -319,7 +319,13 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	Vector#(BackWidth, Ehr#(2,Bool))            perf_wb_valid <- replicateM(mkEhr(       False  ));
 	Vector#(BackWidth, Ehr#(2,Bool))            perf_wb_miss  <- replicateM(mkEhr(       False  ));
 
-	rule do_wb;
+	Vector#(FrontWidth, Ehr#(3, Maybe#(void    ))) toWBsbRemove    <- replicateM(mkEhr(tagged Invalid));
+	Vector#(FrontWidth, Ehr#(3, Maybe#(RFwb    ))) toWBrfWriteBack <- replicateM(mkEhr(tagged Invalid));
+	Vector#(FrontWidth, Ehr#(3, Maybe#(void    ))) toWBstDry       <- replicateM(mkEhr(tagged Invalid));
+	Vector#(FrontWidth, Ehr#(3, Maybe#(Epoch   ))) toWBstEpoch     <- replicateM(mkEhr(tagged Invalid));
+	Vector#(FrontWidth, Ehr#(3, Maybe#(Redirect))) toWBstRedirect  <- replicateM(mkEhr(tagged Invalid));
+
+	rule do_commit;
 
 		// Upstream actions
 		Vector#(FrontWidth, Maybe#(void    )) sbRemove    = replicate(tagged Invalid);
@@ -329,13 +335,13 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		Vector#(FrontWidth, Maybe#(Redirect)) stRedirect  = replicate(tagged Invalid);
 
 		// WB
-		Vector#(BackWidth, Maybe#(WBToken)) toWB = wrbackQ.first(); wrbackQ.deq();
+		Vector#(BackWidth, Maybe#(WBToken)) toCommit = commitQ.first(); commitQ.deq();
 		Data numWB = 0;
 
 		// LSU Pipeline WB
-		if(isValid(toWB[0])) begin
+		if(isValid(toCommit[0])) begin
 
-			let wToken = fromMaybe(?, toWB[0]);
+			let wToken = fromMaybe(?, toCommit[0]);
 			let feID   = wToken.feID;
 
 			sbRemove[feID] = tagged Valid(?);
@@ -479,9 +485,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		// GP Pipeline WB
 		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
 
-			if(isValid(toWB[i])) begin
+			if(isValid(toCommit[i])) begin
 
-				let wToken = fromMaybe(?, toWB[i]);
+				let wToken = fromMaybe(?, toCommit[i]);
 				let feID   = wToken.feID;
 
 				sbRemove[feID] = tagged Valid(?);
@@ -525,84 +531,73 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 		end
 
+		// To WB
+		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+			toWBsbRemove   [i][0] <= sbRemove   [i];
+			toWBrfWriteBack[i][0] <= rfWriteBack[i];
+			toWBstDry      [i][0] <= stDry      [i];
+			toWBstEpoch    [i][0] <= stEpoch    [i];
+			toWBstRedirect [i][0] <= stRedirect [i];
+		end
+
 		// Num  commit
 		numCommit[0] <= numCommit[0]+numWB;
 
-		// Send upstream actions
-		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-
-			if(isValid(sbRemove[i])) begin
-				sb[i].remove();
-			end
-
-			rf[i].wr(fromMaybe(RFwb{dst: '0, res: 'hdeadbeef}, rfWriteBack[i]));
-
-			if(isValid(stDry[i])) begin
-				stream[i].backendDry();
-			end
-
-			wbEpoch[i][0] <= fromMaybe(wbEpoch[i][0], stEpoch[i]);
-
-			if(isValid(stRedirect[i])) begin
-				redirectQ[i].enq(fromMaybe(?,stRedirect[i]));
-			end
-
-		end
-
+		// Perf debug
 		if(perf_DEBUG == True) begin
 			for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-				perf_wb_inst[i][0] <= toWB[i];
+				perf_wb_inst[i][0] <= toCommit[i];
 			end
 		end
 
 	endrule
 
-	//////////// OLD WRBACK ////////////
+	//////////// OLD COMMIT ////////////
 
 	Ehr#(2,Maybe#(WBToken)) perf_old_wb_inst  <- mkEhr(tagged Invalid);
 
-	rule do_old_wb;
+	rule do_old_commit;
 
-		let resp <- lsu.oldResp();
-		let wToken     = resp.transId;
-		let commitInst = wToken.inst;
-		let feID       = wToken.feID;
-		Data loadRes   = 'hdeadbeef;
+		LSUResp#(WBToken) resp      <- lsu.oldResp();
+		WBToken           wToken     = resp.transId;
+		ExecInst          commitInst = wToken.inst;
+		FrontID           feID       = wToken.feID;
+		Data              loadRes    = 'hdeadbeef;
 
 		if(commitInst.iType == Ld) begin
 
 			loadRes = resp.data;
-    	    rf[feID].wr(RFwb{dst: fromMaybe(?, commitInst.dst), res: loadRes});
-    	    redirectQ[feID].enq(Redirect{ lock    : False,
-    	    	                          kill    : False,
-			                              redirect: False,
-			                              epoch   : ?,
-			                              nextPc  : ? });
+    	    toWBrfWriteBack[feID][1] <= tagged Valid RFwb{dst: fromMaybe(?, commitInst.dst), res: loadRes};
+    	    toWBstRedirect [feID][1] <= tagged Valid Redirect{ lock    : False,
+    	    	                                               kill    : False,
+			                                                   redirect: False,
+			                                                   epoch   : ?,
+			                                                   nextPc  : ? };
 
     	end else if(commitInst.iType == St) begin
 
-    	    redirectQ[feID].enq(Redirect{ lock    : False,
-    	    	                          kill    : False,
-			                              redirect: False,
-			                              epoch   : ?,
-			                              nextPc  : ? });
+    	    toWBstRedirect[feID][1] <= tagged Valid Redirect{ lock    : False,
+    	    	                                    kill    : False,
+			                                        redirect: False,
+			                                        epoch   : ?,
+			                                        nextPc  : ? };
 
     	end else if(commitInst.iType == Join) begin
 
     		loadRes = resp.data;
 			if(resp.data == '0) begin
-				wbEpoch[feID][0] <= wbEpoch[feID][0]+1;
-				redirectQ[feID].enq(Redirect{ lock    : False,
-    		                                  kill    : True,
-			                                  redirect: False,
-			                                  epoch   : wbEpoch[feID][0]+1,
-			                                  nextPc  : ? });
+				toWBstEpoch   [feID][1] <= tagged Valid (wbEpoch[feID][0]+1);
+				toWBstRedirect[feID][1] <= tagged Valid Redirect{ lock    : False,
+    		                                            kill    : True,
+			                                            redirect: False,
+			                                            epoch   : wbEpoch[feID][0]+1,
+			                                            nextPc  : ? };
 			end else begin
-				redirectQ[feID].enq(Redirect{ lock    : False,
-					                          kill    : False,
-				                              redirect: False,
-				                              epoch   : ?,
-				                              nextPc  : ? });
+				toWBstRedirect[feID][1] <= tagged Valid Redirect{ lock    : False,
+					                                    kill    : False,
+				                                        redirect: False,
+				                                        epoch   : ?,
+				                                        nextPc  : ? };
 			end
 
     	end
@@ -618,6 +613,37 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		end
 
 	endrule
+
+	//////////// WRBACK ////////////
+	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+
+		rule do_wb;
+
+			if(isValid(toWBsbRemove[i][2])) begin
+				sb[i].remove();
+			end
+
+			rf[i].wr(fromMaybe(RFwb{dst: '0, res: 'hdeadbeef}, toWBrfWriteBack[i][2]));
+
+			if(isValid(toWBstDry[i][2])) begin
+				stream[i].backendDry();
+			end
+
+			wbEpoch[i][0] <= fromMaybe(wbEpoch[i][0], toWBstEpoch[i][2]);
+
+			if(isValid(toWBstRedirect[i][2])) begin
+				redirectQ[i].enq(fromMaybe(?,toWBstRedirect[i][2]));
+			end
+
+			toWBsbRemove   [i][2] <= tagged Invalid;
+			toWBrfWriteBack[i][2] <= tagged Invalid;
+			toWBstDry      [i][2] <= tagged Invalid;
+			toWBstEpoch    [i][2] <= tagged Invalid;
+			toWBstRedirect [i][2] <= tagged Invalid;
+
+		endrule
+
+	end
 
 	//////////// PERFORMANCE CNT ////////////
 

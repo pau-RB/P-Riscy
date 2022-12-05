@@ -281,10 +281,11 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 	Vector#(LSUmshrW, Fifo#(LSUmshrD,LSUReq#(transIdType))) mshr      <- replicateM(mkPipelineFifo());
 	Ehr#(2,Maybe#(LSUmshrId))                               flushMSHR <- mkEhr(tagged Invalid);
 
-	Fifo#(1, LSUReq#(transIdType))         inReqQ  <- mkBypassFifo();
-	Fifo#(1, DataCacheToken#(transIdType)) dcReqQ  <- mkStageFifo();
-	Fifo#(LSUmshrW, MemReqToken)           memReqQ <- mkPipelineFifo();
-	Fifo#(1, LSUResp#(transIdType))        respQ   <- mkBypassFifo();
+	Fifo#(1, LSUReq#(transIdType))         inReqQ   <- mkBypassFifo();
+	Fifo#(1, DataCacheToken#(transIdType)) dcReqQ   <- mkStageFifo();
+	Fifo#(LSUmshrW, MemReqToken)           memReqQ  <- mkPipelineFifo();
+	Fifo#(1, LSUResp#(transIdType))        respQ    <- mkBypassFifo();
+	Fifo#(1, LSUResp#(transIdType))        oldRespQ <- mkBypassFifo();
 
     Reg#(Data) hLd   <- mkReg(0);
     Reg#(Data) hSt   <- mkReg(0);
@@ -430,23 +431,20 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 		if(r.isOld) begin
 
 			let d <- dataCache.resp();
-			respQ.enq(LSUResp{ valid  : True,
-			                   isOld  : True,
-			                   data   : fromMaybe(?,d),
-			                   transId: r.transId });
+			oldRespQ.enq(LSUResp{ valid  : True,
+			                      data   : fromMaybe(?,d),
+			                      transId: r.transId });
 
 		end else if(r.isHit) begin
 
 			let d <- dataCache.resp();
 			respQ.enq(LSUResp{ valid  : True,
-			                   isOld  : False,
 			                   data   : fromMaybe(?,d),
 			                   transId: r.transId });
 
 		end else begin
 
 			respQ.enq(LSUResp{ valid  : False,
-			                   isOld  : False,
 			                   data   : ?,
 			                   transId: r.transId });
 
@@ -458,14 +456,14 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 		inReqQ.enq(r);
 	endmethod
 
-	method ActionValue#(LSUResp#(transIdType)) resp if(respQ.first().isOld==False);
+	method ActionValue#(LSUResp#(transIdType)) resp;
 		respQ.deq();
 		return respQ.first();
 	endmethod
 
-	method ActionValue#(LSUResp#(transIdType)) oldResp if(respQ.first().isOld==True);
-		respQ.deq();
-		return respQ.first();
+	method ActionValue#(LSUResp#(transIdType)) oldResp;
+		oldRespQ.deq();
+		return oldRespQ.first();
 	endmethod
 
 	method LSUStat getStat();

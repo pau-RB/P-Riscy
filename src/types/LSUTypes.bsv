@@ -39,7 +39,6 @@ typedef struct{
 
 typedef struct{
 	Bool		valid;
-    Bool        isOld;
     Data		data;
     transIdType	transId;
 } LSUResp#(type transIdType) deriving(Eq, Bits, FShow);
