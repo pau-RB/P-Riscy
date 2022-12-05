@@ -55,7 +55,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	//////////// EXT STATE ////////////
 
 	Reg#(Bool)                             coreStarted    <- mkReg(False);
-	Ehr#(2,Data)                           numCommit      <- mkEhr(0);
+	Ehr#(3,Data)                           numCommit      <- mkEhr(0);
 	Ehr#(2,Data)                           numCycles      <- mkEhr(0);
 	MFifo#(THQ_LEN,BackWidth,CommitReport) commitReportQ  <- mkPipelineMFifo();
 	Fifo#(THQ_LEN,Message)                 messageReportQ <- mkPipelineFifo();
@@ -351,8 +351,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 				end else begin
 
-					numWB = numWB+1;
-
 					Data    loadRes      = '1;
 					Bool    memValid     = True;
 					VerifID childVerifID = '0;
@@ -436,6 +434,10 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 					end
 
+					if (memValid) begin
+						numWB = numWB+1;
+					end
+
 					if (wb_ext_DEBUG == True && memValid) begin
 						commitReportQ.port[0].enq(generateCMR(numCycles[0], verif.getVerifID(feID), childVerifID, wToken, loadRes));
 					end
@@ -488,8 +490,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 					let commitInst = wToken.inst;
 
-					numWB = numWB+1;
-
 					if(isValid(commitInst.dst)) begin
 						rfWriteBack[feID] = tagged Valid RFwb{dst: fromMaybe(?, commitInst.dst), res: commitInst.data};
 					end
@@ -508,6 +508,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 						                                          epoch   : ?,
 						                                          nextPc  : ?};
 					end
+
+					numWB = numWB+1;
 
 					if (wb_ext_DEBUG == True) begin
 						commitReportQ.port[i].enq(generateCMR(numCycles[0], verif.getVerifID(feID), ?, wToken, ?));
@@ -604,6 +606,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
     	end
 
+    	numCommit[1] <= numCommit[1]+1;
+
 		if (wb_ext_DEBUG == True) begin
 			commitReportQ.port[0].enq(generateCMR(numCycles[0], verif.getVerifID(feID), ?, wToken, loadRes));
 		end
@@ -638,7 +642,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 
 			     if(i == 0) $write("%d ", numCycles[1]);
-			else if(i == 1) $write("%d ", numCommit[1]);
+			else if(i == 1) $write("%d ", numCommit[2]);
 			else            $write("           ");
 
 			if(stream[i].currentState() != Empty) $write("|| %d ", verif.getVerifID(fromInteger(i))); else $write("||            ");
