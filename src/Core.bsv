@@ -315,9 +315,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	NTTX nttx <- mkNTTX(rf, verif);
 
-	Ehr#(2,Vector#(BackWidth, Maybe#(WBToken))) perf_wb_inst  <- mkEhr(replicate(tagged Invalid));
-	Vector#(BackWidth, Ehr#(2,Bool))            perf_wb_valid <- replicateM(mkEhr(False        ));
-	Vector#(BackWidth, Ehr#(2,Bool))            perf_wb_miss  <- replicateM(mkEhr(False        ));
+	Vector#(BackWidth, Ehr#(2,Maybe#(WBToken))) perf_wb_inst  <- replicateM(mkEhr(tagged Invalid));
+	Vector#(BackWidth, Ehr#(2,Bool))            perf_wb_valid <- replicateM(mkEhr(       False  ));
+	Vector#(BackWidth, Ehr#(2,Bool))            perf_wb_miss  <- replicateM(mkEhr(       False  ));
 
 	rule do_wb;
 
@@ -550,15 +550,16 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		end
 
 		if(perf_DEBUG == True) begin
-			perf_wb_inst[0] <= toWB;
+			for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+				perf_wb_inst[i][0] <= toWB[i];
+			end
 		end
 
 	endrule
 
 	//////////// OLD WRBACK ////////////
 
-	Ehr#(2,Bool)            perf_old_doWB    <- mkEhr(False);
-	Ehr#(2,Maybe#(WBToken)) perf_old_wToken  <- mkEhr(tagged Invalid);
+	Ehr#(2,Maybe#(WBToken)) perf_old_wb_inst  <- mkEhr(tagged Invalid);
 
 	rule do_old_wb;
 
@@ -613,8 +614,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		end
 
 		if(perf_DEBUG == True) begin
-			perf_old_doWB  [0] <= True;
-			perf_old_wToken[0] <= tagged Valid wToken;
+			perf_old_wb_inst[0] <= tagged Valid wToken;
 		end
 
 	endrule
@@ -629,15 +629,14 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 		perf_exec_inst[1] <= replicate(tagged Invalid);
 		perf_mem_inst [1] <= replicate(tagged Invalid);
-		perf_wb_inst  [1] <= replicate(tagged Invalid);
-
+		
 		for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
+			perf_wb_inst [j][1] <= tagged Invalid;
 			perf_wb_valid[j][1] <= False;
 			perf_wb_miss [j][1] <= False;
 		end
 
-		perf_old_doWB  [1] <= False;
-		perf_old_wToken[1] <= tagged Invalid;
+		perf_old_wb_inst[1] <= tagged Invalid;
 
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 
@@ -676,28 +675,28 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 			Bool wb = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(isValid(perf_wb_inst[1][j]) && (fromMaybe(?,perf_wb_inst[1][j]).feID == fromInteger(i))) begin
-					$write(" W 0x%h | ", fromMaybe(?,perf_wb_inst[1][j]).pc);
+				if(isValid(perf_wb_inst[j][1]) && (fromMaybe(?,perf_wb_inst[j][1]).feID == fromInteger(i))) begin
+					$write(" W 0x%h | ", fromMaybe(?,perf_wb_inst[j][1]).pc);
 					wb = True;
 				end
 			end
 			if(!wb) $write("              | ");
 
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(perf_wb_valid[j][1] && !perf_wb_miss[j][1] && (fromMaybe(?,perf_wb_inst[1][j]).feID == fromInteger(i))) begin
+				if(perf_wb_valid[j][1] && !perf_wb_miss[j][1] && (fromMaybe(?,perf_wb_inst[j][1]).feID == fromInteger(i))) begin
 					$write("%c[1;93m",27);
-					$write("", showInst(fromMaybe(?,perf_wb_inst[1][j]).rawInst));
+					$write("", showInst(fromMaybe(?,perf_wb_inst[j][1]).rawInst));
 					$write("%c[0m",27);
-				end else if(perf_wb_miss[j][1] && (fromMaybe(?,perf_wb_inst[1][j]).feID == fromInteger(i))) begin
+				end else if(perf_wb_miss[j][1] && (fromMaybe(?,perf_wb_inst[j][1]).feID == fromInteger(i))) begin
 					$write("%c[2;97m",27);
-					$write("", showInst(fromMaybe(?,perf_wb_inst[1][j]).rawInst));
+					$write("", showInst(fromMaybe(?,perf_wb_inst[j][1]).rawInst));
 					$write("%c[0m",27);
 				end
 			end
 
-			if(perf_old_doWB[1] && isValid(perf_old_wToken[1]) && (fromMaybe(?,perf_old_wToken[1]).feID == fromInteger(i))) begin
+			if(isValid(perf_old_wb_inst[1]) && (fromMaybe(?,perf_old_wb_inst[1]).feID == fromInteger(i))) begin
 				$write("%c[1;33m",27);
-				$write("", showInst(fromMaybe(?,perf_old_wToken[1]).rawInst));
+				$write("", showInst(fromMaybe(?,perf_old_wb_inst[1]).rawInst));
 				$write("%c[0m",27);
 			end
 
