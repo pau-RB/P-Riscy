@@ -69,7 +69,7 @@ module mkDirectL1I(WideMem mem, L1I#(n) ifc);
 
     endrule
 
-    rule do_MEMRESP;
+    rule do_MEMRESP if(!bramReq.notEmpty());
 
         BramReq#(Bit#(TLog#(n))) req      = memReqQ.first(); memReqQ.deq();
         Bit#(TLog#(n))           transID  = req.transID;
