@@ -175,8 +175,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	Fifo#(1,Vector#(BackWidth, Maybe#(ExecToken))) executeQ <- mkStageFifo();
 
-	Ehr#(2,Vector#(FrontWidth,Maybe#(ExecToken))) perf_exec_inst  <- mkEhr(replicate(tagged Invalid));
-	Ehr#(2,Vector#(FrontWidth,Bool             )) perf_exec_taken <- mkEhr(replicate(False));
+	Ehr#(2,Vector#(FrontWidth,Maybe#(ExecToken))) perf_sel_inst  <- mkEhr(replicate(tagged Invalid));
+	Ehr#(2,Vector#(FrontWidth,Bool             )) perf_sel_taken <- mkEhr(replicate(False));
 
 	rule do_select if(coreStarted);
 
@@ -223,8 +223,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		end
 
 		if(perf_DEBUG) begin
-			perf_exec_taken[0] <= taken;
-			perf_exec_inst [0] <= inst;		
+			perf_sel_taken[0] <= taken;
+			perf_sel_inst [0] <= inst;
 		end
 
 	endrule
@@ -233,6 +233,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	//////////// EXECUTE ////////////
 
 	Fifo#(1,Vector#(BackWidth,Maybe#(MemToken))) memoryQ <- mkStageFifo();
+
+	Ehr#(2,Vector#(BackWidth,Maybe#(ExecToken))) perf_exec_inst  <- mkEhr(replicate(tagged Invalid));
 
 	rule do_execute;
 
@@ -256,6 +258,10 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		end
 
 		memoryQ.enq(toMem);
+
+		if(perf_DEBUG) begin
+			perf_exec_inst[0] <= toExec;
+		end
 
 	endrule
 
@@ -559,7 +565,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 		// Perf debug
 		if(perf_DEBUG == True) begin
-			for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+			for(Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
 				perf_wb_inst[i][0] <= toCommit[i];
 			end
 		end
@@ -667,6 +673,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	rule do_perf_DEBUG if(perf_DEBUG == True && coreStarted);
 
+		perf_sel_inst [1] <= replicate(tagged Invalid);
 		perf_exec_inst[1] <= replicate(tagged Invalid);
 		perf_mem_inst [1] <= replicate(tagged Invalid);
 		
@@ -700,9 +707,18 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			if(stream   [i].notEmpty) $write(" D 0x%h |", stream   [i].firstPC() ); else $write(" D            |");
 			if(regfetchQ[i].notEmpty) $write(" R 0x%h |", regfetchQ[i].first().pc); else $write(" R            |");
 			
-			if(perf_exec_taken[1][i]) $write(" E 0x%h |", fromMaybe(?,perf_exec_inst[1][i]).pc);
-			else if(isValid(perf_exec_inst[1][i])) $write("%c[2;97m E 0x%h %c[0;0m|", 27, fromMaybe(?,perf_exec_inst[1][i]).pc, 27);
-			else $write(" E            |");
+			if(perf_sel_taken[1][i]) $write(" S 0x%h |", fromMaybe(?,perf_sel_inst[1][i]).pc);
+			else if(isValid(perf_sel_inst[1][i])) $write("%c[2;97m S 0x%h %c[0;0m|", 27, fromMaybe(?,perf_sel_inst[1][i]).pc, 27);
+			else $write(" S            |");
+
+			Bool exec = False;
+			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
+				if(isValid(perf_exec_inst[1][j]) && (fromMaybe(?,perf_exec_inst[1][j]).feID == fromInteger(i))) begin
+					$write(" E 0x%h |",  fromMaybe(?,perf_exec_inst[1][j]).pc);
+					exec = True;
+				end
+			end
+			if(!exec) $write("              |");
 
 			Bool mem = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
@@ -743,7 +759,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			$display("");
 		end
 
-		$write("------------------------------------------------------------------------------------------------------------------------------\n");
+		$write("---------------------------------------------------------------------------------------------------------------------------------------------\n");
 
 	endrule
 
