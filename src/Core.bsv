@@ -115,7 +115,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	Vector#(FrontWidth, RFile             ) rf        <- replicateM(mkBypassRFile       );
 	Vector#(FrontWidth, Scoreboard#(8)    ) sb        <- replicateM(mkPipelineScoreboard);
-	Vector#(FrontWidth, Fifo#(1,ExecToken)) executeQ  <- replicateM(mkStageFifo()       );
+	Vector#(FrontWidth, Fifo#(1,ExecToken)) selectQ   <- replicateM(mkStageFifo()       );
 
 	Vector#(FrontWidth, Fifo#(1,Redirect) ) redirectQ <- replicateM(mkBypassFifo());
 	Vector#(FrontWidth, Ehr#(2,Bool)      ) rfLock    <- replicateM(mkEhr(False));
@@ -146,7 +146,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 				sb[i].insert(decInst.dst);
 				regfetchQ[i].deq();
-				executeQ[i].enq(eToken);
+				selectQ[i].enq(eToken);
 
 				if(decInst.iType == Br || decInst.iType == J || decInst.iType == Jr) begin
 					rfLock[i][1] <= True;
@@ -170,26 +170,26 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	end
 
-	//////////// EXECUTE ////////////
 
-	Fifo#(1,Vector#(BackWidth,Maybe#(MemToken))) memoryQ <- mkStageFifo();
+	//////////// SELECT ////////////
+
+	Fifo#(1,Vector#(BackWidth, Maybe#(ExecToken))) executeQ <- mkStageFifo();
 
 	Ehr#(2,Vector#(FrontWidth,Maybe#(ExecToken))) perf_exec_inst  <- mkEhr(replicate(tagged Invalid));
 	Ehr#(2,Vector#(FrontWidth,Bool             )) perf_exec_taken <- mkEhr(replicate(False));
 
-	rule do_execute if(coreStarted);
+	rule do_select if(coreStarted);
 
 		Vector#(FrontWidth,Maybe#(ExecToken)) inst  = replicate(tagged Invalid);
 		Vector#(FrontWidth,Bool             ) taken = replicate(False);
 		Bool anyTaken = False;
 
 		Vector#(BackWidth, Maybe#(ExecToken)) toExec = replicate(tagged Invalid);
-		Vector#(BackWidth, Maybe#(MemToken) ) toMem  = replicate(tagged Invalid);
 
 		// Candidate instructions
 		for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
-			if(executeQ[j].notEmpty()) begin
-				inst[j] = tagged Valid executeQ[j].first();
+			if(selectQ[j].notEmpty()) begin
+				inst[j] = tagged Valid selectQ[j].first();
 			end
 		end
 
@@ -214,9 +214,30 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		// Dequeue taken instructions
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 			if(taken[i]) begin
-				executeQ[i].deq();
+				selectQ[i].deq();
 			end
 		end
+
+		if(anyTaken) begin
+			executeQ.enq(toExec);
+		end
+
+		if(perf_DEBUG) begin
+			perf_exec_taken[0] <= taken;
+			perf_exec_inst [0] <= inst;		
+		end
+
+	endrule
+
+
+	//////////// EXECUTE ////////////
+
+	Fifo#(1,Vector#(BackWidth,Maybe#(MemToken))) memoryQ <- mkStageFifo();
+
+	rule do_execute;
+
+		Vector#(BackWidth, Maybe#(ExecToken)) toExec = executeQ.first(); executeQ.deq();
+		Vector#(BackWidth, Maybe#(MemToken) ) toMem  = replicate(tagged Invalid);
 
 		// Instruction Execute
 		for (Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
@@ -234,14 +255,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			end
 		end
 
-		if(anyTaken) begin
-			memoryQ.enq(toMem);
-		end
-
-		if(perf_DEBUG) begin
-			perf_exec_taken[0] <= taken;
-			perf_exec_inst [0] <= inst;		
-		end
+		memoryQ.enq(toMem);
 
 	endrule
 
