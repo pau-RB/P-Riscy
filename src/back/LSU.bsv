@@ -424,7 +424,8 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 	endrule
 
-	rule do_RESP;
+	rule do_RESP if(respQ.notFull() && oldRespQ.notFull() || !wb_ext_DEBUG);
+	// If wb_ext_DEBUG (verification), we must preserve the order
 
 		let r = dcReqQ.first(); dcReqQ.deq();
 
