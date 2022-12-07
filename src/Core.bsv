@@ -18,6 +18,9 @@ import Ehr::*;
 import WideMemSplit::*;
 import LSU::*;
 
+// Arbiter
+import SyncArbiter::*;
+
 // front
 import Decoder::*;
 import Stream::*;
@@ -35,6 +38,7 @@ function Bool isMemOp(ExecToken inst);
 	        inst.inst.iType == Fork || inst.inst.iType == Forkr || 
 	        inst.inst.iType == Join || inst.inst.iType == Ghost   );
 endfunction
+
 
 interface Core;
 
@@ -70,6 +74,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	Vector#(FrontWidth, Ehr#(2,Epoch)) wbEpoch <- replicateM(mkEhr('0));
 
+	SyncArbiter#(FrontWidth, BackWidth, 1, 1, ExecToken) arbiter <- mkSyncArbiter(coreStarted, isMemOp);
 
 	//////////// FETCH ////////////
 
@@ -115,7 +120,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	Vector#(FrontWidth, RFile             ) rf        <- replicateM(mkBypassRFile       );
 	Vector#(FrontWidth, Scoreboard#(8)    ) sb        <- replicateM(mkPipelineScoreboard);
-	Vector#(FrontWidth, Fifo#(1,ExecToken)) selectQ   <- replicateM(mkStageFifo()       );
 
 	Vector#(FrontWidth, Fifo#(1,Redirect) ) redirectQ <- replicateM(mkBypassFifo());
 	Vector#(FrontWidth, Ehr#(2,Bool)      ) rfLock    <- replicateM(mkEhr(False));
@@ -146,7 +150,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 				sb[i].insert(decInst.dst);
 				regfetchQ[i].deq();
-				selectQ[i].enq(eToken);
+				arbiter.eport[i].enq(eToken);
 
 				if(decInst.iType == Br || decInst.iType == J || decInst.iType == Jr) begin
 					rfLock[i][1] <= True;
@@ -170,69 +174,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	end
 
-
-	//////////// SELECT ////////////
-
-	Fifo#(1,Vector#(BackWidth, Maybe#(ExecToken))) executeQ <- mkStageFifo();
-
-	Reg#(FrontID) hRoundRobin <- mkReg('0);
-
-	Ehr#(2,Vector#(FrontWidth,Maybe#(ExecToken))) perf_sel_inst  <- mkEhr(replicate(tagged Invalid));
-	Ehr#(2,Vector#(FrontWidth,Bool             )) perf_sel_taken <- mkEhr(replicate(False));
-
-	rule do_select if(coreStarted);
-
-		Vector#(FrontWidth,Maybe#(ExecToken)) inst     = replicate(tagged Invalid);
-		Vector#(FrontWidth,Bool             ) taken    = replicate(False);
-		Bool                                  takenAny = False;
-
-		Vector#(BackWidth, Maybe#(ExecToken)) toExec = replicate(tagged Invalid);
-
-		// Candidate instructions
-		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(selectQ[i].notEmpty()) begin
-				inst[i] = tagged Valid selectQ[i].first();
-			end
-		end
-
-		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			FrontID idx = hRoundRobin+fromInteger(i);
-			// GP Pipeline
-			for (Integer j = 1; j < valueOf(BackWidth); j=j+1) begin
-				if(isValid(inst[idx]) && !taken[idx] && !isValid(toExec[j]) && !isMemOp(fromMaybe(?,inst[idx]))) begin
-					toExec[j]  = inst[idx];
-					taken[idx] = True;
-				end
-			end
-			// Mem Pipeline
-			if(isValid(inst[idx]) && !taken[idx] && !isValid(toExec[0])) begin
-				toExec[0]  = inst[idx];
-				taken[idx] = True;
-			end
-		end
-
-		// Dequeue taken instructions
-		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(taken[i]) begin
-				takenAny = True;
-				selectQ[i].deq();
-			end
-		end
-
-		hRoundRobin <= fromMaybe(ExecToken{feID:hRoundRobin},toExec[0]).feID+1;
-
-		if(takenAny) begin
-			executeQ.enq(toExec);
-		end
-
-		if(perf_DEBUG) begin
-			perf_sel_taken[0] <= taken;
-			perf_sel_inst [0] <= inst;
-		end
-
-	endrule
-
-
 	//////////// EXECUTE ////////////
 
 	Fifo#(1,Vector#(BackWidth,Maybe#(MemToken))) memoryQ <- mkStageFifo();
@@ -241,7 +182,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	rule do_execute;
 
-		Vector#(BackWidth, Maybe#(ExecToken)) toExec = executeQ.first(); executeQ.deq();
+		Vector#(BackWidth, Maybe#(ExecToken)) toExec = arbiter.dport.first(); arbiter.dport.deq();
 		Vector#(BackWidth, Maybe#(MemToken) ) toMem  = replicate(tagged Invalid);
 
 		// Instruction Execute
@@ -676,7 +617,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	rule do_perf_DEBUG if(perf_DEBUG == True && coreStarted);
 
-		perf_sel_inst [1] <= replicate(tagged Invalid);
+		Vector#(FrontWidth,Maybe#(ExecToken)) perf_sel_inst  = arbiter.perf_get_inst ();
+		Vector#(FrontWidth,Bool)              perf_sel_taken = arbiter.perf_get_taken();
+
 		perf_exec_inst[1] <= replicate(tagged Invalid);
 		perf_mem_inst [1] <= replicate(tagged Invalid);
 		
@@ -710,8 +653,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			if(stream   [i].notEmpty) $write(" D 0x%h |", stream   [i].firstPC() ); else $write(" D            |");
 			if(regfetchQ[i].notEmpty) $write(" R 0x%h |", regfetchQ[i].first().pc); else $write(" R            |");
 			
-			if(perf_sel_taken[1][i]) $write(" S 0x%h |", fromMaybe(?,perf_sel_inst[1][i]).pc);
-			else if(isValid(perf_sel_inst[1][i])) $write("%c[2;97m S 0x%h %c[0;0m|", 27, fromMaybe(?,perf_sel_inst[1][i]).pc, 27);
+			if(perf_sel_taken[i]) $write(" S 0x%h |", fromMaybe(?,perf_sel_inst[i]).pc);
+			else if(isValid(perf_sel_inst[i])) $write("%c[2;97m S 0x%h %c[0;0m|", 27, fromMaybe(?,perf_sel_inst[i]).pc, 27);
 			else $write(" S            |");
 
 			Bool exec = False;

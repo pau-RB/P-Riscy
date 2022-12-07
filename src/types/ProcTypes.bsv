@@ -187,7 +187,7 @@ typedef struct {
 	FrontID     feID;
 	Epoch       epoch;
 	Data        rawInst;
-} ExecToken deriving (Bits, Eq);
+} ExecToken deriving (Bits, Eq, FShow);
 
 typedef struct {
 	ExecInst    inst;
