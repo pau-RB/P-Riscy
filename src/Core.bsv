@@ -175,50 +175,53 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	Fifo#(1,Vector#(BackWidth, Maybe#(ExecToken))) executeQ <- mkStageFifo();
 
+	Reg#(FrontID) hRoundRobin <- mkReg('0);
+
 	Ehr#(2,Vector#(FrontWidth,Maybe#(ExecToken))) perf_sel_inst  <- mkEhr(replicate(tagged Invalid));
 	Ehr#(2,Vector#(FrontWidth,Bool             )) perf_sel_taken <- mkEhr(replicate(False));
 
 	rule do_select if(coreStarted);
 
-		Vector#(FrontWidth,Maybe#(ExecToken)) inst  = replicate(tagged Invalid);
-		Vector#(FrontWidth,Bool             ) taken = replicate(False);
-		Bool anyTaken = False;
+		Vector#(FrontWidth,Maybe#(ExecToken)) inst     = replicate(tagged Invalid);
+		Vector#(FrontWidth,Bool             ) taken    = replicate(False);
+		Bool                                  takenAny = False;
 
 		Vector#(BackWidth, Maybe#(ExecToken)) toExec = replicate(tagged Invalid);
 
 		// Candidate instructions
-		for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
-			if(selectQ[j].notEmpty()) begin
-				inst[j] = tagged Valid selectQ[j].first();
+		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+			if(selectQ[i].notEmpty()) begin
+				inst[i] = tagged Valid selectQ[i].first();
 			end
 		end
 
-		// GP Pipeline hart
-		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
-			for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
-				if(isValid(inst[j]) && !isMemOp(fromMaybe(?,inst[j])) && !taken[j] && !isValid(toExec[i])) begin
-					toExec[i] = tagged Valid fromMaybe(?,inst[j]);
-					taken [j] = True; anyTaken = True;
+		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+			FrontID idx = hRoundRobin+fromInteger(i);
+			// GP Pipeline
+			for (Integer j = 1; j < valueOf(BackWidth); j=j+1) begin
+				if(isValid(inst[idx]) && !taken[idx] && !isValid(toExec[j]) && !isMemOp(fromMaybe(?,inst[idx]))) begin
+					toExec[j]  = inst[idx];
+					taken[idx] = True;
 				end
 			end
-		end
-
-		// Mem Pipeline hart
-		for (Integer j = 0; j < valueOf(FrontWidth); j=j+1) begin
-			if(isValid(inst[j]) && !taken[j] && !isValid(toExec[0])) begin
-				toExec[0] = tagged Valid fromMaybe(?,inst[j]);
-				taken [j] = True; anyTaken = True;
+			// Mem Pipeline
+			if(isValid(inst[idx]) && !taken[idx] && !isValid(toExec[0])) begin
+				toExec[0]  = inst[idx];
+				taken[idx] = True;
 			end
 		end
 
 		// Dequeue taken instructions
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 			if(taken[i]) begin
+				takenAny = True;
 				selectQ[i].deq();
 			end
 		end
 
-		if(anyTaken) begin
+		hRoundRobin <= fromMaybe(ExecToken{feID:hRoundRobin},toExec[0]).feID+1;
+
+		if(takenAny) begin
 			executeQ.enq(toExec);
 		end
 
