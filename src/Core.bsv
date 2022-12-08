@@ -32,13 +32,16 @@ import RFile::*;
 import Execution::*;
 import NTTX::*;
 
-
-function Bool isMemOp(ExecToken inst);
-	return (inst.inst.iType == Ld   || inst.inst.iType == St    ||
-	        inst.inst.iType == Fork || inst.inst.iType == Forkr || 
-	        inst.inst.iType == Join || inst.inst.iType == Ghost   );
+function Bool isMemInst(ExecToken inst);
+	return True;
 endfunction
 
+function Bool isArithInst(ExecToken inst);
+	return (inst.inst.iType == Unsupported || inst.inst.iType == Alu   ||
+	        inst.inst.iType == Mul         || inst.inst.iType == J     ||
+	        inst.inst.iType == Jr          || inst.inst.iType == Br    ||
+	        inst.inst.iType == Auipc );
+endfunction
 
 interface Core;
 
@@ -74,7 +77,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	Vector#(FrontWidth, Ehr#(2,Epoch)) wbEpoch <- replicateM(mkEhr('0));
 
-	SyncArbiter#(FrontWidth, BackWidth, 1, 1, ExecToken) arbiter <- mkSyncArbiter(coreStarted, isMemOp);
+	Vector#(BackWidth, function Bool accept(ExecToken inst)) filter = replicate(isArithInst); filter[0] = isMemInst;
+	SyncArbiter#(FrontWidth, BackWidth, ExecToken) arbiter <- mkSyncArbiter(coreStarted, filter);
 
 	//////////// FETCH ////////////
 
