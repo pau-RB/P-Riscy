@@ -30,13 +30,25 @@ endinterface
 
 interface BackEnd;
 
+	// Execute
 	method Action execute(Vector#(BackWidth, Maybe#(ExecToken)) inst);
 
+	// To upstream
+	interface Vector#(FrontWidth, Writeback) hart;
+
+	// CMR
 	method ActionValue#(CommitReport) getCMR();
 	method ActionValue#(Message)      getMSG();
 	method ActionValue#(MemStat)      getMSR();
 
-	interface Vector#(FrontWidth, Writeback) hart;
+	// Performance Debug
+	method Vector#(BackWidth,Maybe#(ExecToken)) get_exec_inst  ;
+	method Vector#(BackWidth,Maybe#(MemToken) ) get_mem_inst   ;
+	method Vector#(BackWidth,Maybe#(WBToken)  ) get_wb_inst    ;
+	method Vector#(BackWidth,Bool             ) get_wb_valid   ;
+	method Vector#(BackWidth,Bool             ) get_wb_miss    ;
+
+	method Maybe#(WBToken)                      get_old_wb_inst;
 
 endinterface
 
@@ -72,10 +84,10 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 
 	// Perf debug
 	Ehr#(2,Vector#(BackWidth,Maybe#(ExecToken)))   perf_exec_inst  <- mkEhr(replicate(tagged Invalid));
-	Ehr#(2,Vector#(BackWidth,Maybe#(MemToken)))    perf_mem_inst   <- mkEhr(replicate(tagged Invalid));
-	Vector#(BackWidth, Ehr#(2,Maybe#(WBToken)))    perf_wb_inst    <- replicateM(mkEhr(tagged Invalid));
-	Vector#(BackWidth, Ehr#(2,Bool))               perf_wb_valid   <- replicateM(mkEhr(       False  ));
-	Vector#(BackWidth, Ehr#(2,Bool))               perf_wb_miss    <- replicateM(mkEhr(       False  ));
+	Ehr#(2,Vector#(BackWidth,Maybe#(MemToken) ))   perf_mem_inst   <- mkEhr(replicate(tagged Invalid));
+	Ehr#(2,Vector#(BackWidth,Maybe#(WBToken)  ))   perf_wb_inst    <- mkEhr(replicate(tagged Invalid));
+	Ehr#(2,Vector#(BackWidth,Bool             ))   perf_wb_valid   <- mkEhr(replicate(       False  ));
+	Ehr#(2,Vector#(BackWidth,Bool             ))   perf_wb_miss    <- mkEhr(replicate(       False  ));
 
 	// Stats
 	Ehr#(3,Data)                                   numCommit       <- mkEhr(0);
@@ -177,14 +189,16 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 	rule do_commit;
 
 		// Upstream actions
-		Vector#(FrontWidth, Maybe#(void    )) sbRemove    = replicate(tagged Invalid);
-		Vector#(FrontWidth, Maybe#(RFwb    )) rfWriteBack = replicate(tagged Invalid);
-		Vector#(FrontWidth, Maybe#(void    )) stDry       = replicate(tagged Invalid);
-		Vector#(FrontWidth, Maybe#(Epoch   )) stEpoch     = replicate(tagged Invalid);
-		Vector#(FrontWidth, Maybe#(Redirect)) stRedirect  = replicate(tagged Invalid);
+		Vector#(FrontWidth, Maybe#(void    )) sbRemove     = replicate(tagged Invalid);
+		Vector#(FrontWidth, Maybe#(RFwb    )) rfWriteBack  = replicate(tagged Invalid);
+		Vector#(FrontWidth, Maybe#(void    )) stDry        = replicate(tagged Invalid);
+		Vector#(FrontWidth, Maybe#(Epoch   )) stEpoch      = replicate(tagged Invalid);
+		Vector#(FrontWidth, Maybe#(Redirect)) stRedirect   = replicate(tagged Invalid);
 
 		// WB
-		Vector#(BackWidth, Maybe#(WBToken)) toCommit = commitQ.first(); commitQ.deq();
+		Vector#(BackWidth, Maybe#(WBToken))   toCommit     = commitQ.first(); commitQ.deq();
+		Vector#(BackWidth,Bool            )   commit_valid = replicate(False);
+		Vector#(BackWidth,Bool            )   commit_miss  = replicate(False);
 		Data numWB = 0;
 
 		// LSU Pipeline WB
@@ -321,8 +335,8 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 					end
 
 					if(perf_DEBUG == True) begin
-						perf_wb_valid[0][0] <= True;
-						perf_wb_miss [0][0] <= !memValid;
+						commit_valid[0] = True;
+						commit_miss [0] = !memValid;
 					end
 
 				end
@@ -371,7 +385,7 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 					end
 
 					if(perf_DEBUG == True) begin
-						perf_wb_valid[i][0] <= True;
+						commit_valid[i] = True;
 					end
 
 				end
@@ -394,9 +408,9 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 
 		// Perf debug
 		if(perf_DEBUG == True) begin
-			for(Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
-				perf_wb_inst[i][0] <= toCommit[i];
-			end
+			perf_wb_inst [0] <= toCommit;
+			perf_wb_valid[0] <= commit_valid;
+			perf_wb_miss [0] <= commit_miss;
 		end
 
 	endrule
@@ -497,6 +511,20 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 	end
 
 
+	//////////// PERF DEBUG ////////////
+
+	rule do_perf_DEBUG;
+
+		perf_exec_inst  [1] <= replicate(tagged Invalid);
+		perf_mem_inst   [1] <= replicate(tagged Invalid);
+		perf_wb_inst    [1] <= replicate(tagged Invalid);
+		perf_wb_valid   [1] <= replicate(       False  );
+		perf_wb_miss    [1] <= replicate(       False  );
+		perf_old_wb_inst[1] <= tagged Invalid;
+
+	endrule
+
+
 	//////////// INTERFACE ////////////
 
 	Vector#(FrontWidth, Writeback) wbIfc = newVector;
@@ -517,12 +545,15 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 			endinterface);
 	end
 
+	// Execute
 	method Action execute(Vector#(BackWidth, Maybe#(ExecToken)) inst);
 		executeQ.enq(inst);
 	endmethod
 
+	// To upstream
 	interface hart = wbIfc;
 
+	// CMR
 	method ActionValue#(CommitReport) getCMR();
 		let latest = commitReportQ.first(); commitReportQ.deq();
 		return latest;
@@ -536,6 +567,31 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 	method ActionValue#(MemStat) getMSR();
 		let latest = memStatReportQ.first(); memStatReportQ.deq();
 		return latest;
+	endmethod
+
+	// Performance Debug
+	method Vector#(BackWidth,Maybe#(ExecToken)) get_exec_inst();
+		return perf_exec_inst[1];
+	endmethod
+
+	method Vector#(BackWidth,Maybe#(MemToken)) get_mem_inst();
+		return perf_mem_inst[1];
+	endmethod
+
+	method Vector#(BackWidth,Maybe#(WBToken)) get_wb_inst();
+		return perf_wb_inst[1];
+	endmethod
+
+	method Vector#(BackWidth,Bool) get_wb_valid();
+		return perf_wb_valid[1];
+	endmethod
+
+	method Vector#(BackWidth,Bool) get_wb_miss();
+		return perf_wb_miss[1];
+	endmethod
+
+	method Maybe#(WBToken) get_old_wb_inst();
+		return perf_old_wb_inst[1];
 	endmethod
 
 endmodule

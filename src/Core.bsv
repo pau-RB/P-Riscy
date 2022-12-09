@@ -147,20 +147,17 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	rule do_perf_DEBUG if(perf_DEBUG == True && coreStarted);
 
-		Vector#(FrontWidth,Maybe#(ExecToken)) perf_sel_inst  = arbiter.perf_get_inst ();
-		Vector#(FrontWidth,Bool)              perf_sel_taken = arbiter.perf_get_taken();
-/*
-		perf_exec_inst[1] <= replicate(tagged Invalid);
-		perf_mem_inst [1] <= replicate(tagged Invalid);
-		
-		for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-			perf_wb_inst [j][1] <= tagged Invalid;
-			perf_wb_valid[j][1] <= False;
-			perf_wb_miss [j][1] <= False;
-		end
+		Vector#(FrontWidth,Maybe#(ExecToken)) perf_sel_inst    = arbiter.perf_get_inst ();
+		Vector#(FrontWidth,Bool)              perf_sel_taken   = arbiter.perf_get_taken();
 
-		perf_old_wb_inst[1] <= tagged Invalid;
-*/
+		Vector#(BackWidth, Maybe#(ExecToken)) perf_exec_inst   = backEnd.get_exec_inst  ();
+		Vector#(BackWidth, Maybe#(MemToken) ) perf_mem_inst    = backEnd.get_mem_inst   ();
+		Vector#(BackWidth, Maybe#(WBToken)  ) perf_wb_inst     = backEnd.get_wb_inst    ();
+		Vector#(BackWidth, Bool             ) perf_wb_valid    = backEnd.get_wb_valid   ();
+		Vector#(BackWidth, Bool             ) perf_wb_miss     = backEnd.get_wb_miss    ();
+
+		Maybe#(WBToken)                       perf_old_wb_inst = backEnd.get_old_wb_inst();
+
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 
 			     if(i == 0) $write("%d ", numCycles[1]);
@@ -196,13 +193,13 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			if(perf_sel_taken[i]) $write(" S 0x%h |", fromMaybe(?,perf_sel_inst[i]).pc);
 			else if(isValid(perf_sel_inst[i])) $write("%c[2;97m S 0x%h %c[0;0m|", 27, fromMaybe(?,perf_sel_inst[i]).pc, 27);
 			else $write(" S            |");
-/*
+
 			//////////// EXECUTE ////////////
 
 			Bool exec = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(isValid(perf_exec_inst[1][j]) && (fromMaybe(?,perf_exec_inst[1][j]).feID == fromInteger(i))) begin
-					$write(" E 0x%h |",  fromMaybe(?,perf_exec_inst[1][j]).pc);
+				if(isValid(perf_exec_inst[j]) && (fromMaybe(?,perf_exec_inst[j]).feID == fromInteger(i))) begin
+					$write(" E 0x%h |",  fromMaybe(?,perf_exec_inst[j]).pc);
 					exec = True;
 				end
 			end
@@ -212,8 +209,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 			Bool mem = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(isValid(perf_mem_inst[1][j]) && (fromMaybe(?,perf_mem_inst[1][j]).feID == fromInteger(i))) begin
-					$write(" M 0x%h |",  fromMaybe(?,perf_mem_inst[1][j]).pc);
+				if(isValid(perf_mem_inst[j]) && (fromMaybe(?,perf_mem_inst[j]).feID == fromInteger(i))) begin
+					$write(" M 0x%h |",  fromMaybe(?,perf_mem_inst[j]).pc);
 					mem = True;
 				end
 			end
@@ -223,8 +220,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 			Bool wb = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(isValid(perf_wb_inst[j][1]) && (fromMaybe(?,perf_wb_inst[j][1]).feID == fromInteger(i))) begin
-					$write(" W 0x%h | ", fromMaybe(?,perf_wb_inst[j][1]).pc);
+				if(isValid(perf_wb_inst[j]) && (fromMaybe(?,perf_wb_inst[j]).feID == fromInteger(i))) begin
+					$write(" W 0x%h | ", fromMaybe(?,perf_wb_inst[j]).pc);
 					wb = True;
 				end
 			end
@@ -233,23 +230,23 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			//////////// COMMIT ////////////
 
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(perf_wb_valid[j][1] && !perf_wb_miss[j][1] && (fromMaybe(?,perf_wb_inst[j][1]).feID == fromInteger(i))) begin
+				if(perf_wb_valid[j] && !perf_wb_miss[j] && (fromMaybe(?,perf_wb_inst[j]).feID == fromInteger(i))) begin
 					$write("%c[1;93m",27);
-					$write("", showInst(fromMaybe(?,perf_wb_inst[j][1]).rawInst));
+					$write("", showInst(fromMaybe(?,perf_wb_inst[j]).rawInst));
 					$write("%c[0m",27);
-				end else if(perf_wb_miss[j][1] && (fromMaybe(?,perf_wb_inst[j][1]).feID == fromInteger(i))) begin
+				end else if(perf_wb_miss[j] && (fromMaybe(?,perf_wb_inst[j]).feID == fromInteger(i))) begin
 					$write("%c[2;97m",27);
-					$write("", showInst(fromMaybe(?,perf_wb_inst[j][1]).rawInst));
+					$write("", showInst(fromMaybe(?,perf_wb_inst[j]).rawInst));
 					$write("%c[0m",27);
 				end
 			end
 
-			if(isValid(perf_old_wb_inst[1]) && (fromMaybe(?,perf_old_wb_inst[1]).feID == fromInteger(i))) begin
+			if(isValid(perf_old_wb_inst) && (fromMaybe(?,perf_old_wb_inst).feID == fromInteger(i))) begin
 				$write("%c[1;33m",27);
-				$write("", showInst(fromMaybe(?,perf_old_wb_inst[1]).rawInst));
+				$write("", showInst(fromMaybe(?,perf_old_wb_inst).rawInst));
 				$write("%c[0m",27);
 			end
-			*/
+
 			$display("");
 
 		end
@@ -262,7 +259,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	//////////// INTERFACE ////////////
 
 	method Action start (FrontID feID, ContToken token);
-
 		frontEnd.hart[feID].start(token.pc );
 		regFile      [feID].setL (token.rfL);
 		regFile      [feID].setH (token.rfH);
@@ -270,7 +266,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		verif.setVerifID(feID, token.verifID);
 
 		coreStarted <= True;
-
 	endmethod
 
 	method Action evict(FrontID feID);
@@ -305,4 +300,4 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		return latest;
 	endmethod
 
-endmodule // mkBackend
+endmodule
