@@ -76,17 +76,23 @@ interface FrontEnd;
 
 endinterface
 
-module mkFrontEnd (WideMem mem, Vector#(FrontWidth, RFile) regFile, Vector#(FrontWidth, Scoreboard#(8)) scoreboard,
-	                      Vector#(FrontWidth, Epoch) wbEpoch, Bool coreStarted, FrontEnd ifc);
+module mkFrontEnd (WideMem                             mem        ,
+	               Vector#(FrontWidth, RFile)          regFile    ,
+	               Vector#(FrontWidth, Scoreboard#(8)) scoreboard ,
+	               Vector#(FrontWidth, Epoch)          wbEpoch    ,
+	               Bool                                coreStarted,
+	               FrontEnd ifc);
 
+	// Data cache
 	L1I#(FrontWidth) l1I <- mkDirectL1I(mem);
 
+	// Stages
 	Vector#(FrontWidth, Fifo#(1,RFToken)  ) regfetchQ  <- replicateM(mkStageFifo() );
 	Vector#(FrontWidth, Fifo#(1,ExecToken)) arbiterQ   <- replicateM(mkBypassFifo());
 	Vector#(FrontWidth, Fifo#(1,Redirect) ) redirectQ  <- replicateM(mkBypassFifo());
-
 	Vector#(FrontWidth, Ehr#(2,Bool)      ) rfLock     <- replicateM(mkEhr(False));
 
+	// Stats
 	Reg#(Data) numEmpty <- mkReg(0);
 
 	//////////// FETCH ////////////
