@@ -6,6 +6,7 @@ import ProcTypes::*;
 import CMRTypes::*;
 import Memory::*;
 import WideMemBRAM::*;
+import WideMemSplit::*;
 import WideMemDelay::*;
 import Fifo::*;
 import Config::*;
@@ -29,14 +30,17 @@ endinterface
 
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
-   WideMem                              mainBRAM     <- mkWideMemBRAM();
-   DelayedWideMem#(TSub#(RAMLatency,2)) mainMem      <- mkWideMemDelay(mainBRAM);
-   VerifMaster                          verif        <- mkVerifMaster();
-   Core                                 dut          <- mkCore6S(mainMem.delayed, verif);
-   Reg#(Bool)                           memInit      <- mkReg(False);
-   Fifo#(MTQ_LEN, ContToken)            mainTokenQ   <- mkCFFifo();
-   Reg#(Data)                           commitTarget <- mkReg(80);
-   Reg#(FrontID)                        evictTarget  <- mkReg(0);
+   WideMem                                       mainBRAM     <- mkWideMemBRAM();
+   DelayedWideMem#(TSub#(RAMLatency,2))          mainMem      <- mkWideMemDelay(mainBRAM);
+   SplitWideMem#(FrontWidth,TMul#(2,FrontWidth)) mainSplit    <- mkSplitWideMem(True, mainMem.delayed);
+
+   VerifMaster                                   verif        <- mkVerifMaster();
+   Core                                          dut          <- mkCore6S(mainSplit.port[0], mainSplit.port[1], verif);
+
+   Reg#(Bool)                                    memInit      <- mkReg(False);
+   Fifo#(MTQ_LEN, ContToken)                     mainTokenQ   <- mkCFFifo();
+   Reg#(Data)                                    commitTarget <- mkReg(80);
+   Reg#(FrontID)                                 evictTarget  <- mkReg(0);
 
    rule relayCMR;
 

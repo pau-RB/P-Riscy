@@ -15,9 +15,6 @@ import MFifo::*;
 import Vector::*;
 import Ehr::*;
 
-// mem
-import WideMemSplit::*;
-
 // top level modules
 import FrontEnd::*;
 import SyncArbiter::*;
@@ -54,19 +51,12 @@ interface Core;
 
 endinterface
 
-module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
+module mkCore6S(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
 	//////////// EXT STATE ////////////
 
-	Reg#(Bool)                             coreStarted    <- mkReg(False);
-	Ehr#(2,Data)                           numCycles      <- mkEhr(0);
-
-	//////////// MEMORY ////////////
-
-	SplitWideMem#(FrontWidth,TMul#(2,FrontWidth)) mainSplit <- mkSplitWideMem(True, mem);
-	BareDataCache                                 l1d       <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
-	LSU#(WBToken)                                 lsu       <- mkLSU(mainSplit.port[1], l1d);
-
+	Reg#(Bool)   coreStarted <- mkReg(False);
+	Ehr#(2,Data) numCycles   <- mkEhr(0);
 
 	//////////// INT STATE ////////////
 
@@ -79,12 +69,16 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	Vector#(FrontWidth, Epoch) frontWBepoch = newVector;
 	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) frontWBepoch[i] = wbEpoch[i][1];
 
-	FrontEnd frontEnd <- mkFrontEnd(mainSplit.port[0],
-	                               regFile           ,
-	                               scoreboard        ,
-	                               frontWBepoch      ,
-	                               coreStarted       );
+	FrontEnd frontEnd <- mkFrontEnd(instMem    ,
+	                               regFile     ,
+	                               scoreboard  ,
+	                               frontWBepoch,
+	                               coreStarted );
 
+	//////////// LSU ////////////
+
+	BareDataCache l1d <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
+	LSU#(WBToken) lsu <- mkLSU(dataMem, l1d);
 
 	//////////// ARBITER ////////////
 
