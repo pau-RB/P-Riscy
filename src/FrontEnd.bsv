@@ -4,6 +4,7 @@ import Config::*;
 // types
 import Types::*;
 import ProcTypes::*;
+import CMRTypes::*;
 
 // include
 import Fifo::*;
@@ -36,8 +37,16 @@ interface  Hart;
 
 endinterface
 
+interface FrontEnd;
+
+	interface Vector#(FrontWidth, Hart) hart;
+
+	method FetchStat getStat();
+
+endinterface
+
 module mkFrontEnd (WideMem mem, Vector#(FrontWidth, RFile) regFile, Vector#(FrontWidth, Scoreboard#(8)) scoreboard,
-	                      Vector#(FrontWidth, Epoch) wbEpoch, Bool coreStarted, Vector#(FrontWidth, Hart) ifc);
+	                      Vector#(FrontWidth, Epoch) wbEpoch, Bool coreStarted, FrontEnd ifc);
 
 	Vector#(FrontWidth, Fifo#(1,RFToken)  ) regfetchQ  <- replicateM(mkStageFifo() );
 	Vector#(FrontWidth, Fifo#(1,ExecToken)) arbiterQ   <- replicateM(mkBypassFifo());
@@ -155,6 +164,7 @@ module mkFrontEnd (WideMem mem, Vector#(FrontWidth, RFile) regFile, Vector#(Fron
 			endinterface);
 	end
 
-	return hartIfc;
+	interface hart = hartIfc;
+	method FetchStat getStat() = fetch.getStat();
 
 endmodule

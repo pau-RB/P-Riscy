@@ -88,7 +88,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	Vector#(FrontWidth, Epoch) frontWBepoch = newVector;
 	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) frontWBepoch[i] = wbEpoch[i][1];
 
-	Vector#(FrontWidth, Hart) frontEnd <- mkFrontEnd(mainSplit.port[0], regFile, scoreboard, frontWBepoch, coreStarted);
+	FrontEnd frontEnd <- mkFrontEnd(mainSplit.port[0], regFile, scoreboard, frontWBepoch, coreStarted);
 
 
 	//////////// ARBITER ////////////
@@ -103,7 +103,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 		rule do_forward_frontEnd;
-			let inst <- frontEnd[i].readInst();
+			let inst <- frontEnd.hart[i].readInst();
 			arbiter.eport[i].enq(inst);
 		endrule
 	end
@@ -358,7 +358,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 					if (mem_ext_DEBUG == True) begin
 						if(commitInst.iType == St && commitInst.addr == lsu_ADDR) begin
-							FetchStat fsr = ?; //fetch.getStat();
+							FetchStat fsr = frontEnd.getStat();
 							LSUStat   lsr = lsu.getStat();
 							MemStat   msr = MemStat{ verifID: verif.getVerifID(feID),
 							                         cycle  : numCycles[0],
@@ -525,13 +525,13 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			regFile[i].wr(fromMaybe(RFwb{dst: '0, res: 'hdeadbeef}, toWBrfWriteBack[i][2]));
 
 			if(isValid(toWBstDry[i][2])) begin
-				frontEnd[i].backendDry();
+				frontEnd.hart[i].backendDry();
 			end
 
 			wbEpoch[i][0] <= fromMaybe(wbEpoch[i][0], toWBstEpoch[i][2]);
 
 			if(isValid(toWBstRedirect[i][2])) begin
-				frontEnd[i].redirect(fromMaybe(?,toWBstRedirect[i][2]));
+				frontEnd.hart[i].redirect(fromMaybe(?,toWBstRedirect[i][2]));
 			end
 
 			toWBsbRemove   [i][2] <= tagged Invalid;
@@ -649,9 +649,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	method Action start (FrontID feID, ContToken token);
 
-		frontEnd[feID].start(token.pc);
-		regFile [feID].setL (token.rfL);
-		regFile [feID].setH (token.rfH);
+		frontEnd.hart[feID].start(token.pc);
+		regFile      [feID].setL (token.rfL);
+		regFile      [feID].setH (token.rfH);
 
 		verif.setVerifID(feID, token.verifID);
 
@@ -666,13 +666,13 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	method Action evict(FrontID feID);
 
-		frontEnd[feID].evict();
+		frontEnd.hart[feID].evict();
 
 	endmethod
 
 	method Bool available(FrontID feID);
 
-		return frontEnd[feID].available();
+		return frontEnd.hart[feID].available();
 
 	endmethod
 
