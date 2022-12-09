@@ -59,7 +59,6 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	//////////// EXT STATE ////////////
 
 	Reg#(Bool)                             coreStarted    <- mkReg(False);
-	Ehr#(3,Data)                           numCommit      <- mkEhr(0);
 	Ehr#(2,Data)                           numCycles      <- mkEhr(0);
 
 	//////////// MEMORY ////////////
@@ -161,7 +160,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 
 			     if(i == 0) $write("%d ", numCycles[1]);
-			else if(i == 1) $write("%d ", numCommit[2]);
+			else if(i == 1) $write("%d ", backEnd.get_wb_commit());
 			else            $write("           ");
 
 			//////////// FETCH ////////////
@@ -277,7 +276,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	endmethod
 
 	method Data getNumCommit();
-		return numCommit[0];
+		return backEnd.getNumCommit();
 	endmethod
 
 	method ActionValue#(ContToken) getContToken();

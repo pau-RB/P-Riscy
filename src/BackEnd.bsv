@@ -36,19 +36,24 @@ interface BackEnd;
 	// To upstream
 	interface Vector#(FrontWidth, Writeback) hart;
 
+	// To sched
+	method Data getNumCommit();
+
 	// CMR
 	method ActionValue#(CommitReport) getCMR();
 	method ActionValue#(Message)      getMSG();
 	method ActionValue#(MemStat)      getMSR();
 
 	// Performance Debug
-	method Vector#(BackWidth,Maybe#(ExecToken)) get_exec_inst  ;
-	method Vector#(BackWidth,Maybe#(MemToken) ) get_mem_inst   ;
-	method Vector#(BackWidth,Maybe#(WBToken)  ) get_wb_inst    ;
-	method Vector#(BackWidth,Bool             ) get_wb_valid   ;
-	method Vector#(BackWidth,Bool             ) get_wb_miss    ;
+	method Vector#(BackWidth,Maybe#(ExecToken)) get_exec_inst  ();
+	method Vector#(BackWidth,Maybe#(MemToken) ) get_mem_inst   ();
+	method Vector#(BackWidth,Maybe#(WBToken)  ) get_wb_inst    ();
+	method Vector#(BackWidth,Bool             ) get_wb_valid   ();
+	method Vector#(BackWidth,Bool             ) get_wb_miss    ();
 
-	method Maybe#(WBToken)                      get_old_wb_inst;
+	method Data                                 get_wb_commit  ();
+
+	method Maybe#(WBToken)                      get_old_wb_inst();
 
 endinterface
 
@@ -553,6 +558,11 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 	// To upstream
 	interface hart = wbIfc;
 
+	// To sched
+	method Data getNumCommit();
+		return numCommit[0];
+	endmethod
+
 	// CMR
 	method ActionValue#(CommitReport) getCMR();
 		let latest = commitReportQ.first(); commitReportQ.deq();
@@ -588,6 +598,10 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 
 	method Vector#(BackWidth,Bool) get_wb_miss();
 		return perf_wb_miss[1];
+	endmethod
+
+	method Data get_wb_commit();
+		return numCommit[2];
 	endmethod
 
 	method Maybe#(WBToken) get_old_wb_inst();
