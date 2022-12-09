@@ -34,19 +34,44 @@ interface  Hart;
 	method Action redirect(Redirect r);
 	method Action backendDry();
 
+endinterface
+
+interface FetchDebug;
+
 	// Performance Debug
 	method StreamStatus currentState();
 	method Addr         currentPC();
+	method Bool         isl0Ihit();
+
+endinterface
+
+interface DecodeDebug;
+
+	// Performance Debug
 	method Addr         firstPC();
 	method Bool         notEmpty();
-	method Bool         isl0Ihit();
+
+endinterface
+
+interface RegFetchDebug;
+
+	// Performance Debug
+	method Addr         firstPC();
+	method Bool         notEmpty();
 
 endinterface
 
 interface FrontEnd;
 
+	// Function
 	interface Vector#(FrontWidth, Hart) hart;
 
+	// Debug
+	interface Vector#(FrontWidth, FetchDebug)    fetch;
+	interface Vector#(FrontWidth, DecodeDebug)   decode;
+	interface Vector#(FrontWidth, RegFetchDebug) regfetch;
+
+	// Stats
 	method FetchStat getStat();
 
 endinterface
@@ -188,17 +213,51 @@ module mkFrontEnd (WideMem mem, Vector#(FrontWidth, RFile) regFile, Vector#(Fron
 				method Action redirect(Redirect r) = redirectQ[i].enq(r);
 				method Action backendDry()         = stream[i].backendDry();
 
+			endinterface);
+	end
+
+ 	Vector#(FrontWidth, FetchDebug) fetchIfc = newVector;
+ 	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+		fetchIfc[i] =
+			(interface FetchDebug;
+
 				// Performance Debug
 				method StreamStatus currentState() = stream[i].currentState(); 
-				method Addr         currentPC()    = stream[i].currentPC(); 
-				method Addr         firstPC()      = stream[i].firstPC(); 
-				method Bool         notEmpty()     = stream[i].notEmpty(); 
+				method Addr         currentPC()    = stream[i].currentPC();
 				method Bool         isl0Ihit()     = stream[i].isl0Ihit(); 
 
 			endinterface);
 	end
 
-	interface hart = hartIfc;
+ 	Vector#(FrontWidth, DecodeDebug) decodeIfc = newVector;
+ 	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+		decodeIfc[i] =
+			(interface DecodeDebug;
+
+				// Performance Debug
+				method Addr         firstPC()      = stream[i].firstPC();
+				method Bool         notEmpty()     = stream[i].notEmpty();
+
+			endinterface);
+	end
+
+ 	Vector#(FrontWidth, RegFetchDebug) regfetchIfc = newVector;
+ 	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+		regfetchIfc[i] =
+			(interface RegFetchDebug;
+
+				// Performance Debug
+				method Addr         firstPC()      = regfetchQ[i].first().pc;
+				method Bool         notEmpty()     = regfetchQ[i].notEmpty();
+
+			endinterface);
+	end
+
+	interface hart     = hartIfc;
+	interface fetch    = fetchIfc;
+	interface decode   = decodeIfc;
+	interface regfetch = regfetchIfc;
+
 	method FetchStat getStat();
 		return FetchStat { hit:   l1I.getNumHit(),
                            miss:  l1I.getNumMiss(),

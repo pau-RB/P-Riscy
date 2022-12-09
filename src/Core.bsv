@@ -571,9 +571,11 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			else if(i == 1) $write("%d ", numCommit[2]);
 			else            $write("           ");
 
-			if(frontEnd.hart[i].currentState() != Empty) $write("|| %d ", verif.getVerifID(fromInteger(i))); else $write("||            ");
+			//////////// FETCH ////////////
 
-			case (frontEnd.hart[i].currentState())
+			if(frontEnd.fetch[i].currentState() != Empty) $write("|| %d ", verif.getVerifID(fromInteger(i))); else $write("||            ");
+
+			case (frontEnd.fetch[i].currentState())
 				Full :   $write("|| Full  ");
 				Evict:   $write("|| Evict ");
 				Ghost:   $write("|| Ghost ");
@@ -582,14 +584,24 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				default: $write("||       ");
 			endcase
 
-			if(frontEnd.hart[i].isl0Ihit) $write("h "); else $write("m ");
-			if(frontEnd.hart[i].currentState() != Empty) $write("| F 0x%h |", frontEnd.hart[i].currentPC()); else $write("| F            |");
-			if(frontEnd.hart[i].notEmpty) $write(" D 0x%h |", frontEnd.hart[i].firstPC() ); else $write(" D            |");
-			//if(regfetchQ[i].notEmpty) $write(" R 0x%h |", regfetchQ[i].first().pc); else $write(" R            |");
+			if(frontEnd.fetch   [i].isl0Ihit) $write("h "); else $write("m ");
+			if(frontEnd.fetch   [i].currentState() != Empty) $write("| F 0x%h |", frontEnd.fetch[i].currentPC()); else $write("| F            |");
+			
+			//////////// DECODE ////////////
+
+			if(frontEnd.decode  [i].notEmpty) $write(" D 0x%h |", frontEnd.decode  [i].firstPC); else $write(" D            |");
+			
+			//////////// REGFETCH ////////////
+
+			if(frontEnd.regfetch[i].notEmpty) $write(" R 0x%h |", frontEnd.regfetch[i].firstPC); else $write(" R            |");
+
+			//////////// SELECT ////////////
 
 			if(perf_sel_taken[i]) $write(" S 0x%h |", fromMaybe(?,perf_sel_inst[i]).pc);
 			else if(isValid(perf_sel_inst[i])) $write("%c[2;97m S 0x%h %c[0;0m|", 27, fromMaybe(?,perf_sel_inst[i]).pc, 27);
 			else $write(" S            |");
+
+			//////////// EXECUTE ////////////
 
 			Bool exec = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
@@ -600,6 +612,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			end
 			if(!exec) $write("              |");
 
+			//////////// MEM ////////////
+
 			Bool mem = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
 				if(isValid(perf_mem_inst[1][j]) && (fromMaybe(?,perf_mem_inst[1][j]).feID == fromInteger(i))) begin
@@ -609,6 +623,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			end
 			if(!mem) $write("              |");
 
+			//////////// WB ////////////
+
 			Bool wb = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
 				if(isValid(perf_wb_inst[j][1]) && (fromMaybe(?,perf_wb_inst[j][1]).feID == fromInteger(i))) begin
@@ -617,6 +633,8 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				end
 			end
 			if(!wb) $write("              | ");
+
+			//////////// COMMIT ////////////
 
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
 				if(perf_wb_valid[j][1] && !perf_wb_miss[j][1] && (fromMaybe(?,perf_wb_inst[j][1]).feID == fromInteger(i))) begin
