@@ -79,7 +79,7 @@ endinterface
 module mkFrontEnd (WideMem                             mem        ,
 	               Vector#(FrontWidth, RFile)          regFile    ,
 	               Vector#(FrontWidth, Scoreboard#(8)) scoreboard ,
-	               Vector#(FrontWidth, Epoch)          wbEpoch    ,
+	               Vector#(FrontWidth, Ehr#(2,Epoch))  wbEpoch    ,
 	               Bool                                coreStarted,
 	               FrontEnd ifc);
 
@@ -154,7 +154,7 @@ module mkFrontEnd (WideMem                             mem        ,
 
 		rule do_regfetch;
 
-			if (regfetchQ[i].first().epoch != wbEpoch[i]) begin
+			if (regfetchQ[i].first().epoch != wbEpoch[i][1]) begin
 
 				regfetchQ[i].deq();
 

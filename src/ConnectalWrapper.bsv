@@ -35,7 +35,7 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
    SplitWideMem#(FrontWidth,TMul#(2,FrontWidth)) mainSplit    <- mkSplitWideMem(True, mainMem.delayed);
 
    VerifMaster                                   verif        <- mkVerifMaster();
-   Core                                          dut          <- mkCore6S(mainSplit.port[0], mainSplit.port[1], verif);
+   Core                                          dut          <- mkCore7SS(mainSplit.port[0], mainSplit.port[1], verif);
 
    Reg#(Bool)                                    memInit      <- mkReg(False);
    Fifo#(MTQ_LEN, ContToken)                     mainTokenQ   <- mkCFFifo();

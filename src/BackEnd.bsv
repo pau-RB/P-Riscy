@@ -31,7 +31,7 @@ endinterface
 interface BackEnd;
 
 	// Execute
-	method Action execute(Vector#(BackWidth, Maybe#(ExecToken)) inst);
+	method Action enq(Vector#(BackWidth, Maybe#(ExecToken)) inst);
 
 	// To upstream
 	interface Vector#(FrontWidth, Writeback) hart;
@@ -551,7 +551,7 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 	end
 
 	// Execute
-	method Action execute(Vector#(BackWidth, Maybe#(ExecToken)) inst);
+	method Action enq(Vector#(BackWidth, Maybe#(ExecToken)) inst);
 		executeQ.enq(inst);
 	endmethod
 

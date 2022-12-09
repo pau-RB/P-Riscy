@@ -15,6 +15,10 @@ import MFifo::*;
 import Vector::*;
 import Ehr::*;
 
+// state
+import Scoreboard::*;
+import RFile::*;
+
 // top level modules
 import FrontEnd::*;
 import SyncArbiter::*;
@@ -22,65 +26,61 @@ import BackEnd::*;
 import LSU::*;
 import NTTX::*;
 
-// state
-import Scoreboard::*;
-import RFile::*;
-
-function Bool isMemInst(ExecToken inst);
-	return True;
-endfunction
-
-function Bool isArithInst(ExecToken inst);
-	return (inst.inst.iType == Unsupported || inst.inst.iType == Alu   ||
-	        inst.inst.iType == Mul         || inst.inst.iType == J     ||
-	        inst.inst.iType == Jr          || inst.inst.iType == Br    ||
-	        inst.inst.iType == Auipc );
-endfunction
-
 interface Core;
 
+	// Thread control
 	method Action start (FrontID feID, ContToken token);
 	method Action evict(FrontID feID);
 	method Bool   available(FrontID feID);
 	method Data   getNumCommit();
 
+	// ContToken
 	method ActionValue#(ContToken)    getContToken();
+
+	// CMR
 	method ActionValue#(CommitReport) getCMR();
 	method ActionValue#(Message)      getMSG();
 	method ActionValue#(MemStat)      getMSR();
 
 endinterface
 
-module mkCore6S(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
+module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
-	//////////// EXT STATE ////////////
+	//////////// COUNTERS ////////////
 
 	Reg#(Bool)   coreStarted <- mkReg(False);
 	Ehr#(2,Data) numCycles   <- mkEhr(0);
+
+	rule do_cnt_cycles if(coreStarted);
+		numCycles[0] <= numCycles[0]+1;
+	endrule
 
 	//////////// INT STATE ////////////
 
 	Vector#(FrontWidth, RFile         ) regFile    <- replicateM(mkBypassRFile);
 	Vector#(FrontWidth, Scoreboard#(8)) scoreboard <- replicateM(mkPipelineScoreboard);
-	Vector#(FrontWidth, Ehr#(2,Epoch) ) wbEpoch    <- replicateM(mkEhr('0)    );
+	Vector#(FrontWidth, Ehr#(2,Epoch) ) wbEpoch    <- replicateM(mkEhr('0));
 
 	//////////// FRONTEND ////////////
 
-	Vector#(FrontWidth, Epoch) frontWBepoch = newVector;
-	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) frontWBepoch[i] = wbEpoch[i][1];
-
-	FrontEnd frontEnd <- mkFrontEnd(instMem    ,
-	                               regFile     ,
-	                               scoreboard  ,
-	                               frontWBepoch,
-	                               coreStarted );
-
-	//////////// LSU ////////////
-
-	BareDataCache l1d <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
-	LSU#(WBToken) lsu <- mkLSU(dataMem, l1d);
+	FrontEnd frontend <- mkFrontEnd(instMem     ,
+	                                regFile     ,
+	                                scoreboard  ,
+	                                wbEpoch     ,
+	                                coreStarted );
 
 	//////////// ARBITER ////////////
+
+	function Bool isMemInst(ExecToken inst);
+		return True;
+	endfunction
+
+	function Bool isArithInst(ExecToken inst);
+		return (inst.inst.iType == Unsupported || inst.inst.iType == Alu   ||
+		        inst.inst.iType == Mul         || inst.inst.iType == J     ||
+		        inst.inst.iType == Jr          || inst.inst.iType == Br    ||
+		        inst.inst.iType == Auipc );
+	endfunction
 
 	Vector#(BackWidth, function Bool accept(ExecToken inst)) filter = newVector;
 	for(Integer i = 1; i < valueOf(BackWidth); i = i+1) filter[i] = isArithInst; filter[0] = isMemInst;
@@ -89,79 +89,72 @@ module mkCore6S(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
 	//////////// BACKEND ////////////
 
-	NTTX nttx <- mkNTTX(regFile, verif);
+	BareDataCache l1d     <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
+	LSU#(WBToken) lsu     <- mkLSU(dataMem, l1d);
+	NTTX          nttx    <- mkNTTX(regFile, verif);
+	BackEnd       backend <- mkBackEnd (lsu         ,
+	                                    verif       ,
+	                                    nttx        ,
+	                                    regFile     ,
+	                                    scoreboard  ,
+	                                    wbEpoch     ,
+	                                    coreStarted ,
+	                                    numCycles[0]);
 
-	BackEnd backEnd <- mkBackEnd (lsu         ,
-	                              verif       ,
-	                              nttx        ,
-	                              regFile     ,
-	                              scoreboard  ,
-	                              wbEpoch     ,
-	                              coreStarted ,
-	                              numCycles[0]);
-
-	//////////// FTA ////////////
+	//////////// FORWARD QUEUES ////////////
 
 	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-		rule do_forward_frontEnd;
-			let inst <- frontEnd.hart[i].readInst();
+		rule do_forward_frontend;
+			let inst <- frontend.hart[i].readInst();
 			arbiter.eport[i].enq(inst);
 		endrule
 	end
 
-	//////////// ATB ////////////
-
 	rule do_forward_arbiter;
 		let inst = arbiter.dport.first(); arbiter.dport.deq();
-		backEnd.execute(inst);
+		backend.enq(inst);
 	endrule
-
-	//////////// BTF ////////////
 
 	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 		rule do_forward_redirect;
-			let redirect <- backEnd.hart[i].getRedirect();
-			frontEnd.hart[i].redirect(redirect);
+			let redirect <- backend.hart[i].getRedirect();
+			frontend.hart[i].redirect(redirect);
 		endrule
 	end
 
 	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 		rule do_forward_dry;
-			let dry <- backEnd.hart[i].getBackendDry();
-			frontEnd.hart[i].backendDry();
+			let dry <- backend.hart[i].getBackendDry();
+			frontend.hart[i].backendDry();
 		endrule
 	end
 
 	//////////// PERFORMANCE CNT ////////////
-
-	rule do_cnt_cycles if(coreStarted);
-		numCycles[0] <= numCycles[0]+1;
-	endrule
 
 	rule do_perf_DEBUG if(perf_DEBUG == True && coreStarted);
 
 		Vector#(FrontWidth,Maybe#(ExecToken)) perf_sel_inst    = arbiter.perf_get_inst ();
 		Vector#(FrontWidth,Bool)              perf_sel_taken   = arbiter.perf_get_taken();
 
-		Vector#(BackWidth, Maybe#(ExecToken)) perf_exec_inst   = backEnd.get_exec_inst  ();
-		Vector#(BackWidth, Maybe#(MemToken) ) perf_mem_inst    = backEnd.get_mem_inst   ();
-		Vector#(BackWidth, Maybe#(WBToken)  ) perf_wb_inst     = backEnd.get_wb_inst    ();
-		Vector#(BackWidth, Bool             ) perf_wb_valid    = backEnd.get_wb_valid   ();
-		Vector#(BackWidth, Bool             ) perf_wb_miss     = backEnd.get_wb_miss    ();
+		Vector#(BackWidth, Maybe#(ExecToken)) perf_exec_inst   = backend.get_exec_inst  ();
+		Vector#(BackWidth, Maybe#(MemToken) ) perf_mem_inst    = backend.get_mem_inst   ();
+		Vector#(BackWidth, Maybe#(WBToken)  ) perf_wb_inst     = backend.get_wb_inst    ();
+		Vector#(BackWidth, Bool             ) perf_wb_valid    = backend.get_wb_valid   ();
+		Vector#(BackWidth, Bool             ) perf_wb_miss     = backend.get_wb_miss    ();
 
-		Maybe#(WBToken)                       perf_old_wb_inst = backEnd.get_old_wb_inst();
+		Maybe#(WBToken)                       perf_old_wb_inst = backend.get_old_wb_inst();
 
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 
 			     if(i == 0) $write("%d ", numCycles[1]);
-			else if(i == 1) $write("%d ", backEnd.get_wb_commit());
+			else if(i == 1) $write("%d ", backend.get_wb_commit());
 			else            $write("           ");
 
 			//////////// FETCH ////////////
 
-			if(frontEnd.fetch[i].currentState() != Empty) $write("|| %d ", verif.getVerifID(fromInteger(i))); else $write("||            ");
+			if(frontend.fetch[i].currentState() != Empty) $write("|| %d ", verif.getVerifID(fromInteger(i))); else $write("||            ");
 
-			case (frontEnd.fetch[i].currentState())
+			case (frontend.fetch[i].currentState())
 				Full :   $write("|| Full  ");
 				Evict:   $write("|| Evict ");
 				Ghost:   $write("|| Ghost ");
@@ -170,16 +163,16 @@ module mkCore6S(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 				default: $write("||       ");
 			endcase
 
-			if(frontEnd.fetch   [i].isl0Ihit) $write("h "); else $write("m ");
-			if(frontEnd.fetch   [i].currentState() != Empty) $write("| F 0x%h |", frontEnd.fetch[i].currentPC()); else $write("| F            |");
+			if(frontend.fetch   [i].isl0Ihit) $write("h "); else $write("m ");
+			if(frontend.fetch   [i].currentState() != Empty) $write("| F 0x%h |", frontend.fetch[i].currentPC()); else $write("| F            |");
 			
 			//////////// DECODE ////////////
 
-			if(frontEnd.decode  [i].notEmpty) $write(" D 0x%h |", frontEnd.decode  [i].firstPC); else $write(" D            |");
+			if(frontend.decode  [i].notEmpty) $write(" D 0x%h |", frontend.decode  [i].firstPC); else $write(" D            |");
 			
 			//////////// REGFETCH ////////////
 
-			if(frontEnd.regfetch[i].notEmpty) $write(" R 0x%h |", frontEnd.regfetch[i].firstPC); else $write(" R            |");
+			if(frontend.regfetch[i].notEmpty) $write(" R 0x%h |", frontend.regfetch[i].firstPC); else $write(" R            |");
 
 			//////////// SELECT ////////////
 
@@ -248,11 +241,11 @@ module mkCore6S(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
 	endrule
 
-
 	//////////// INTERFACE ////////////
 
+	// Thread control
 	method Action start (FrontID feID, ContToken token);
-		frontEnd.hart[feID].start(token.pc );
+		frontend.hart[feID].start(token.pc );
 		regFile      [feID].setL (token.rfL);
 		regFile      [feID].setH (token.rfH);
 
@@ -262,34 +255,38 @@ module mkCore6S(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 	endmethod
 
 	method Action evict(FrontID feID);
-		frontEnd.hart[feID].evict();
+		frontend.hart[feID].evict();
 	endmethod
 
 	method Bool available(FrontID feID);
-		return frontEnd.hart[feID].available();
+		return frontend.hart[feID].available();
 	endmethod
 
 	method Data getNumCommit();
-		return backEnd.getNumCommit();
+		return backend.getNumCommit();
 	endmethod
 
+
+	// ContToken
 	method ActionValue#(ContToken) getContToken();
 		let latest = nttx.first(); nttx.deq();
 		return latest;
 	endmethod
 
+
+	// CMR
 	method ActionValue#(CommitReport) getCMR();
-		let latest <- backEnd.getCMR();
+		let latest <- backend.getCMR();
 		return latest;
 	endmethod
 
 	method ActionValue#(Message) getMSG();
-		let latest <- backEnd.getMSG();
+		let latest <- backend.getMSG();
 		return latest;
 	endmethod
 
 	method ActionValue#(MemStat) getMSR();
-		let latest <- backEnd.getMSR();
+		let latest <- backend.getMSR();
 		return latest;
 	endmethod
 
