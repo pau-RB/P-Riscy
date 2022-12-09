@@ -34,6 +34,13 @@ interface  Hart;
 	method Action redirect(Redirect r);
 	method Action backendDry();
 
+	// Performance Debug
+	method StreamStatus currentState();
+	method Addr         currentPC();
+	method Addr         firstPC();
+	method Bool         notEmpty();
+	method Bool         isl0Ihit();
+
 endinterface
 
 interface FrontEnd;
@@ -180,6 +187,13 @@ module mkFrontEnd (WideMem mem, Vector#(FrontWidth, RFile) regFile, Vector#(Fron
 				// From downstream
 				method Action redirect(Redirect r) = redirectQ[i].enq(r);
 				method Action backendDry()         = stream[i].backendDry();
+
+				// Performance Debug
+				method StreamStatus currentState() = stream[i].currentState(); 
+				method Addr         currentPC()    = stream[i].currentPC(); 
+				method Addr         firstPC()      = stream[i].firstPC(); 
+				method Bool         notEmpty()     = stream[i].notEmpty(); 
+				method Bool         isl0Ihit()     = stream[i].isl0Ihit(); 
 
 			endinterface);
 	end

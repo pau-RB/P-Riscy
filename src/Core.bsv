@@ -548,7 +548,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	rule do_cnt_cycles if(coreStarted);
 		numCycles[0] <= numCycles[0]+1;
 	endrule
-/*
+
 	rule do_perf_DEBUG if(perf_DEBUG == True && coreStarted);
 
 		Vector#(FrontWidth,Maybe#(ExecToken)) perf_sel_inst  = arbiter.perf_get_inst ();
@@ -571,9 +571,9 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 			else if(i == 1) $write("%d ", numCommit[2]);
 			else            $write("           ");
 
-			if(stream[i].currentState() != Empty) $write("|| %d ", verif.getVerifID(fromInteger(i))); else $write("||            ");
+			if(frontEnd.hart[i].currentState() != Empty) $write("|| %d ", verif.getVerifID(fromInteger(i))); else $write("||            ");
 
-			case (stream[i].currentState())
+			case (frontEnd.hart[i].currentState())
 				Full :   $write("|| Full  ");
 				Evict:   $write("|| Evict ");
 				Ghost:   $write("|| Ghost ");
@@ -582,11 +582,11 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 				default: $write("||       ");
 			endcase
 
-			if(stream   [i].isl0Ihit) $write("h "); else $write("m ");
-			if(stream   [i].currentState() != Empty) $write("| F 0x%h |", stream[i].currentPC()); else $write("| F            |");
-			if(stream   [i].notEmpty) $write(" D 0x%h |", stream   [i].firstPC() ); else $write(" D            |");
-			if(regfetchQ[i].notEmpty) $write(" R 0x%h |", regfetchQ[i].first().pc); else $write(" R            |");
-			
+			if(frontEnd.hart[i].isl0Ihit) $write("h "); else $write("m ");
+			if(frontEnd.hart[i].currentState() != Empty) $write("| F 0x%h |", frontEnd.hart[i].currentPC()); else $write("| F            |");
+			if(frontEnd.hart[i].notEmpty) $write(" D 0x%h |", frontEnd.hart[i].firstPC() ); else $write(" D            |");
+			//if(regfetchQ[i].notEmpty) $write(" R 0x%h |", regfetchQ[i].first().pc); else $write(" R            |");
+
 			if(perf_sel_taken[i]) $write(" S 0x%h |", fromMaybe(?,perf_sel_inst[i]).pc);
 			else if(isValid(perf_sel_inst[i])) $write("%c[2;97m S 0x%h %c[0;0m|", 27, fromMaybe(?,perf_sel_inst[i]).pc, 27);
 			else $write(" S            |");
@@ -643,7 +643,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	endrule
 
-*/
+
 	//////////// INTERFACE ////////////
 
 	method Action start (FrontID feID, ContToken token);
