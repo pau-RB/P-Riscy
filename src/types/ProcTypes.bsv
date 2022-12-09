@@ -177,7 +177,7 @@ typedef struct {
 	Addr        pc;
 	Epoch       epoch;
 	Data        rawInst;
-} RFToken deriving (Bits, Eq);
+} RFToken deriving (Bits, Eq, FShow);
 
 typedef struct {
 	DecodedInst inst;

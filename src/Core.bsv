@@ -22,6 +22,7 @@ import LSU::*;
 import SyncArbiter::*;
 
 // front
+import FrontEnd::*;
 import Decoder::*;
 import Stream::*;
 import Fetch::*;
@@ -75,108 +76,38 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	BareDataCache                                 l1d       <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
 	LSU#(WBToken)                                 lsu       <- mkLSU(mainSplit.port[1], l1d);
 
-	Vector#(FrontWidth, Ehr#(2,Epoch)) wbEpoch <- replicateM(mkEhr('0));
 
-	Vector#(BackWidth, function Bool accept(ExecToken inst)) filter = replicate(isArithInst); filter[0] = isMemInst;
+	//////////// INT STATE ////////////
+
+	Vector#(FrontWidth, RFile         ) regFile    <- replicateM(mkBypassRFile);
+	Vector#(FrontWidth, Scoreboard#(8)) scoreboard <- replicateM(mkPipelineScoreboard);
+	Vector#(FrontWidth, Ehr#(2,Epoch) ) wbEpoch    <- replicateM(mkEhr('0)    );
+
+	//////////// FRONT END ////////////
+
+	Vector#(FrontWidth, Epoch) frontWBepoch = newVector;
+	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) frontWBepoch[i] = wbEpoch[i][1];
+
+	Vector#(FrontWidth, Hart) frontEnd <- mkFrontEnd(mainSplit.port[0], regFile, scoreboard, frontWBepoch, coreStarted);
+
+
+	//////////// ARBITER ////////////
+
+	Vector#(BackWidth, function Bool accept(ExecToken inst)) filter = newVector;
+	for(Integer i = 1; i < valueOf(BackWidth); i = i+1) filter[i] = isArithInst; filter[0] = isMemInst;
+
 	SyncArbiter#(FrontWidth, BackWidth, ExecToken) arbiter <- mkSyncArbiter(coreStarted, filter);
 
-	//////////// FETCH ////////////
 
-	Fetch#(FrontWidth) fetch <- mkFetch(mainSplit.port[0], coreStarted);
-	Vector#(FrontWidth, Stream) stream = fetch.stream;
+	//////////// FTA ////////////
 
-
-	//////////// DECODE ////////////
-
-	Vector#(FrontWidth,  Fifo#(1,RFToken)) regfetchQ <- replicateM(mkStageFifo());
-
-	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
-
-		rule do_decode;
-
-			DecToken dToken <- stream[i].fetch();
-
-			DecodedInst decInst = (isValid(dToken.inst) ? decode(fromMaybe('hdeadbeef, dToken.inst)) :
-			                                              DecodedInst{ iType  : Ghost,
-			                                                           aluFunc: ?,
-			                                                           mulFunc: ?,
-			                                                           ldFunc : ?,
-			                                                           stFunc : ?,
-			                                                           brFunc : NT,
-			                                                           dst    : tagged Invalid,
-			                                                           src1   : tagged Invalid,
-			                                                           src2   : tagged Invalid,
-			                                                           imm    : tagged Invalid } );
-
-			RFToken rfToken = RFToken{ inst   : decInst,
-			                           pc     : dToken.pc,
-			                           epoch  : dToken.epoch,
-			                           rawInst: fromMaybe('hdeadbeef, dToken.inst) };
-
-			regfetchQ[i].enq(rfToken);
-
+	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+		rule do_forward_frontEnd;
+			let inst <- frontEnd[i].readInst();
+			arbiter.eport[i].enq(inst);
 		endrule
-
 	end
 
-
-	//////////// REG FETCH ////////////
-
-	Vector#(FrontWidth, RFile             ) rf        <- replicateM(mkBypassRFile       );
-	Vector#(FrontWidth, Scoreboard#(8)    ) sb        <- replicateM(mkPipelineScoreboard);
-
-	Vector#(FrontWidth, Fifo#(1,Redirect) ) redirectQ <- replicateM(mkBypassFifo());
-	Vector#(FrontWidth, Ehr#(2,Bool)      ) rfLock    <- replicateM(mkEhr(False));
-
-	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
-
-		rule do_regfetch;
-
-			if (regfetchQ[i].first().epoch != wbEpoch[i][1]) begin
-
-				regfetchQ[i].deq();
-
-			end else if(!rfLock[i][1] && (!sb[i].search1(regfetchQ[i].first().inst.src1) && !sb[i].search2(regfetchQ[i].first().inst.src2))) begin
-
-				let rfToken = regfetchQ[i].first();
-				let decInst = rfToken.inst;
-					
-				let arg1    = rf[i].rd1(fromMaybe(?, decInst.src1));
-				let arg2    = rf[i].rd2(fromMaybe(?, decInst.src2));
-				let eToken  = ExecToken{
-								inst   : decInst,
-								arg1   : arg1,
-								arg2   : arg2,
-								pc     : rfToken.pc,
-								feID   : fromInteger(i),
-								epoch  : rfToken.epoch,
-								rawInst: rfToken.rawInst};
-
-				sb[i].insert(decInst.dst);
-				regfetchQ[i].deq();
-				arbiter.eport[i].enq(eToken);
-
-				if(decInst.iType == Br || decInst.iType == J || decInst.iType == Jr) begin
-					rfLock[i][1] <= True;
-				end
-
-			end
-
-		endrule
-
-	end
-
-	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
-
-		rule do_rfLock;
-			Redirect r = redirectQ[i].first(); redirectQ[i].deq();
-			rfLock[i][0] <= r.lock;
-			if(r.redirect || r.kill) begin
-				stream[i].redirect(r);
-			end
-		endrule
-
-	end
 
 	//////////// EXECUTE ////////////
 
@@ -281,7 +212,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	//////////// COMMIT ////////////
 
-	NTTX nttx <- mkNTTX(rf, verif);
+	NTTX nttx <- mkNTTX(regFile, verif);
 
 	Vector#(BackWidth, Ehr#(2,Maybe#(WBToken))) perf_wb_inst  <- replicateM(mkEhr(tagged Invalid));
 	Vector#(BackWidth, Ehr#(2,Bool))            perf_wb_valid <- replicateM(mkEhr(       False  ));
@@ -427,7 +358,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 					if (mem_ext_DEBUG == True) begin
 						if(commitInst.iType == St && commitInst.addr == lsu_ADDR) begin
-							FetchStat fsr = fetch.getStat();
+							FetchStat fsr = ?; //fetch.getStat();
 							LSUStat   lsr = lsu.getStat();
 							MemStat   msr = MemStat{ verifID: verif.getVerifID(feID),
 							                         cycle  : numCycles[0],
@@ -588,19 +519,19 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 		rule do_wb;
 
 			if(isValid(toWBsbRemove[i][2])) begin
-				sb[i].remove();
+				scoreboard[i].remove();
 			end
 
-			rf[i].wr(fromMaybe(RFwb{dst: '0, res: 'hdeadbeef}, toWBrfWriteBack[i][2]));
+			regFile[i].wr(fromMaybe(RFwb{dst: '0, res: 'hdeadbeef}, toWBrfWriteBack[i][2]));
 
 			if(isValid(toWBstDry[i][2])) begin
-				stream[i].backendDry();
+				frontEnd[i].backendDry();
 			end
 
 			wbEpoch[i][0] <= fromMaybe(wbEpoch[i][0], toWBstEpoch[i][2]);
 
 			if(isValid(toWBstRedirect[i][2])) begin
-				redirectQ[i].enq(fromMaybe(?,toWBstRedirect[i][2]));
+				frontEnd[i].redirect(fromMaybe(?,toWBstRedirect[i][2]));
 			end
 
 			toWBsbRemove   [i][2] <= tagged Invalid;
@@ -618,7 +549,7 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 	rule do_cnt_cycles if(coreStarted);
 		numCycles[0] <= numCycles[0]+1;
 	endrule
-
+/*
 	rule do_perf_DEBUG if(perf_DEBUG == True && coreStarted);
 
 		Vector#(FrontWidth,Maybe#(ExecToken)) perf_sel_inst  = arbiter.perf_get_inst ();
@@ -713,14 +644,14 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	endrule
 
-
+*/
 	//////////// INTERFACE ////////////
 
 	method Action start (FrontID feID, ContToken token);
 
-		stream [feID].start(token.pc);
-		rf     [feID].setL (token.rfL);
-		rf     [feID].setH (token.rfH);
+		frontEnd[feID].start(token.pc);
+		regFile [feID].setL (token.rfL);
+		regFile [feID].setH (token.rfH);
 
 		verif.setVerifID(feID, token.verifID);
 
@@ -735,13 +666,13 @@ module mkCore6S(WideMem mem, VerifMaster verif, Core ifc);
 
 	method Action evict(FrontID feID);
 
-		stream[feID].evict();
+		frontEnd[feID].evict();
 
 	endmethod
 
 	method Bool available(FrontID feID);
 
-		return stream[feID].available();
+		return frontEnd[feID].available();
 
 	endmethod
 
