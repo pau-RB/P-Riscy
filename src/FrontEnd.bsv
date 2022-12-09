@@ -8,14 +8,13 @@ import CMRTypes::*;
 
 // include
 import Fifo::*;
-import MFifo::*;
 import Vector::*;
 import Ehr::*;
 
 // front
 import Decoder::*;
 import Stream::*;
-import Fetch::*;
+import L1I::*;
 
 // back
 import Scoreboard::*;
@@ -48,16 +47,37 @@ endinterface
 module mkFrontEnd (WideMem mem, Vector#(FrontWidth, RFile) regFile, Vector#(FrontWidth, Scoreboard#(8)) scoreboard,
 	                      Vector#(FrontWidth, Epoch) wbEpoch, Bool coreStarted, FrontEnd ifc);
 
+	L1I#(FrontWidth) l1I <- mkDirectL1I(mem);
+
 	Vector#(FrontWidth, Fifo#(1,RFToken)  ) regfetchQ  <- replicateM(mkStageFifo() );
 	Vector#(FrontWidth, Fifo#(1,ExecToken)) arbiterQ   <- replicateM(mkBypassFifo());
 	Vector#(FrontWidth, Fifo#(1,Redirect) ) redirectQ  <- replicateM(mkBypassFifo());
 
 	Vector#(FrontWidth, Ehr#(2,Bool)      ) rfLock     <- replicateM(mkEhr(False));
 
+	Reg#(Data) numEmpty <- mkReg(0);
+
 	//////////// FETCH ////////////
 
-	Fetch#(FrontWidth) fetch <- mkFetch(mem, coreStarted);
-	Vector#(FrontWidth, Stream) stream = fetch.stream;
+    Vector#(FrontWidth, Stream) stream;
+
+    for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
+        stream[i] <- mkStream(l1I.port[i]);
+    end
+
+    rule do_EMPTYCNT if(mem_ext_DEBUG == True && coreStarted);
+
+        Bool empty = True;
+        for (Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
+            if(stream[i].currentState() != Empty && stream[i].isl0Ihit()) begin
+                empty = False;
+            end
+        end
+        if (empty) begin
+            numEmpty <= numEmpty+1;
+        end
+
+    endrule
 
 	//////////// DECODE ////////////
 
@@ -165,6 +185,10 @@ module mkFrontEnd (WideMem mem, Vector#(FrontWidth, RFile) regFile, Vector#(Fron
 	end
 
 	interface hart = hartIfc;
-	method FetchStat getStat() = fetch.getStat();
+	method FetchStat getStat();
+		return FetchStat { hit:   l1I.getNumHit(),
+                           miss:  l1I.getNumMiss(),
+                           empty: numEmpty };
+	endmethod
 
 endmodule

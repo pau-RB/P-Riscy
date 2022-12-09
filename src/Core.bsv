@@ -25,7 +25,6 @@ import SyncArbiter::*;
 import FrontEnd::*;
 import Decoder::*;
 import Stream::*;
-import Fetch::*;
 
 // back
 import Scoreboard::*;
