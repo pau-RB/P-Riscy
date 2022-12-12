@@ -5,6 +5,7 @@ typedef Bit#(AddrSz) Addr;
 
 typedef 32 DataSz;
 typedef Bit#(DataSz) Data;
+typedef Bit#(TAdd#(DataSz,DataSz)) Long;
 
 typedef 32 InstSz;
 typedef Bit#(InstSz) Instruction;

@@ -1,6 +1,5 @@
 import Types::*;
 import ProcTypes::*;
-import Mul::*;
 import Alu::*;
 import Vector::*;
 
@@ -11,7 +10,6 @@ function ExecInst exec(DecodedInst dInst, Data rVal1, Data rVal2, Addr pc, Addr 
   // do ALU operation: use imm instead of rs2 if imm is valid (consider LW and SW)
   Data aluVal2 = isValid(dInst.imm) ? fromMaybe(?, dInst.imm) : rVal2;
   let aluRes = alu(rVal1, aluVal2, dInst.aluFunc);
-  let mulRes = mul(rVal1, rVal2,   dInst.mulFunc);
   
   // set eInst
   eInst.iType = dInst.iType;
@@ -27,10 +25,7 @@ function ExecInst exec(DecodedInst dInst, Data rVal1, Data rVal2, Addr pc, Addr 
                dInst.iType==Auipc ?
                  (pc + fromMaybe(?, dInst.imm)) :
                dInst.iType==Join ?
-                 'd1 :
-               dInst.iType==Mul ?
-                 mulRes : 
-                 aluRes;
+                 'd1 : aluRes;
 
   let brTaken = aluBr(rVal1, rVal2, dInst.brFunc);
   let brAddr = brAddrCalc(pc, rVal1, dInst.iType, fromMaybe(?, dInst.imm), brTaken);

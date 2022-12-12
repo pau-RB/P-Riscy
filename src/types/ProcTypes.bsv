@@ -116,6 +116,13 @@ typedef struct {
     Bool             brTaken;
 } ExecInst deriving(Bits, Eq, FShow);
 
+typedef struct {
+	Data             arg1;
+	Data             arg2;
+	Long             partial;
+	MulFunc          mulFunc;
+} MultInst deriving(Bits, Eq, FShow);
+
 // function code
 // ALU
 Bit#(3) fnADD   = 3'b000;
@@ -191,6 +198,7 @@ typedef struct {
 
 typedef struct {
 	ExecInst    inst;
+	MultInst    mul;
 	Addr        pc;
 	FrontID     feID;
 	Epoch       epoch;

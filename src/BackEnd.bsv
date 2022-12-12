@@ -19,6 +19,8 @@ import Scoreboard::*;
 import RFile::*;
 import Execution::*;
 import NTTX::*;
+import Mul::*;
+
 
 interface Writeback;
 
@@ -109,12 +111,18 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 			if(isValid(toExec[i])) begin
 				let eToken = fromMaybe(?,toExec[i]);
 				let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
-				let mToken   = MemToken{
-								inst   : execInst,
-								pc     : eToken.pc,
-								feID   : eToken.feID,
-								epoch  : eToken.epoch,
-								rawInst: eToken.rawInst};
+
+				let mulInst  = MultInst { arg1   : eToken.arg1,
+				                          arg2   : eToken.arg2,
+				                          partial: mul1(eToken.arg1, eToken.arg2, eToken.inst.mulFunc),
+				                          mulFunc: eToken.inst.mulFunc};
+
+				let mToken   = MemToken{ inst   : execInst,
+				                         mul    : mulInst,
+				                         pc     : eToken.pc,
+				                         feID   : eToken.feID,
+				                         epoch  : eToken.epoch,
+				                         rawInst: eToken.rawInst};
 
 				toMem[i] = tagged Valid mToken;
 			end
@@ -143,6 +151,13 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 			                      feID   : mToken.feID,
 			                      epoch  : mToken.epoch,
 			                      rawInst: mToken.rawInst};
+
+			Data mulDiv = mul2(mToken.mul.arg1, mToken.mul.arg2, mToken.mul.partial, mToken.mul.mulFunc);
+
+			if(mToken.inst.iType == Mul) begin
+				wToken.inst.data = mulDiv;
+			end
+
 			toCommit[0] = tagged Valid wToken;
 
 			// Send LSU req, if the instruction is valid
@@ -175,6 +190,13 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 				                      feID   : mToken.feID,
 				                      epoch  : mToken.epoch,
 				                      rawInst: mToken.rawInst};
+
+				Data mulDiv = mul2(mToken.mul.arg1, mToken.mul.arg2, mToken.mul.partial, mToken.mul.mulFunc);
+
+				if(mToken.inst.iType == Mul) begin
+					wToken.inst.data = mulDiv;
+				end
+
 				toCommit[i] = tagged Valid wToken;
 
 			end
