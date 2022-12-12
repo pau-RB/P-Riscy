@@ -40,6 +40,14 @@ Opcode opSystem  = 7'b1110011;
 // SCALL, SBREAK not implemented
 
 typedef enum {
+	Full,
+	Evict,
+	Ghost,
+	Dry,
+	Empty
+} StreamStatus deriving(Bits, Eq, FShow);
+
+typedef enum {
 	Unsupported, 
 	Alu, 
 	Mul,

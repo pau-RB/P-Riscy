@@ -7,7 +7,6 @@ import Types::*;
 import ProcTypes::*;
 import LSUTypes::*;
 import CMRTypes::*;
-import Stream::*;
 
 // include
 import Fifo::*;

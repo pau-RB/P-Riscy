@@ -3,17 +3,6 @@ import ProcTypes::*;
 import Fifo::*;
 import Ehr::*;
 
-
-
-typedef enum {
-	Full,
-	Evict,
-	Ghost,
-	Dry,
-	Empty
-} StreamStatus deriving(Bits, Eq, FShow);
-
-
 interface Stream;
 
 	// Flow control
