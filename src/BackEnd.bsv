@@ -110,12 +110,9 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 		for (Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
 			if(isValid(toExec[i])) begin
 				let eToken = fromMaybe(?,toExec[i]);
-				let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
 
-				let mulInst  = MultInst { arg1   : eToken.arg1,
-				                          arg2   : eToken.arg2,
-				                          partial: mul1(eToken.arg1, eToken.arg2, eToken.inst.mulFunc),
-				                          mulFunc: eToken.inst.mulFunc};
+				let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
+				let mulInst  = mulStage1(eToken.arg1, eToken.arg2, eToken.inst.mulFunc);
 
 				let mToken   = MemToken{ inst   : execInst,
 				                         mul    : mulInst,
@@ -152,8 +149,7 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 			                      epoch  : mToken.epoch,
 			                      rawInst: mToken.rawInst};
 
-			Data mulDiv = mul2(mToken.mul.arg1, mToken.mul.arg2, mToken.mul.partial, mToken.mul.mulFunc);
-
+			Data mulDiv = mulStage2(mToken.mul);
 			if(mToken.inst.iType == Mul) begin
 				wToken.inst.data = mulDiv;
 			end
@@ -191,8 +187,7 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 				                      epoch  : mToken.epoch,
 				                      rawInst: mToken.rawInst};
 
-				Data mulDiv = mul2(mToken.mul.arg1, mToken.mul.arg2, mToken.mul.partial, mToken.mul.mulFunc);
-
+				Data mulDiv = mulStage2(mToken.mul);
 				if(mToken.inst.iType == Mul) begin
 					wToken.inst.data = mulDiv;
 				end

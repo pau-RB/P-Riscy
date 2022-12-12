@@ -1,13 +1,13 @@
 import Types::*;
 import ProcTypes::*;
 
-function Long mul1(Data a, Data b, MulFunc func);
+(* noinline *)
+function MultInst mulStage1(Data a, Data b, MulFunc func);
 
-    Int#(TAdd#(DataSz,DataSz))  a_int_s = unpack(signExtend(a));
-    Int#(TAdd#(DataSz,DataSz))  b_int_s = unpack(signExtend(b));
-
-    Int#(TAdd#(DataSz,DataSz))  a_int_z = unpack(zeroExtend(a));
-    Int#(TAdd#(DataSz,DataSz))  b_int_z = unpack(zeroExtend(b));
+    Int #(DataSz) siA = unpack(a);
+    Int #(DataSz) siB = unpack(b);
+    UInt#(DataSz) uiA = unpack(a);
+    UInt#(DataSz) uiB = unpack(b);
 
     Long opA = case(func)
         Mul    : signExtend(a);
@@ -32,41 +32,44 @@ function Long mul1(Data a, Data b, MulFunc func);
         Mulh   : mulRes;
         Mulhsu : mulRes;
         Mulhu  : mulRes;
-        Div    : pack(a_int_s/b_int_s);
-        Divu   : pack(a_int_z/b_int_z);
-        Rem    : pack(a_int_s%b_int_s);
-        Remu   : pack(a_int_z%b_int_z);
+        Div    : {'0,pack(siA/siB)};
+        Divu   : {'0,pack(uiA/uiB)};
+        Rem    : {'0,pack(siA%siB)};
+        Remu   : {'0,pack(uiA%uiB)};
     endcase;
 
-    return res;
+    return MultInst { arg1   : a,
+                      arg2   : b,
+                      partial: res,
+                      mulFunc: func};
 
 endfunction
 
-function Data mul2(Data a, Data b, Long partial, MulFunc func);
+(* noinline *)
+function Data mulStage2(MultInst inst);
+
+    Data    a       = inst.arg1;
+    Data    b       = inst.arg2;
+    Long    partial = inst.partial;
+    MulFunc func    = inst.mulFunc;
 
     Long opA = case(func)
-        Mul    : signExtend(a);
-        Mulh   : signExtend(a);
-        Mulhsu : signExtend(a);
-        Mulhu  : zeroExtend(a);
+        Mul    : (signExtend(a)>>valueOf(DataSz));
+        Mulh   : (signExtend(a)>>valueOf(DataSz));
+        Mulhsu : (signExtend(a)>>valueOf(DataSz));
+        Mulhu  : (zeroExtend(a)>>valueOf(DataSz));
         default: '0;
     endcase;
 
-    Long opB = case(func)
-        Mul    : signExtend(b);
-        Mulh   : signExtend(b);
-        Mulhsu : zeroExtend(b);
-        Mulhu  : zeroExtend(b);
-        default: '0;
-    endcase;
+    Long opB = {b,'0};
 
-    Long mulRes = mul32(partial,opA>>valueOf(DataSz),opB<<valueOf(DataSz));
+    Long mulRes = mul32(partial,opA,opB);
 
     Data res = case(func)
-        Mul    : truncate   (mulRes);
-        Mulh   : truncateLSB(mulRes);
-        Mulhsu : truncateLSB(mulRes);
-        Mulhu  : truncateLSB(mulRes);
+        Mul    : truncate   (mulRes );
+        Mulh   : truncateLSB(mulRes );
+        Mulhsu : truncateLSB(mulRes );
+        Mulhu  : truncateLSB(mulRes );
         Div    : truncate   (partial);
         Divu   : truncate   (partial);
         Rem    : truncate   (partial);
@@ -77,6 +80,7 @@ function Data mul2(Data a, Data b, Long partial, MulFunc func);
 
 endfunction
 
+(* noinline *)
 function Long mul32(Long res, Long a, Long b);
 
     for (Integer i = 0; i < valueOf(DataSz); i=i+1) begin
