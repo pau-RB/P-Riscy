@@ -51,4 +51,10 @@ inline void fork5NS(int a0, int a1, int a2, int a3, int a4, void *child_func, ch
 	{fork_sync(a0, a1, a2, a3, a4, child_func, child_frame, 0);}
 
 
+//////////// Wait ////////////
+
+inline int wait(char *child_frame)
+	{return wait_sync(child_frame);}
+
+
 #endif

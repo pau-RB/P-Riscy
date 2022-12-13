@@ -1,3 +1,5 @@
+#include"../MMIO/mmio.h"
+
 
 /* arithmetique de virgule fixe
    precision q = 8192 i.e. 13 bits pour la partie decimale */
