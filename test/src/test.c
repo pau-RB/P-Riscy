@@ -4,16 +4,9 @@
 #define FRAME_SIZE 128
 #define STACK_SIZE 128
 
-char child_stack_1[STACK_SIZE];
 char child_frame_1[FRAME_SIZE];
-
-char child_stack_2[STACK_SIZE];
 char child_frame_2[FRAME_SIZE];
-
-char child_stack_3[STACK_SIZE];
 char child_frame_3[FRAME_SIZE];
-
-char child_stack_4[STACK_SIZE];
 char child_frame_4[FRAME_SIZE];
 
 int sum(int a, int b) {
