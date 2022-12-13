@@ -8,10 +8,10 @@ fork:
 1:
 	auipc	ra,%pcrel_hi(child_return)
 	addi	ra,ra,%pcrel_lo(1b)
-	mv		sp,a4
-	mv		s0,a3
-	sw		zero,0(a3)
-	.word	0x0006008b					#forkr a2
+	mv		sp,a7
+	mv		s0,a6
+	sw		zero,0(a6)
+	.word	0x0007808b					#forkr a5
 	mv 		ra,t0
 	mv		sp,t1
 	mv		s0,t2
