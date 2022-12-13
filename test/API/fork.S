@@ -1,7 +1,7 @@
 .align 2
 .text
-.globl fork
-fork:
+.globl fork_sync
+fork_sync:
 	mv 		t0,ra
 	mv		t1,sp
 	mv		t2,s0

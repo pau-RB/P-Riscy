@@ -55,10 +55,10 @@ void mergesort41(const int l, const int r) {
     int m3 = (l+r)/4*3;
     int m4 = (l+r)/4*4;
 
-    fork(m0,m1,0,0,0,(void*)mergesort,child_frame[0],child_stack[0]+STACK_SIZE);
-    fork(m1,m2,0,0,0,(void*)mergesort,child_frame[1],child_stack[1]+STACK_SIZE);
-    fork(m2,m3,0,0,0,(void*)mergesort,child_frame[2],child_stack[2]+STACK_SIZE);
-    fork(m3,m4,0,0,0,(void*)mergesort,child_frame[3],child_stack[3]+STACK_SIZE);
+    fork2(m0,m1,(void*)mergesort,child_frame[0],child_stack[0]+STACK_SIZE);
+    fork2(m1,m2,(void*)mergesort,child_frame[1],child_stack[1]+STACK_SIZE);
+    fork2(m2,m3,(void*)mergesort,child_frame[2],child_stack[2]+STACK_SIZE);
+    fork2(m3,m4,(void*)mergesort,child_frame[3],child_stack[3]+STACK_SIZE);
 
     wait(child_frame[0]);
     wait(child_frame[1]);
@@ -81,10 +81,10 @@ void mergesort42(const int l, const int r) {
     int m3 = (l+r)/4*3;
     int m4 = (l+r)/4*4;
 
-    fork(m0,m1,0,0,0,(void*)mergesort,child_frame[0],child_stack[0]+STACK_SIZE);
-    fork(m1,m2,0,0,0,(void*)mergesort,child_frame[1],child_stack[1]+STACK_SIZE);
-    fork(m2,m3,0,0,0,(void*)mergesort,child_frame[2],child_stack[2]+STACK_SIZE);
-    fork(m3,m4,0,0,0,(void*)mergesort,child_frame[3],child_stack[3]+STACK_SIZE);
+    fork2(m0,m1,(void*)mergesort,child_frame[0],child_stack[0]+STACK_SIZE);
+    fork2(m1,m2,(void*)mergesort,child_frame[1],child_stack[1]+STACK_SIZE);
+    fork2(m2,m3,(void*)mergesort,child_frame[2],child_stack[2]+STACK_SIZE);
+    fork2(m3,m4,(void*)mergesort,child_frame[3],child_stack[3]+STACK_SIZE);
 
     wait(child_frame[0]);
     wait(child_frame[1]);
@@ -93,8 +93,8 @@ void mergesort42(const int l, const int r) {
 
     printLSR('M');
 
-    fork(m0,m1,m2,0,0,(void*)merge,child_frame[0],child_stack[0]+STACK_SIZE);
-    fork(m2,m3,m4,0,0,(void*)merge,child_frame[1],child_stack[1]+STACK_SIZE);
+    fork3(m0,m1,m2,(void*)merge,child_frame[0],child_stack[0]+STACK_SIZE);
+    fork3(m2,m3,m4,(void*)merge,child_frame[1],child_stack[1]+STACK_SIZE);
 
     wait(child_frame[0]);
     wait(child_frame[1]);

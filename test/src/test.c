@@ -26,10 +26,10 @@ int mul(int a, int b) {
 
 int main() {
 
-    fork(7,1,0,0,0,(void*)sum,child_frame_1,child_stack_1+STACK_SIZE);
-    fork(3,1,0,0,0,(void*)sum,child_frame_2,child_stack_2+STACK_SIZE);
-    fork(4,2,0,0,0,(void*)mul,child_frame_3,child_stack_3+STACK_SIZE);
-    fork(5,1,0,0,0,(void*)mul,child_frame_4,child_stack_4+STACK_SIZE);
+    fork2(7,1,(void*)sum,child_frame_1,child_stack_1+STACK_SIZE);
+    fork2(3,1,(void*)sum,child_frame_2,child_stack_2+STACK_SIZE);
+    fork2(4,2,(void*)mul,child_frame_3,child_stack_3+STACK_SIZE);
+    fork2(5,1,(void*)mul,child_frame_4,child_stack_4+STACK_SIZE);
 
     int res1 = wait(child_frame_1);
     int res2 = wait(child_frame_2);
