@@ -1,66 +1,89 @@
+#include"../API/api.h"
+#include"../MMIO/mmio.h"
 
-/* arithmetique de virgule fixe
-   precision q = 8192 i.e. 13 bits pour la partie decimale */
+#define MAX_THD 8
+#define FRAME_SIZE 128
+#define STACK_SIZE 128
 
-int add(int x, int y) {
-  return x + y;
-}
-int sub(int x, int y) {
-  return x - y;
-}
-int mul(int x, int y) {
-  int t;
-  t = x * y;
-  return (t + 8192 / 2) / 8192;
-}
-int div(int x, int y) {
-  int t;
-  t = x * 8192;
-  return (t + y / 2) / y;
-}
-int of_int(int x) {
-  return x * 8192;
-}
+#define BASE 8192
+#define STEP 512
+#define MAXITER 100
+#define INFTY 4*BASE
 
-int iter(int n, int a, int b, int xn, int yn) {
-  int xn2, yn2;
-  if (n == 100) return 1;
-  xn2 = mul(xn, xn);
-  yn2 = mul(yn, yn);
-  if (add(xn2, yn2) > of_int(4)) return 0;
-  return iter(n+1, a, b, add(sub(xn2, yn2), a),
-              add(mul(of_int(2), mul(xn, yn)), b));
+char child_stack[MAX_THD][STACK_SIZE]={1};
+char child_frame[MAX_THD][FRAME_SIZE]={1};
+
+typedef struct {
+	int r;
+	int i;
+} Complex;
+
+inline int fromint(int a) {
+	return BASE*a;
 }
 
-int inside(int x, int y) {
-  return iter(0, x, y, of_int(0), of_int(0));
+inline Complex com(int r, int i) {
+	Complex res = {r,i};
+	return res;
 }
 
-void run(int steps) {
-  int xmin, xmax, deltax, ymin, ymax, deltay, i;
-  xmin = of_int(-2);
-  xmax = of_int(1);
-  deltax = div(sub(xmax, xmin), of_int(2 * steps));
-  ymin = of_int(-1);
-  ymax = of_int(1);
-  deltay = div(sub(ymax, ymin), of_int(steps));
-  i;
-  for (i = 0; i < steps; i++) {
-    int y, j;
-    y = add(ymin, mul(of_int(i), deltay));
-    j;
-    for (j = 0; j < 2 * steps; j++) {
-      int x;
-      x = add(xmin, mul(of_int(j), deltax));
-      if (inside(x, y))
-        putchar('0');
-      else
-        putchar('1');
-    }
-    putchar(10);
-  }
+inline Complex add(Complex a, Complex b)
+	{return com(a.r+b.r,a.i+b.i);}
+
+inline Complex sub(Complex a, Complex b)
+	{return com(a.r-b.r,a.i-b.i);}
+
+inline Complex mul(Complex a, Complex b)
+	{return com((a.r*b.r-a.i*b.i)/BASE,(a.r*b.i+a.i*b.r)/BASE);}
+
+inline int modsq(Complex a)
+	{return (a.r*a.r+a.i*a.i)/BASE;}
+
+int inside(Complex c) {
+	Complex z = {0,0};
+	for(int i = 0; i < MAXITER; ++i) {
+		if(modsq(z) > INFTY)
+			return 0;
+		z = add(mul(z,z),c);
+	}
+	return 1;
+}
+
+int mandelbrot(int l, int r, int b, int t) {
+	int a;
+	for (int i = b; i < t; i+=STEP)
+    	for (int j = l; j < r; j+=STEP)
+    		a = inside(com(j,i));
+    return a;
+}
+
+int mandelbrot4(int l, int r, int b, int t) {
+
+	int h = (l+r)/2;
+	int v = (b+t)/2;
+
+	fork4(l,h,b,v,(void*)mandelbrot,child_frame[0],child_stack[0]+STACK_SIZE);
+    fork4(l,h,v,t,(void*)mandelbrot,child_frame[1],child_stack[1]+STACK_SIZE);
+    fork4(h,r,b,v,(void*)mandelbrot,child_frame[2],child_stack[2]+STACK_SIZE);
+    fork4(h,r,v,t,(void*)mandelbrot,child_frame[3],child_stack[3]+STACK_SIZE);
+
+    wait(child_frame[0]);
+    wait(child_frame[1]);
+    wait(child_frame[2]);
+    wait(child_frame[3]);
+
 }
 
 int main() {
-  run(30);
+
+	
+
+	printLSR('S');
+
+	int a = mandelbrot4(fromint(-2),fromint(1),fromint(-1),fromint(1));
+
+    printLSR('E');
+
+    return a;
+
 }

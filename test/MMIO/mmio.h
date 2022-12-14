@@ -2,6 +2,6 @@
 #define MMIO_H
 
 int putchar(int c);
-int printLSR();
+int printLSR(int c);
 
 #endif

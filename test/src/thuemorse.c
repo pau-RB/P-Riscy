@@ -1,3 +1,4 @@
+#include"../MMIO/mmio.h"
 
 /* Affichage des premiers termes de la suite de Thue-Morse */
 

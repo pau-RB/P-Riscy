@@ -1,7 +1,7 @@
 .align 2
 .text
-.globl wait
-wait:
+.globl wait_sync
+wait_sync:
 	sw		x1,4*1(a0)
 	sw		x2,4*2(a0)
 	sw		x3,4*3(a0)
