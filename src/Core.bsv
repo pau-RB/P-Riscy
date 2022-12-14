@@ -133,13 +133,6 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 		endrule
 	end
 
-	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-		rule do_forward_dry;
-			let dry <- backend.hart[i].getBackendDry();
-			frontend.hart[i].backendDry();
-		endrule
-	end
-
 	//////////// PERFORMANCE CNT ////////////
 
 	rule do_perf_DEBUG if(perf_DEBUG == True && coreStarted);

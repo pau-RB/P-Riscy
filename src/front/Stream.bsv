@@ -9,9 +9,6 @@ interface Stream;
 	method ActionValue#(DecToken) fetch();
 	method Action                 redirect(Redirect r);
 
-	// Thread control - from downstream
-	method Action                 backendDry();
-
 	// Thread control - from upstream
 	method Bool                   available();
 	method Action                 start(Addr sPC);
@@ -26,14 +23,12 @@ interface Stream;
 
 endinterface
 
-// evict < "do_wb" < Redirect < Fetch < l1Iresp < do_dry < l1Ireq < start/available
-// 0        1        2          2       2         2        3        3
+// evict < "do_wb" < Redirect < Fetch < l1Iresp < l1Ireq < start/available
+// 0        1        2          2       2         3        3
 //
 // Redirect C Fetch
-// Redirect C do_dry
 // Redirect C l1Ireq
 //
-// Redirect C do_dry
 // Fetch    C l1Ireq
 //
 // l1Iresp  C l1Ireq
@@ -46,7 +41,6 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 	Fifo#(1,DecToken)      inst      <- mkStageFifo();
 	Fifo#(1,Redirect)      redirectQ <- mkBypassFifo();
-	Fifo#(1,void)          dryQ      <- mkBypassFifo();
 	
 	Reg #(CacheLine)       l0I       <- mkRegU();
 	Ehr #(2, CacheLineNum) l0Iline   <- mkEhr(?);
@@ -71,6 +65,8 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 		if(redirect.kill) begin
 			epoch <= redirect.epoch;
+			state[2] <= Empty;
+		end else if(redirect.dry) begin
 			state[2] <= Empty;
 		end else if(redirect.redirect) begin
 			pc[0] <= redirect.nextPc;
@@ -145,16 +141,7 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 	endrule
 
-	// 4 - Check if pipeline is flush
-
-	rule do_dry if(state[2] == Dry);
-
-		dryQ.deq();
-		state[2] <= Empty;
-
-	endrule
-
-	// 5 - Interact with l1I
+	// 4 - Interact with l1I
 
 	rule do_l1Ireq if (state[3] == Full && !nextl0Ihit);
 
@@ -163,7 +150,7 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 	endrule
 
-	// 6 - Consider external requests
+	// 5 - Consider external requests
 	// Flow control
 	method ActionValue#(DecToken) fetch();
 		DecToken i = inst.first(); inst.deq();
@@ -172,11 +159,6 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 	method Action redirect(Redirect r);
 		redirectQ.enq(r);
-	endmethod
-
-	// Thread control - from downstream
-	method Action backendDry()    if(state[1] == Dry);
-		dryQ.enq(?);
 	endmethod
 
 	// Thread control - from upstream

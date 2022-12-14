@@ -26,7 +26,6 @@ interface Writeback;
 
 	// To upstream
 	method ActionValue#(Redirect)     getRedirect();
-	method ActionValue#(void)         getBackendDry();
 
 endinterface
 
@@ -76,13 +75,11 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 
 	Vector#(FrontWidth, Ehr#(3, Maybe#(void    ))) toWBsbRemove    <- replicateM(mkEhr(tagged Invalid));
 	Vector#(FrontWidth, Ehr#(3, Maybe#(RFwb    ))) toWBrfWriteBack <- replicateM(mkEhr(tagged Invalid));
-	Vector#(FrontWidth, Ehr#(3, Maybe#(void    ))) toWBstDry       <- replicateM(mkEhr(tagged Invalid));
 	Vector#(FrontWidth, Ehr#(3, Maybe#(Epoch   ))) toWBstEpoch     <- replicateM(mkEhr(tagged Invalid));
 	Vector#(FrontWidth, Ehr#(3, Maybe#(Redirect))) toWBstRedirect  <- replicateM(mkEhr(tagged Invalid));
 
 	// Upstream
 	Vector#(FrontWidth, Fifo#(1,Redirect))         redirectQ       <- replicateM(mkBypassFifo());
-	Vector#(FrontWidth, Fifo#(1,void))             backendDryQ     <- replicateM(mkBypassFifo());
 
 	// CMR
 	MFifo#(THQ_LEN,BackWidth,CommitReport)         commitReportQ   <- mkPipelineMFifo();
@@ -213,7 +210,6 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 		// Upstream actions
 		Vector#(FrontWidth, Maybe#(void    )) sbRemove     = replicate(tagged Invalid);
 		Vector#(FrontWidth, Maybe#(RFwb    )) rfWriteBack  = replicate(tagged Invalid);
-		Vector#(FrontWidth, Maybe#(void    )) stDry        = replicate(tagged Invalid);
 		Vector#(FrontWidth, Maybe#(Epoch   )) stEpoch      = replicate(tagged Invalid);
 		Vector#(FrontWidth, Maybe#(Redirect)) stRedirect   = replicate(tagged Invalid);
 
@@ -238,7 +234,13 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 				if(commitInst.iType == Ghost) begin
 
 					nttx.evict(feID, wToken.pc);
-					stDry[feID] = tagged Valid(?);
+
+					stRedirect[feID] = tagged Valid Redirect{ lock    : False,
+							                                  dry     : True,
+							                                  kill    : False,
+							                                  redirect: False,
+							                                  epoch   : ?,
+							                                  nextPc  : ?};
 
 				end else begin
 
@@ -255,6 +257,7 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 						end else begin
 							stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
 							stRedirect[feID] = tagged Valid Redirect{ lock    : True,
+							                                          dry     : False,
 							                                          kill    : False,
 							                                          redirect: True,
 							                                          epoch   : wbEpoch[feID][0]+1,
@@ -268,6 +271,7 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 						if(!resp.valid) begin
 							stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
 							stRedirect[feID] = tagged Valid Redirect{ lock    : True,
+								                                      dry     : False,
 								                                      kill    : False,
 							                                          redirect: True,
 							                                          epoch   : wbEpoch[feID][0]+1,
@@ -287,6 +291,7 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 							if(resp.data == '0) begin
 								stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
 								stRedirect[feID] = tagged Valid Redirect{ lock    : False,
+	    	    	                                                      dry     : False,
 	    	    	                                                      kill    : True,
 				                                                          redirect: False,
 				                                                          epoch   : wbEpoch[feID][0]+1,
@@ -295,6 +300,7 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 						end else begin
 							stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
 							stRedirect[feID] = tagged Valid Redirect{ lock    : True,
+							                                          dry     : False,
 							                                          kill    : False,
 							                                          redirect: True,
 							                                          epoch   : wbEpoch[feID][0]+1,
@@ -311,12 +317,14 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 						if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
 							stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
 							stRedirect[feID] = tagged Valid Redirect{ lock    : False,
+							                                          dry     : False,
 							                                          kill    : False,
 							                                          redirect: True,
 							                                          epoch   : wbEpoch[feID][0]+1,
 							                                          nextPc  : commitInst.addr };
 						end else if (commitInst.iType == Br) begin
 							stRedirect[feID] = tagged Valid Redirect{ lock    : False,
+							                                          dry     : False,
 							                                          kill    : False,
 							                                          redirect: False,
 							                                          epoch   : ?,
@@ -388,12 +396,14 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 					if(commitInst.brTaken || commitInst.iType == J || commitInst.iType == Jr) begin
 						stEpoch   [feID] = tagged Valid (wbEpoch[feID][0]+1);
 						stRedirect[feID] = tagged Valid Redirect{ lock    : False,
+						                                          dry     : False,
 						                                          kill    : False,
 						                                          redirect: True,
 						                                          epoch   : wbEpoch[feID][0]+1,
 						                                          nextPc  : commitInst.addr };
 					end else if (commitInst.iType == Br) begin
 						stRedirect[feID] = tagged Valid Redirect{ lock    : False,
+						                                          dry     : False,
 						                                          kill    : False,
 						                                          redirect: False,
 						                                          epoch   : ?,
@@ -420,7 +430,6 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 			toWBsbRemove   [i][0] <= sbRemove   [i];
 			toWBrfWriteBack[i][0] <= rfWriteBack[i];
-			toWBstDry      [i][0] <= stDry      [i];
 			toWBstEpoch    [i][0] <= stEpoch    [i];
 			toWBstRedirect [i][0] <= stRedirect [i];
 		end
@@ -453,17 +462,19 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 		if(commitInst.iType == Ld) begin
 
 			loadRes = resp.data;
-    	    toWBrfWriteBack[feID][1] <= tagged Valid RFwb{dst: fromMaybe(?, commitInst.dst), res: loadRes};
-    	    toWBstRedirect [feID][1] <= tagged Valid Redirect{ lock    : False,
-    	    	                                               kill    : False,
+			toWBrfWriteBack[feID][1] <= tagged Valid RFwb{dst: fromMaybe(?, commitInst.dst), res: loadRes};
+			toWBstRedirect [feID][1] <= tagged Valid Redirect{ lock    : False,
+			                                                   dry     : False,
+			                                                   kill    : False,
 			                                                   redirect: False,
 			                                                   epoch   : ?,
 			                                                   nextPc  : ? };
 
     	end else if(commitInst.iType == St) begin
 
-    	    toWBstRedirect[feID][1] <= tagged Valid Redirect{ lock    : False,
-    	    	                                    kill    : False,
+			toWBstRedirect[feID][1] <= tagged Valid Redirect{ lock    : False,
+			                                        dry     : False,
+			                                        kill    : False,
 			                                        redirect: False,
 			                                        epoch   : ?,
 			                                        nextPc  : ? };
@@ -474,16 +485,18 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 			if(resp.data == '0) begin
 				toWBstEpoch   [feID][1] <= tagged Valid (wbEpoch[feID][0]+1);
 				toWBstRedirect[feID][1] <= tagged Valid Redirect{ lock    : False,
-    		                                            kill    : True,
-			                                            redirect: False,
-			                                            epoch   : wbEpoch[feID][0]+1,
-			                                            nextPc  : ? };
+				                                                  dry     : False,
+				                                                  kill    : True,
+				                                                  redirect: False,
+				                                                  epoch   : wbEpoch[feID][0]+1,
+				                                                  nextPc  : ? };
 			end else begin
 				toWBstRedirect[feID][1] <= tagged Valid Redirect{ lock    : False,
-					                                    kill    : False,
-				                                        redirect: False,
-				                                        epoch   : ?,
-				                                        nextPc  : ? };
+				                                                  dry     : False,
+				                                                  kill    : False,
+				                                                  redirect: False,
+				                                                  epoch   : ?,
+				                                                  nextPc  : ? };
 			end
 
     	end
@@ -512,10 +525,6 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 
 			regFile[i].wr(fromMaybe(RFwb{dst: '0, res: 'hdeadbeef}, toWBrfWriteBack[i][2]));
 
-			if(isValid(toWBstDry[i][2])) begin
-				backendDryQ[i].enq(?);
-			end
-
 			wbEpoch[i][0] <= fromMaybe(wbEpoch[i][0], toWBstEpoch[i][2]);
 
 			if(isValid(toWBstRedirect[i][2])) begin
@@ -524,7 +533,6 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 
 			toWBsbRemove   [i][2] <= tagged Invalid;
 			toWBrfWriteBack[i][2] <= tagged Invalid;
-			toWBstDry      [i][2] <= tagged Invalid;
 			toWBstEpoch    [i][2] <= tagged Invalid;
 			toWBstRedirect [i][2] <= tagged Invalid;
 
@@ -556,11 +564,6 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 
 				method ActionValue#(Redirect) getRedirect();
 					let latest = redirectQ[i].first(); redirectQ[i].deq();
-					return latest;
-				endmethod
-
-				method ActionValue#(void) getBackendDry();
-					let latest = backendDryQ[i].first(); backendDryQ[i].deq();
 					return latest;
 				endmethod
 

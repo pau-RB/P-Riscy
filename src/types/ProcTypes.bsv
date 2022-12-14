@@ -223,6 +223,7 @@ typedef struct {
 
 typedef struct {
 	Bool        lock;
+	Bool        dry;
 	Bool        kill;
 	Bool        redirect;
 	Epoch       epoch;

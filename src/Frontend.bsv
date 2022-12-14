@@ -32,7 +32,6 @@ interface  Hart;
 
 	// From downstream
 	method Action redirect(Redirect r);
-	method Action backendDry();
 
 endinterface
 
@@ -217,7 +216,6 @@ module mkFrontend (WideMem                             mem        ,
 
 				// From downstream
 				method Action redirect(Redirect r) = redirectQ[i].enq(r);
-				method Action backendDry()         = stream[i].backendDry();
 
 			endinterface);
 	end
