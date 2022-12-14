@@ -298,7 +298,8 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
 	method ActionValue#(MemStat) getMSR();
 		let latest <- backend.getMSR();
-		latest.fetch = frontend.getStat();
+		latest.fetch   = frontend.getStat();
+		latest.arbiter = arbiter.getStat();
 		return latest;
 	endmethod
 

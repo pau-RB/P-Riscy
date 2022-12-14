@@ -68,6 +68,12 @@ typedef struct {
 } FetchStat;
 
 typedef struct {
+	Data    memOvb;
+	Data    arithOvb;
+	Data    empty;
+} ArbiterStat;
+
+typedef struct {
 	Data    hLd;
     Data    hSt;
     Data    hJoin;
@@ -80,12 +86,13 @@ typedef struct {
 } LSUStat;
 
 typedef struct {
-	VerifID   verifID;
-	Data      cycle;
-	Data      commit;
-	Data	  data;
-	FetchStat fetch;
-	LSUStat   lsu;
+	VerifID     verifID;
+	Data        cycle;
+	Data        commit;
+	Data	    data;
+	FetchStat   fetch;
+	ArbiterStat arbiter;
+	LSUStat     lsu;
 } MemStat;
 
 #endif

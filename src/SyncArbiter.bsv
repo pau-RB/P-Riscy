@@ -1,5 +1,7 @@
+import Types::*;
 import Config::*;
 import Fifo::*;
+import CMRTypes::*;
 import Vector::*;
 import Ehr::*;
 
@@ -15,15 +17,23 @@ interface FifoDeq#(type t);
 endinterface
 
 interface SyncArbiter#(numeric type n, numeric type m, type t);
+
+	// IO
 	interface Vector#(n,FifoEnq#(t)) eport;
 	interface FifoDeq#(Vector#(m,Maybe#(t))) dport;
+
+	// Performance debug
 	method Vector#(n,Maybe#(t)) perf_get_inst;
 	method Vector#(n,Bool) perf_get_taken;
+
+	// Stats
+	method ArbiterStat getStat();
+
 endinterface
 
-module mkSyncArbiter(Bool coreStarted,
-	                 Vector#(m, function Bool accept(t inst)) filter1,
-	                 Vector#(m, function Bool accept(t inst)) filter2,
+module mkSyncArbiter(Bool                                     coreStarted,
+	                 Vector#(m, function Bool accept(t inst)) filter1    ,
+	                 Vector#(m, function Bool accept(t inst)) filter2    ,
 	                 SyncArbiter#(n, m, t) ifc) provisos(Bits#(t,tSz), FShow#(t));
 
 	// Queues
@@ -33,6 +43,13 @@ module mkSyncArbiter(Bool coreStarted,
 	// Performance debug
 	Ehr#(3,Vector#(n,Maybe#(t))) perf_sel_inst  <- mkEhr(replicate(tagged Invalid));
 	Ehr#(3,Vector#(n,Bool     )) perf_sel_taken <- mkEhr(replicate(False));
+
+	// Stats
+	Reg#(Data) numMemOvb   <- mkReg(0);
+	Reg#(Data) numArithOvb <- mkReg(0);
+	Reg#(Data) numEmpty    <- mkReg(0);
+
+	//////////// SELECT ////////////
 
 	rule do_select if(coreStarted);
 
@@ -84,6 +101,30 @@ module mkSyncArbiter(Bool coreStarted,
 			perf_sel_inst [0] <= inst;
 		end
 
+		if(mem_ext_DEBUG) begin
+
+			Bool isMemOvb   = False;
+			Bool isArithOvb = False;
+			for(Integer i = 0; i < valueOf(n); i=i+1)
+				if(isValid(inst[i]) && !taken[i])
+					if(filter1[0](fromMaybe(?,inst[i])))
+						isMemOvb = True;
+					else
+						isArithOvb = True;
+			if(isMemOvb)
+				numMemOvb <= numMemOvb+1;
+			if(isArithOvb)
+				numArithOvb <= numArithOvb+1;
+
+			Bool isEmpty = True;
+			for(Integer i = 0; i < valueOf(n); i=i+1)
+				if(isValid(inst[i]))
+					isEmpty = False;
+			if(isEmpty)
+				numEmpty <= numEmpty+1;
+
+		end
+
 	endrule
 
 	rule do_reset if(coreStarted && perf_DEBUG);
@@ -93,7 +134,9 @@ module mkSyncArbiter(Bool coreStarted,
 
 	endrule
 
-	// Interface
+	//////////// INTERFACE ////////////
+
+	// IO
  	Vector#(n, FifoEnq#(t)) enqIfc = newVector;
  	for(Integer i = 0; i < valueOf(n); i=i+1) begin
 		enqIfc[i] =
@@ -113,12 +156,20 @@ module mkSyncArbiter(Bool coreStarted,
 	interface eport = enqIfc;
 	interface dport = deqIfc;
 
+	// Performance debug
 	method Vector#(n,Maybe#(t)) perf_get_inst();
 		return perf_sel_inst[2];
 	endmethod
 
 	method Vector#(n,Bool) perf_get_taken();
 		return perf_sel_taken[2];
+	endmethod
+
+	// Stats
+	method ArbiterStat getStat();
+		return ArbiterStat{ memOvb   : numMemOvb,
+		                    arithOvb : numArithOvb,
+		                    empty    : numEmpty};
 	endmethod
 
 endmodule

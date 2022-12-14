@@ -73,8 +73,9 @@ void Interpreter::print_MSG_dut(const Message msg) {
 
 void Interpreter::print_MSR_dut(const MemStat msr) {
 
-    LSUStat   lsu   = msr.lsu;
-    FetchStat fetch = msr.fetch;
+    LSUStat     lsu     = msr.lsu;
+    ArbiterStat arbiter = msr.arbiter;
+    FetchStat   fetch   = msr.fetch;
 
     std::string phrase;
 
@@ -97,6 +98,15 @@ void Interpreter::print_MSR_dut(const MemStat msr) {
     overwrite(phrase, std::to_string(fetch.hit     ), 29, 8 );
     overwrite(phrase, std::to_string(fetch.miss    ), 48, 8 );
     overwrite(phrase, std::to_string(fetch.empty   ), 67, 8 );
+    printf("%s \n", phrase.c_str());
+
+    phrase = "                    |-----------------|------------------|-----------------|";
+    printf("%s \n", phrase.c_str());
+
+    phrase = "            Arbiter | memOvb:         | ariOvb:          | empty:          |";
+    overwrite(phrase, std::to_string(arbiter.memOvb  ), 29, 8 );
+    overwrite(phrase, std::to_string(arbiter.arithOvb), 48, 8 );
+    overwrite(phrase, std::to_string(arbiter.empty   ), 67, 8 );
     printf("%s \n", phrase.c_str());
 
     phrase = "                    |-----------------|------------------|-----------------|";

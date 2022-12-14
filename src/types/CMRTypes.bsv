@@ -27,6 +27,12 @@ typedef struct{
 } FetchStat deriving(Eq, Bits, FShow);
 
 typedef struct{
+	Data    memOvb;
+	Data    arithOvb;
+	Data    empty;
+} ArbiterStat deriving(Eq, Bits, FShow);
+
+typedef struct{
 	Data    hLd;
 	Data    hSt;
 	Data    hJoin;
@@ -39,12 +45,13 @@ typedef struct{
 } LSUStat deriving(Eq, Bits, FShow);
 
 typedef struct{
-	VerifID   verifID;
-	Data      cycle;
-	Data      commit;
-	Data      data;
-	FetchStat fetch;
-	LSUStat   lsu;
+	VerifID     verifID;
+	Data        cycle;
+	Data        commit;
+	Data        data;
+	FetchStat   fetch;
+	ArbiterStat arbiter;
+	LSUStat     lsu;
 } MemStat deriving(Eq, Bits, FShow);
 
 // Construct CMR
