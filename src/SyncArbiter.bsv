@@ -21,7 +21,10 @@ interface SyncArbiter#(numeric type n, numeric type m, type t);
 	method Vector#(n,Bool) perf_get_taken;
 endinterface
 
-module mkSyncArbiter(Bool coreStarted, Vector#(m, function Bool accept(t inst)) filter, SyncArbiter#(n, m, t) ifc) provisos(Bits#(t,tSz), FShow#(t));
+module mkSyncArbiter(Bool coreStarted,
+	                 Vector#(m, function Bool accept(t inst)) filter1,
+	                 Vector#(m, function Bool accept(t inst)) filter2,
+	                 SyncArbiter#(n, m, t) ifc) provisos(Bits#(t,tSz), FShow#(t));
 
 	// Queues
 	Vector#(n, Fifo#(1,t))         inputQueue  <- replicateM(mkStageFifo());
@@ -48,7 +51,16 @@ module mkSyncArbiter(Bool coreStarted, Vector#(m, function Bool accept(t inst)) 
 		// Select
 		for (Integer i = 0; i < valueOf(n); i=i+1) begin
 			for (Integer j = 0; j < valueOf(m); j=j+1) begin
-				if(isValid(inst[i]) && !taken[i] && !isValid(forward[j]) && filter[j](fromMaybe(?,inst[i]))) begin
+				if(isValid(inst[i]) && !taken[i] && !isValid(forward[j]) && filter1[j](fromMaybe(?,inst[i]))) begin
+					forward[j] = inst[i];
+					taken  [i] = True;
+				end
+			end
+		end
+
+		for (Integer i = 0; i < valueOf(n); i=i+1) begin
+			for (Integer j = 0; j < valueOf(m); j=j+1) begin
+				if(isValid(inst[i]) && !taken[i] && !isValid(forward[j]) && filter2[j](fromMaybe(?,inst[i]))) begin
 					forward[j] = inst[i];
 					taken  [i] = True;
 				end

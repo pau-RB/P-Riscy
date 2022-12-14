@@ -70,8 +70,18 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
 	//////////// ARBITER ////////////
 
-	function Bool isMemInst(ExecToken inst);
+	function Bool isAnyInst(ExecToken inst);
 		return True;
+	endfunction
+
+	function Bool isNonInst(ExecToken inst);
+		return False;
+	endfunction
+
+	function Bool isMemInst(ExecToken inst);
+		return (inst.inst.iType == Ld          || inst.inst.iType == St    ||
+		        inst.inst.iType == Fork        || inst.inst.iType == Forkr ||
+		        inst.inst.iType == Join        || inst.inst.iType == Ghost );
 	endfunction
 
 	function Bool isArithInst(ExecToken inst);
@@ -81,10 +91,12 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 		        inst.inst.iType == Auipc );
 	endfunction
 
-	Vector#(BackWidth, function Bool accept(ExecToken inst)) filter = newVector;
-	for(Integer i = 1; i < valueOf(BackWidth); i = i+1) filter[i] = isArithInst; filter[0] = isMemInst;
+	Vector#(BackWidth, function Bool accept(ExecToken inst)) filter1 = newVector;
+	Vector#(BackWidth, function Bool accept(ExecToken inst)) filter2 = newVector;
+	for(Integer i = 1; i < valueOf(BackWidth); i = i+1) filter1[i] = isArithInst; filter1[0] = isMemInst;
+	for(Integer i = 1; i < valueOf(BackWidth); i = i+1) filter2[i] = isNonInst;   filter2[0] = isAnyInst;
 
-	SyncArbiter#(FrontWidth, BackWidth, ExecToken) arbiter <- mkSyncArbiter(coreStarted, filter);
+	SyncArbiter#(FrontWidth, BackWidth, ExecToken) arbiter <- mkSyncArbiter(coreStarted, filter1, filter2);
 
 	//////////// BACKEND ////////////
 
