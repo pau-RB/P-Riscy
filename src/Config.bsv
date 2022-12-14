@@ -16,7 +16,7 @@ Addr	max_ADDR  = 'h3fffc;
 
 // Round Robin
 Bool 	roundRobin = True;
-typedef	100 RR_INT;
+typedef	1000 RR_INT;
 
 // Main Token Queue
 typedef 16 MTQ_LEN;

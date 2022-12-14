@@ -27,9 +27,6 @@ module mkSyncArbiter(Bool coreStarted, Vector#(m, function Bool accept(t inst)) 
 	Vector#(n, Fifo#(1,t))         inputQueue  <- replicateM(mkStageFifo());
 	Fifo#(1, Vector#(m,Maybe#(t))) outputQueue <- mkStageFifo();
 
-	// Round robin
-	Reg#(Bit#(TLog#(n))) hRoundRobin <- mkReg('0);
-
 	// Performance debug
 	Ehr#(3,Vector#(n,Maybe#(t))) perf_sel_inst  <- mkEhr(replicate(tagged Invalid));
 	Ehr#(3,Vector#(n,Bool     )) perf_sel_taken <- mkEhr(replicate(False));
@@ -50,11 +47,10 @@ module mkSyncArbiter(Bool coreStarted, Vector#(m, function Bool accept(t inst)) 
 
 		// Select
 		for (Integer i = 0; i < valueOf(n); i=i+1) begin
-			Bit#(TLog#(n)) idx = hRoundRobin+fromInteger(i);
 			for (Integer j = 0; j < valueOf(m); j=j+1) begin
-				if(isValid(inst[idx]) && !taken[idx] && !isValid(forward[j]) && filter[j](fromMaybe(?,inst[idx]))) begin
-					forward[j] = inst[idx];
-					taken[idx] = True;
+				if(isValid(inst[i]) && !taken[i] && !isValid(forward[j]) && filter[j](fromMaybe(?,inst[i]))) begin
+					forward[j] = inst[i];
+					taken  [i] = True;
 				end
 			end
 		end
@@ -66,8 +62,6 @@ module mkSyncArbiter(Bool coreStarted, Vector#(m, function Bool accept(t inst)) 
 				inputQueue[i].deq();
 			end
 		end
-
-		hRoundRobin <= hRoundRobin+1;
 
 		if(takenAny) begin
 			outputQueue.enq(forward);

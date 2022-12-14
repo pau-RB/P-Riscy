@@ -30,17 +30,17 @@ endinterface
 
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
-   WideMem                                       mainBRAM     <- mkWideMemBRAM();
-   DelayedWideMem#(TSub#(RAMLatency,2))          mainMem      <- mkWideMemDelay(mainBRAM);
-   SplitWideMem#(FrontWidth,TMul#(2,FrontWidth)) mainSplit    <- mkSplitWideMem(True, mainMem.delayed);
+   WideMem                              mainBRAM     <- mkWideMemBRAM();
+   DelayedWideMem#(TSub#(RAMLatency,2)) mainMem      <- mkWideMemDelay(mainBRAM);
+   SplitWideMem#(2,TMul#(2,FrontWidth)) mainSplit    <- mkSplitWideMem(True, mainMem.delayed);
 
-   VerifMaster                                   verif        <- mkVerifMaster();
-   Core                                          dut          <- mkCore7SS(mainSplit.port[0], mainSplit.port[1], verif);
+   VerifMaster                          verif        <- mkVerifMaster();
+   Core                                 dut          <- mkCore7SS(mainSplit.port[0], mainSplit.port[1], verif);
 
-   Reg#(Bool)                                    memInit      <- mkReg(False);
-   Fifo#(MTQ_LEN, ContToken)                     mainTokenQ   <- mkCFFifo();
-   Reg#(Data)                                    commitTarget <- mkReg(80);
-   Reg#(FrontID)                                 evictTarget  <- mkReg(0);
+   Reg#(Bool)                           memInit      <- mkReg(False);
+   Fifo#(MTQ_LEN, ContToken)            mainTokenQ   <- mkCFFifo();
+   Reg#(Data)                           commitTarget <- mkReg(80);
+   Reg#(FrontID)                        evictTarget  <- mkReg(0);
 
    rule relayCMR;
 
