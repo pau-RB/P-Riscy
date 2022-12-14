@@ -30,7 +30,7 @@ interface Writeback;
 
 endinterface
 
-interface BackEnd;
+interface Backend;
 
 	// Execute
 	method Action enq(Vector#(BackWidth, Maybe#(ExecToken)) inst);
@@ -59,7 +59,7 @@ interface BackEnd;
 
 endinterface
 
-module mkBackEnd (LSU#(WBToken)                       lsu        ,
+module mkBackend (LSU#(WBToken)                       lsu        ,
 	              VerifMaster                         verif      ,
 	              NTTX                                nttx       ,
 	              Vector#(FrontWidth, RFile)          regFile    ,
@@ -67,7 +67,7 @@ module mkBackEnd (LSU#(WBToken)                       lsu        ,
 	              Vector#(FrontWidth, Ehr#(2,Epoch))  wbEpoch    ,
 	              Bool                                coreStarted,
 	              Data                                numCycles  ,
-	              BackEnd ifc);
+	              Backend ifc);
 
 	// Stages
 	Fifo#(1,Vector#(BackWidth,Maybe#(ExecToken)))  executeQ        <- mkBypassFifo();

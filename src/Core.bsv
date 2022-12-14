@@ -19,9 +19,9 @@ import Scoreboard::*;
 import RFile::*;
 
 // top level modules
-import FrontEnd::*;
+import Frontend::*;
 import SyncArbiter::*;
-import BackEnd::*;
+import Backend::*;
 import LSU::*;
 import NTTX::*;
 
@@ -62,7 +62,7 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
 	//////////// FRONTEND ////////////
 
-	FrontEnd frontend <- mkFrontEnd(instMem     ,
+	Frontend frontend <- mkFrontend(instMem     ,
 	                                regFile     ,
 	                                scoreboard  ,
 	                                wbEpoch     ,
@@ -103,7 +103,7 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 	BareDataCache l1d     <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
 	LSU#(WBToken) lsu     <- mkLSU(dataMem, l1d);
 	NTTX          nttx    <- mkNTTX(regFile, verif);
-	BackEnd       backend <- mkBackEnd (lsu         ,
+	Backend       backend <- mkBackend (lsu         ,
 	                                    verif       ,
 	                                    nttx        ,
 	                                    regFile     ,

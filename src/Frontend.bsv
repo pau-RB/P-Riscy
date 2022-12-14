@@ -61,7 +61,7 @@ interface RegFetchDebug;
 
 endinterface
 
-interface FrontEnd;
+interface Frontend;
 
 	// Function
 	interface Vector#(FrontWidth, Hart) hart;
@@ -76,12 +76,12 @@ interface FrontEnd;
 
 endinterface
 
-module mkFrontEnd (WideMem                             mem        ,
+module mkFrontend (WideMem                             mem        ,
 	               Vector#(FrontWidth, RFile)          regFile    ,
 	               Vector#(FrontWidth, Scoreboard#(8)) scoreboard ,
 	               Vector#(FrontWidth, Ehr#(2,Epoch))  wbEpoch    ,
 	               Bool                                coreStarted,
-	               FrontEnd ifc);
+	               Frontend ifc);
 
 	// Data cache
 	L1I#(FrontWidth) l1I <- mkDirectL1I(mem);
