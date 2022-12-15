@@ -1,9 +1,9 @@
 import Types::*;
 
 // Connectal (FPGA)
-Bool  wb_ext_DEBUG = True;
-Bool msg_ext_DEBUG = False;
-Bool mem_ext_DEBUG = False;
+Bool  wb_ext_DEBUG = False;
+Bool msg_ext_DEBUG = True;
+Bool mem_ext_DEBUG = True;
 
 // Verilog (SIM)
 Bool perf_DEBUG    = False;
