@@ -118,8 +118,8 @@ void CustomSpike::fork(VerifID verifID, VerifID childverifID, Addr childpc) {
 
     this->active_thread[childverifID]->get_state()->pc = childpc;
     for (RIndx xi = 0; xi < 32; ++xi) {
-        Data value = this->active_thread[verifID     ]->get_state()->XPR[xi & 0x1F];
-                     this->active_thread[childverifID]->get_state()->XPR.write(xi & 0x1F, value);
+        reg_t value = this->active_thread[verifID     ]->get_state()->XPR[xi & 0x1F];
+                      this->active_thread[childverifID]->get_state()->XPR.write(xi & 0x1F, value);
     }
 
     return;
