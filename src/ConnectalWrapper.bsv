@@ -8,6 +8,8 @@ import Memory::*;
 import WideMemBRAM::*;
 import WideMemSplit::*;
 import WideMemDelay::*;
+import FIFOF::*;
+import BRAMFIFO::*;
 import Fifo::*;
 import Config::*;
 import Vector::*;
@@ -38,7 +40,7 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
    Core                                 dut          <- mkCore7SS(mainSplit.port[0], mainSplit.port[1], verif);
 
    Reg#(Bool)                           memInit      <- mkReg(False);
-   Fifo#(MTQ_LEN, ContToken)            mainTokenQ   <- mkCFFifo();
+   FIFOF#(ContToken)                    mainTokenQ   <- mkSizedBRAMFIFOF(valueOf(MTQ_LEN));
    Reg#(Data)                           commitTarget <- mkReg(80);
    Reg#(FrontID)                        evictTarget  <- mkReg(0);
 

@@ -21,7 +21,7 @@ endinterface
 
 module mkNTTX (Vector#(FrontWidth, RFile) rf, VerifMaster verif, NTTX ifc);
 
-	Fifo#(2,ContToken) out <- mkBypassFifo();
+	Fifo#(CTQ_LEN,ContToken) out <- mkPipelineFifo();
 
 	method Action evict(FrontID feID, Addr pc);
 		out.enq(ContToken{

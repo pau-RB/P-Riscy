@@ -19,7 +19,8 @@ Bool 	roundRobin = True;
 typedef	1000 RR_INT;
 
 // Main Token Queue
-typedef 16 MTQ_LEN;
+typedef 512 MTQ_LEN;
+typedef 4   CTQ_LEN;
 
 // Core width
 typedef 4 FrontWidth;
