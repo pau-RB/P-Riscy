@@ -82,9 +82,9 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 	Vector#(FrontWidth, Fifo#(1,Redirect))         redirectQ       <- replicateM(mkBypassFifo());
 
 	// CMR
-	MFifo#(THQ_LEN,BackWidth,CommitReport)         commitReportQ   <- mkPipelineMFifo();
-	Fifo# (THQ_LEN,Message)                        messageReportQ  <- mkPipelineFifo();
-	Fifo# (THQ_LEN,MemStat)                        memStatReportQ  <- mkPipelineFifo();
+	MFifo#(CTHQ_LEN,BackWidth,CommitReport)        commitReportQ   <- mkPipelineMFifo();
+	Fifo# (CTHQ_LEN,Message)                       messageReportQ  <- mkPipelineFifo();
+	Fifo# (CTHQ_LEN,MemStat)                       memStatReportQ  <- mkPipelineFifo();
 
 	// Perf debug
 	Ehr#(2,Vector#(BackWidth,Maybe#(ExecToken)))   perf_exec_inst  <- mkEhr(replicate(tagged Invalid));
@@ -337,7 +337,7 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 						numWB = numWB+1;
 					end
 
-					if (wb_ext_DEBUG == True && memValid) begin
+					if (cmr_ext_DEBUG == True && memValid) begin
 						commitReportQ.port[0].enq(generateCMR(numCycles, verif.getVerifID(feID), childVerifID, wToken, loadRes));
 					end
 
@@ -412,7 +412,7 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 
 					numWB = numWB+1;
 
-					if (wb_ext_DEBUG == True) begin
+					if (cmr_ext_DEBUG == True) begin
 						commitReportQ.port[i].enq(generateCMR(numCycles, verif.getVerifID(feID), ?, wToken, ?));
 					end
 
@@ -503,7 +503,7 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 
     	numCommit[1] <= numCommit[1]+1;
 
-		if (wb_ext_DEBUG == True) begin
+		if (cmr_ext_DEBUG == True) begin
 			commitReportQ.port[0].enq(generateCMR(numCycles, verif.getVerifID(feID), ?, wToken, loadRes));
 		end
 

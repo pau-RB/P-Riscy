@@ -44,25 +44,41 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
    Reg#(Data)                           commitTarget <- mkReg(80);
    Reg#(FrontID)                        evictTarget  <- mkReg(0);
 
-   rule relayCMR;
+   FIFOF#(CommitReport)                 mainCMRQ     <- mkSizedBRAMFIFOF(cmr_ext_DEBUG?valueOf(MTHQ_LEN):4);
+   FIFOF#(Message)                      mainMSGQ     <- mkSizedBRAMFIFOF(msg_ext_DEBUG?valueOf(MTHQ_LEN):4);
+   FIFOF#(MemStat)                      mainMSRQ     <- mkSizedBRAMFIFOF(mem_ext_DEBUG?valueOf(MTHQ_LEN):4);
 
-	     CommitReport cmr <- dut.getCMR();
+   //////////// RELAY REPORTS ////////////
+
+   rule getCMR if(cmr_ext_DEBUG);
+      let latest <- dut.getCMR();
+      mainCMRQ.enq(latest);
+   endrule
+
+   rule getMSG if(msg_ext_DEBUG);
+      let latest <- dut.getMSG();
+      mainMSGQ.enq(latest);
+   endrule
+
+   rule getMSR if(mem_ext_DEBUG);
+      let latest <- dut.getMSR();
+      mainMSRQ.enq(latest);
+   endrule
+
+   rule relayCMR if(cmr_ext_DEBUG);
+        CommitReport cmr = mainCMRQ.first(); mainCMRQ.deq();
         Bit#(8) iType = zeroExtend(pack(cmr.iType));
         Bit#(8) wbDst = zeroExtend(pack(cmr.wbDst));
         ind.reportCMR(cmr.cycle, cmr.verifID, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
-
    endrule
 
-   rule relayMSG;
-
-        Message msg <- dut.getMSG();
+   rule relayMSG if(msg_ext_DEBUG);
+        Message msg = mainMSGQ.first(); mainMSGQ.deq();
         ind.reportMSG(msg.verifID, msg.cycle, msg.commit, msg.data);
-
    endrule
 
-   rule relayMSR;
-
-         MemStat msr <- dut.getMSR();
+   rule relayMSR if(mem_ext_DEBUG);
+         MemStat msr = mainMSRQ.first(); mainMSRQ.deq();
          ind.reportMSR(msr.verifID,
                        msr.cycle,          msr.commit,           msr.data,
                        msr.fetch.hit,      msr.fetch.miss,       msr.fetch.empty,
@@ -70,8 +86,9 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
                        msr.lsu.hLd,        msr.lsu.hSt,          msr.lsu.hJoin,
                        msr.lsu.mLd,        msr.lsu.mSt,          msr.lsu.mJoin,
                        msr.lsu.dLd,        msr.lsu.dSt,          msr.lsu.dJoin);
-
    endrule
+
+   //////////// HANDLE THREADS ////////////
 
    rule doEvict if(roundRobin && dut.getNumCommit() == commitTarget);
 
@@ -107,6 +124,8 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
       dut.start(hart,t);
 
    endrule
+
+   //////////// INTERFACE ////////////
 
    interface FromHost connectProc;
 

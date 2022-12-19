@@ -1,7 +1,7 @@
 import Types::*;
 
 // Connectal (FPGA)
-Bool  wb_ext_DEBUG = False;
+Bool cmr_ext_DEBUG = False;
 Bool msg_ext_DEBUG = True;
 Bool mem_ext_DEBUG = True;
 
@@ -9,7 +9,8 @@ Bool mem_ext_DEBUG = True;
 Bool perf_DEBUG    = False;
 
 // MSG relay
-typedef	20 THQ_LEN;
+typedef	512 MTHQ_LEN;
+typedef	8   CTHQ_LEN;
 Addr	msg_ADDR  = 'h3fff0;
 Addr	lsu_ADDR  = 'h3fff4;
 Addr	max_ADDR  = 'h3fffc;
