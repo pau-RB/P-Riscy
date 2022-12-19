@@ -51,6 +51,8 @@ module mkSyncArbiter(Bool                                     coreStarted,
 
 	//////////// SELECT ////////////
 
+	Vector#(n,Reg#(Bool)) selectPriority <- replicateM(mkReg(True));
+
 	rule do_select if(coreStarted);
 
 		Vector#(n,Maybe#(t)) inst     = replicate(tagged Invalid);
@@ -68,7 +70,7 @@ module mkSyncArbiter(Bool                                     coreStarted,
 		// Select
 		for (Integer i = 0; i < valueOf(n); i=i+1) begin
 			for (Integer j = 0; j < valueOf(m); j=j+1) begin
-				if(isValid(inst[i]) && !taken[i] && !isValid(forward[j]) && filter1[j](fromMaybe(?,inst[i]))) begin
+				if(isValid(inst[i]) && !taken[i] && !isValid(forward[j]) && filter1[j](fromMaybe(?,inst[i])) && selectPriority[i]) begin
 					forward[j] = inst[i];
 					taken  [i] = True;
 				end
@@ -89,6 +91,9 @@ module mkSyncArbiter(Bool                                     coreStarted,
 			if(taken[i]) begin
 				takenAny = True;
 				inputQueue[i].deq();
+				selectPriority[i] <= False;
+			end else begin
+				selectPriority[i] <= True;
 			end
 		end
 

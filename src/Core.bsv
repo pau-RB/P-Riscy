@@ -94,7 +94,7 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 	Vector#(BackWidth, function Bool accept(ExecToken inst)) filter1 = newVector;
 	Vector#(BackWidth, function Bool accept(ExecToken inst)) filter2 = newVector;
 	for(Integer i = 1; i < valueOf(BackWidth); i = i+1) filter1[i] = isArithInst; filter1[0] = isMemInst;
-	for(Integer i = 1; i < valueOf(BackWidth); i = i+1) filter2[i] = isNonInst;   filter2[0] = isAnyInst;
+	for(Integer i = 1; i < valueOf(BackWidth); i = i+1) filter2[i] = isArithInst; filter2[0] = isAnyInst;
 
 	SyncArbiter#(FrontWidth, BackWidth, ExecToken) arbiter <- mkSyncArbiter(coreStarted, filter1, filter2);
 
