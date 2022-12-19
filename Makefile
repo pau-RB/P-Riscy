@@ -44,7 +44,7 @@ clean:
 	rm -rf ./verilator/*
 
 slow:
-	./verilator/bin/ubuntu.exe ./test/build/rv32-mxm-ikj-f 1 2000 --color=always | less -r
+	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-mxm-ikj-f 1 2000 --color=always | less -r
 
 fast:
-	./verilator/bin/ubuntu.exe ./test/build/rv32-mxm-ikj-f 1 600
+	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-mxm-ikj-f 1 600
