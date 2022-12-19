@@ -50,40 +50,45 @@ int inside(Complex c) {
 }
 
 int mandelbrot(int l, int r, int b, int t) {
-	int a;
+	int total = 0;
 	for (int i = b; i < t; i+=STEP)
     	for (int j = l; j < r; j+=STEP)
-    		a = inside(com(j,i));
-    return a;
+    		total += inside(com(j,i));
+    return total;
 }
 
 int mandelbrot4(int l, int r, int b, int t) {
 
-	int h = (l+r)/2;
-	int v = (b+t)/2;
+	int total = 0;
+
+	int h = l+(r-l)*9/16;
+	int v = b+(t-b)*8/16;
 
 	fork4(l,h,b,v,(void*)mandelbrot,child_frame[0],child_stack[0]+STACK_SIZE);
-    fork4(l,h,v,t,(void*)mandelbrot,child_frame[1],child_stack[1]+STACK_SIZE);
-    fork4(h,r,b,v,(void*)mandelbrot,child_frame[2],child_stack[2]+STACK_SIZE);
-    fork4(h,r,v,t,(void*)mandelbrot,child_frame[3],child_stack[3]+STACK_SIZE);
+	fork4(l,h,v,t,(void*)mandelbrot,child_frame[1],child_stack[1]+STACK_SIZE);
+	fork4(h,r,b,v,(void*)mandelbrot,child_frame[2],child_stack[2]+STACK_SIZE);
+	fork4(h,r,v,t,(void*)mandelbrot,child_frame[3],child_stack[3]+STACK_SIZE);
 
-    wait(child_frame[0]);
-    wait(child_frame[1]);
-    wait(child_frame[2]);
-    wait(child_frame[3]);
+	total+=wait(child_frame[0]);
+    total+=wait(child_frame[1]);
+    total+=wait(child_frame[2]);
+    total+=wait(child_frame[3]);
+
+    return total;
 
 }
 
 int main() {
 
-	
-
 	printLSR('S');
-
-	int a = mandelbrot4(fromint(-2),fromint(1),fromint(-1),fromint(1));
-
+	int par = mandelbrot4(fromint(-2),fromint(1),fromint(-1),fromint(1));
     printLSR('E');
 
-    return a;
+	int seq = mandelbrot(fromint(-2),fromint(1),fromint(-1),fromint(1));
+
+    if(par == seq)
+    	putchar('P');
+    else
+    	putchar('F');
 
 }
