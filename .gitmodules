@@ -10,3 +10,6 @@
 [submodule "P-RISC-TEST"]
 	path = P-RISC-TEST
 	url = git@github.com:pau-RB/P-RISC-TEST.git
+[submodule "buildcache"]
+	path = buildcache
+	url = https://github.com/cambridgehackers/buildcache
