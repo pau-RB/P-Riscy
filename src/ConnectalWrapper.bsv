@@ -46,6 +46,7 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
    FIFOF#(CommitReport)                 mainCMRQ     <- mkSizedBRAMFIFOF(cmr_ext_DEBUG?valueOf(MTHQ_LEN):4);
    FIFOF#(Message)                      mainMSGQ     <- mkSizedBRAMFIFOF(msg_ext_DEBUG?valueOf(MTHQ_LEN):4);
+   FIFOF#(Message)                      mainHEXQ     <- mkSizedBRAMFIFOF(hex_ext_DEBUG?valueOf(MTHQ_LEN):4);
    FIFOF#(MemStat)                      mainMSRQ     <- mkSizedBRAMFIFOF(mem_ext_DEBUG?valueOf(MTHQ_LEN):4);
 
    //////////// RELAY REPORTS ////////////
@@ -58,6 +59,11 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
    rule getMSG if(msg_ext_DEBUG);
       let latest <- dut.getMSG();
       mainMSGQ.enq(latest);
+   endrule
+
+   rule getHEX if(hex_ext_DEBUG);
+      let latest <- dut.getHEX();
+      mainHEXQ.enq(latest);
    endrule
 
    rule getMSR if(mem_ext_DEBUG);
@@ -75,6 +81,11 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
    rule relayMSG if(msg_ext_DEBUG);
         Message msg = mainMSGQ.first(); mainMSGQ.deq();
         ind.reportMSG(msg.verifID, msg.cycle, msg.commit, msg.data);
+   endrule
+
+   rule relayHEX if(hex_ext_DEBUG);
+        Message msg = mainHEXQ.first(); mainHEXQ.deq();
+        ind.reportHEX(msg.verifID, msg.cycle, msg.commit, msg.data);
    endrule
 
    rule relayMSR if(mem_ext_DEBUG);

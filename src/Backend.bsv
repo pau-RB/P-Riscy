@@ -43,6 +43,7 @@ interface Backend;
 	// CMR
 	method ActionValue#(CommitReport) getCMR();
 	method ActionValue#(Message)      getMSG();
+	method ActionValue#(Message)      getHEX();
 	method ActionValue#(MemStat)      getMSR();
 
 	// Performance Debug
@@ -84,6 +85,7 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 	// CMR
 	MFifo#(CTHQ_LEN,BackWidth,CommitReport)        commitReportQ   <- mkPipelineMFifo();
 	Fifo# (CTHQ_LEN,Message)                       messageReportQ  <- mkPipelineFifo();
+	Fifo# (CTHQ_LEN,Message)                       hexReportQ      <- mkPipelineFifo();
 	Fifo# (CTHQ_LEN,MemStat)                       memStatReportQ  <- mkPipelineFifo();
 
 	// Perf debug
@@ -344,14 +346,23 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 					if (msg_ext_DEBUG == True) begin
 						if(commitInst.iType == St && commitInst.addr == msg_ADDR) begin
 							messageReportQ.enq(Message { verifID: verif.getVerifID(feID),
-														 cycle:   numCycles,
-														 commit:  numCommit[0],
-														 data:    commitInst.data });
+							                             cycle:   numCycles,
+							                             commit:  numCommit[0],
+							                             data:    commitInst.data });
+						end
+					end
+
+					if (hex_ext_DEBUG == True) begin
+						if(commitInst.iType == St && commitInst.addr == hex_ADDR) begin
+							hexReportQ.enq(Message { verifID: verif.getVerifID(feID),
+							                         cycle:   numCycles,
+							                         commit:  numCommit[0],
+							                         data:    commitInst.data });
 						end
 					end
 
 					if (mem_ext_DEBUG == True) begin
-						if(commitInst.iType == St && commitInst.addr == lsu_ADDR) begin
+						if(commitInst.iType == St && commitInst.addr == msr_ADDR) begin
 							FetchStat fsr = ?; //frontEnd.getStat();
 							LSUStat   lsr = lsu.getStat();
 							MemStat   msr = MemStat{ verifID: verif.getVerifID(feID),
@@ -591,6 +602,11 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 
 	method ActionValue#(Message) getMSG();
 		let latest = messageReportQ.first(); messageReportQ.deq();
+		return latest;
+	endmethod
+
+	method ActionValue#(Message) getHEX();
+		let latest = hexReportQ.first(); hexReportQ.deq();
 		return latest;
 	endmethod
 

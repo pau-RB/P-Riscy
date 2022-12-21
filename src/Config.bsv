@@ -3,6 +3,7 @@ import Types::*;
 // Connectal (FPGA)
 Bool cmr_ext_DEBUG = False;
 Bool msg_ext_DEBUG = True;
+Bool hex_ext_DEBUG = True;
 Bool mem_ext_DEBUG = True;
 
 // Verilog (SIM)
@@ -12,7 +13,8 @@ Bool perf_DEBUG    = False;
 typedef	512 MTHQ_LEN;
 typedef	8   CTHQ_LEN;
 Addr	msg_ADDR  = 'h3fff0;
-Addr	lsu_ADDR  = 'h3fff4;
+Addr	hex_ADDR  = 'h3fff4;
+Addr	msr_ADDR  = 'h3fff8;
 Addr	max_ADDR  = 'h3fffc;
 
 // Round Robin

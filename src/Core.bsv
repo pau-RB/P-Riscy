@@ -39,6 +39,7 @@ interface Core;
 	// CMR
 	method ActionValue#(CommitReport) getCMR();
 	method ActionValue#(Message)      getMSG();
+	method ActionValue#(Message)      getHEX();
 	method ActionValue#(MemStat)      getMSR();
 
 endinterface
@@ -286,6 +287,11 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
 	method ActionValue#(Message) getMSG();
 		let latest <- backend.getMSG();
+		return latest;
+	endmethod
+
+	method ActionValue#(Message) getHEX();
+		let latest <- backend.getHEX();
 		return latest;
 	endmethod
 

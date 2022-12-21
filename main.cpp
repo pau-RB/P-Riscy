@@ -120,6 +120,23 @@ class ToHost: public ToHostWrapper {
 
         }
 
+        virtual void reportHEX ( const uint32_t verifID, const uint32_t cycle,
+                                 const uint32_t commit,  const uint32_t data ){
+
+            if(error_detected) {
+                return;
+            }
+
+            Message msg;
+            msg.verifID = verifID;
+            msg.cycle   = cycle  ;
+            msg.commit  = commit ;
+            msg.data    = data   ;
+
+            inter->print_HEX_dut(msg);
+
+        }
+
         virtual void reportMSR ( const uint32_t verifID,
                                  const uint32_t cycle,   const uint32_t commit,    const uint32_t data,
                                  const uint32_t fHit,    const uint32_t fMiss,     const uint32_t fEmpty, 

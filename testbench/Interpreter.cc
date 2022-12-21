@@ -71,6 +71,26 @@ void Interpreter::print_MSG_dut(const Message msg) {
 
 }
 
+void Interpreter::print_HEX_dut(const Message msg) {
+
+    std::string phrase;
+
+    phrase = "----------------------------------------------------------------------------";
+    printf("%s \n", phrase.c_str());
+
+    phrase = " [id:     ] MESSAGE | cycle:          | commit:          |";
+    overwrite(phrase, std::to_string(msg.verifID),  6, 3 );
+    overwrite(phrase, std::to_string(msg.cycle  ), 29, 8 );
+    overwrite(phrase, std::to_string(msg.commit ), 48, 8 );
+    printf("%s 0x%s\n", phrase.c_str(), int_to_hex((int32_t) msg.data).c_str());
+
+    phrase = "----------------------------------------------------------------------------";
+    printf("%s \n", phrase.c_str());
+
+    fflush(stdout);
+
+}
+
 void Interpreter::print_MSR_dut(const MemStat msr) {
 
     LSUStat     lsu     = msr.lsu;

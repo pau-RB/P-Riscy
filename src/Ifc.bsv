@@ -6,6 +6,7 @@ endinterface
 interface ToHost;
 	method Action reportCMR(Bit#(32) cycle, Bit#(32) verifID, Bit#(32) pc, Bit#(32) rawInst, Bit#(8) iType, Bit#(8) wbDst, Bit#(32) wbRes, Bit#(32) addr);
 	method Action reportMSG(Bit#(32) verifID, Bit#(32) cycle, Bit#(32) commit, Bit#(32) data);
+	method Action reportHEX(Bit#(32) verifID, Bit#(32) cycle, Bit#(32) commit, Bit#(32) data);
 	method Action reportMSR(Bit#(32) verifID,
 	                        Bit#(32) cycle,   Bit#(32) commit,    Bit#(32) data,
 	                        Bit#(32) fHit,    Bit#(32) fMiss,     Bit#(32) fEmpty,
