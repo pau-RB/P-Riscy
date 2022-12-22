@@ -6,6 +6,7 @@ import Ehr::*;
 interface Stream;
 
 	// Flow control
+	method Bool                   canFetch();
 	method ActionValue#(DecToken) fetch();
 	method Action                 redirect(Redirect r);
 
@@ -152,10 +153,14 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 	// 5 - Consider external requests
 	// Flow control
+	method Bool canFetch();
+		return inst.notEmpty();
+	endmethod
+
 	method ActionValue#(DecToken) fetch();
 		DecToken i = inst.first(); inst.deq();
 		return i;
-	endmethod	
+	endmethod
 
 	method Action redirect(Redirect r);
 		redirectQ.enq(r);
