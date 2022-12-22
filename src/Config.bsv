@@ -26,7 +26,7 @@ typedef 512 MTQ_LEN;
 typedef 4   CTQ_LEN;
 
 // Core width
-typedef 4 FrontWidth;      // Must be even
+typedef 4 FrontWidth;
 typedef Bit#(TLog#(FrontWidth)) FrontID;
 FrontID lastFrontID = fromInteger(valueOf(FrontWidth)-1);
 

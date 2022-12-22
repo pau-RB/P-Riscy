@@ -118,23 +118,11 @@ module mkFrontend (WideMem                             mem        ,
 
 	//////////// DECODE ////////////
 
-	Vector#(TDiv#(FrontWidth,2),Reg#(Bool)) decodeByass <- replicateM(mkReg(False)); 
-
-	for(Integer i = 0; i < valueOf(TDiv#(FrontWidth,2)); i = i+1) begin
+	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
 
 		rule do_decode;
 
-			Bool offsetFetch = (decodeByass[i] &&  (stream[2*i+1].canFetch() && regfetchQ[2*i+1].notFull()))
-			                                   || !(stream[2*i  ].canFetch() && regfetchQ[2*i  ].notFull());
-			decodeByass[i] <= !decodeByass[i];
-
-			DecToken dToken;
-			
-			if (offsetFetch) begin
-				dToken <- stream[2*i+1].fetch();
-			end else begin
-				dToken <- stream[2*i+0].fetch();
-			end
+			DecToken dToken <- stream[i].fetch();
 
 			DecodedInst decInst = (isValid(dToken.inst) ? decode(fromMaybe('hdeadbeef, dToken.inst)) :
 			                                              DecodedInst{ iType  : Ghost,
@@ -153,11 +141,7 @@ module mkFrontend (WideMem                             mem        ,
 			                           epoch  : dToken.epoch,
 			                           rawInst: fromMaybe('hdeadbeef, dToken.inst) };
 
-			if (offsetFetch) begin
-				regfetchQ[2*i+1].enq(rfToken);
-			end else begin
-				regfetchQ[2*i+0].enq(rfToken);
-			end
+			regfetchQ[i].enq(rfToken);
 
 		endrule
 
