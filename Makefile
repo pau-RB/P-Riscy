@@ -21,14 +21,13 @@ CPPFILES +=                          \
 	testbench/Tandem.cc              \
 	testbench/Interpreter.cc
 	
-
+CONNECTALFLAGS += --bscflags="+RTS -K300000 -RTS"
 CONNECTALFLAGS += --mainclockperiod=50
 #CONNECTALFLAGS += --verilog=ddr3_v2_0/
 CONNECTALFLAGS += --bscflags="-show-schedule"
 CONNECTALFLAGS += --bscflags="-aggressive-conditions"
 CONNECTALFLAGS += --bscflags="-steps-warn-interval 1000000"
 CONNECTALFLAGS += --bscflags="-steps-max-intervals 10000000"
-CONNECTALFLAGS += --bscflags="+RTS -K250000000 -RTS"
 CONNECTALFLAGS += --cxxflags="-std=gnu++17                                    \
 							  -Wno-unused-variable -Wno-unused-function       \
 							  -I $(PWD)/testbench                             \
@@ -42,7 +41,8 @@ include $(CONNECTALDIR)/Makefile.connectal
 
 
 clean:
-	rm -rf ./verilator/*
+	rm -rf ./verilator
+	rm -rf ./vcu108
 
 slow:
 	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-mxm-ikj-f 1 2000 --color=always | less -r
