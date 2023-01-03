@@ -22,7 +22,7 @@ CPPFILES +=                          \
 	testbench/Interpreter.cc
 	
 CONNECTALFLAGS += --bscflags="+RTS -K300000 -RTS"
-CONNECTALFLAGS += --mainclockperiod=50
+CONNECTALFLAGS += --mainclockperiod=60
 #CONNECTALFLAGS += --verilog=ddr3_v2_0/
 CONNECTALFLAGS += --bscflags="-show-schedule"
 CONNECTALFLAGS += --bscflags="-aggressive-conditions"
@@ -43,6 +43,7 @@ include $(CONNECTALDIR)/Makefile.connectal
 clean:
 	rm -rf ./verilator
 	rm -rf ./vcu108
+	rm -rf ./connectal/out
 
 slow:
 	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-mxm-ikj-f 1 2000 --color=always | less -r
