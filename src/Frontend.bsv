@@ -190,7 +190,7 @@ module mkFrontend (WideMem                             mem        ,
 		rule do_rfLock;
 			Redirect r = redirectQ[i].first(); redirectQ[i].deq();
 			rfLock[i][0] <= r.lock;
-			if(r.redirect || r.kill) begin
+			if(r.dry || r.kill || r.redirect) begin
 				stream[i].redirect(r);
 			end
 		endrule
