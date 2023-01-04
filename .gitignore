@@ -1,6 +1,8 @@
 *.exe
 build/*.bo
+connectal/out/
 verilator/
+vcu108/
 spike_install/
 test/rv32-intermeidate.o
 test/rv32-init.o
