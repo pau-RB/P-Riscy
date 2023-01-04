@@ -20,14 +20,14 @@ CPPFILES +=                          \
 	testbench/CustomSpike.cc         \
 	testbench/Tandem.cc              \
 	testbench/Interpreter.cc
-	
-CONNECTALFLAGS += --bscflags="+RTS -K300000 -RTS"
+
 CONNECTALFLAGS += --mainclockperiod=60
 #CONNECTALFLAGS += --verilog=ddr3_v2_0/
 CONNECTALFLAGS += --bscflags="-show-schedule"
 CONNECTALFLAGS += --bscflags="-aggressive-conditions"
 CONNECTALFLAGS += --bscflags="-steps-warn-interval 1000000"
 CONNECTALFLAGS += --bscflags="-steps-max-intervals 10000000"
+CONNECTALFLAGS += --bscflags="+RTS -K250000000 -RTS"
 CONNECTALFLAGS += --cxxflags="-std=gnu++17                                    \
 							  -Wno-unused-variable -Wno-unused-function       \
 							  -I $(PWD)/testbench                             \
