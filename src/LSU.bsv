@@ -95,7 +95,7 @@ module mkNullDataCache (BareDataCache ifc);
 	endmethod
 
     method ActionValue#(DataCacheResp) resp;
-    	return tagged Invalid;
+    	return (?);
     endmethod
 
     method Action put(DataCacheWB wb);
@@ -189,12 +189,12 @@ module mkDirectDataCache (BareDataCache ifc);
 
 		if(op == Ld) begin
 			CacheLine line <- bram.portA.response.get;
-			return tagged Valid extendLoad(line[wordSelect], addr, ldFunc);
+			return extendLoad(line[wordSelect], addr, ldFunc);
 		end else if(op == Join) begin
 			CacheLine line <- bram.portA.response.get;
-			return tagged Valid line[wordSelect];
+			return line[wordSelect];
 		end else begin
-			return tagged Valid (?);
+			return (?);
 		end
 
     endmethod
@@ -458,14 +458,14 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 			let d <- dataCache.resp();
 			oldRespQ.enq(LSUResp{ valid  : True,
-			                      data   : fromMaybe(?,d),
+			                      data   : d,
 			                      transId: r.transId });
 
 		end else if(r.isHit) begin
 
 			let d <- dataCache.resp();
 			respQ.enq(LSUResp{ valid  : True,
-			                   data   : fromMaybe(?,d),
+			                   data   : d,
 			                   transId: r.transId });
 
 		end else begin
