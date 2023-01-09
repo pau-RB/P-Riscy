@@ -12,7 +12,7 @@ typedef struct{
     Data		data;
 } DataCacheReq deriving(Eq, Bits, FShow);
 
-typedef Maybe#(Data) DataCacheResp;
+typedef Data DataCacheResp;
 
 typedef struct {
 	CacheLineNum num;
