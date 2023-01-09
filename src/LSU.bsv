@@ -5,7 +5,7 @@ import LSUTypes::*;
 import Fifo::*;
 import Ehr::*;
 import Vector::*;
-import BRAMCore::*;
+import BRAM::*;
 
 typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(LSUCacheRows))) CacheTag;
 typedef Bit#(TLog#(LSUCacheRows)) CacheIndex;
@@ -121,8 +121,13 @@ module mkDirectDataCache (BareDataCache ifc);
 	Vector#(LSUCacheRows,Reg#(Bool))     dirty <- replicateM(mkReg(False));
 	Vector#(LSUCacheRows,Reg#(CacheTag)) tags  <- replicateM(mkReg(0));
 
-	BRAM_DUAL_PORT_BE#(CacheIndex, CacheLine, CacheLineBytes) bram  <- mkBRAMCore2BE(valueOf(LSUCacheRows), False);
-	Fifo#(1,BramReq) bramReq <- mkStageFifo();
+	BRAM_Configure cfg = defaultValue;
+	cfg.memorySize = valueOf(LSUCacheRows);
+	cfg.latency    = 1;
+
+	BRAM2PortBE#(CacheIndex, CacheLine, CacheLineBytes) bram <- mkBRAM2ServerBE(cfg);
+
+	Fifo#(10,BramReq) bramReq <- mkPipelineFifo();
 	// Use port a for R and port b for W, important in Join (both operations)
 
 	method ActionValue#(Bool) req(DataCacheReq r);
@@ -141,13 +146,25 @@ module mkDirectDataCache (BareDataCache ifc);
 								 addr  : r.addr});
 
 			if(r.op == Ld) begin
-				bram.a.put('0, index, ?);
+				bram.portA.request.put( BRAMRequestBE{ writeen        : '0,
+				                                       responseOnWrite: False,
+				                                       address        : index,
+				                                       datain         : ? });
 			end else if (r.op == St) begin
-				bram.b.put(writeEn, index, writeLn);
+				bram.portB.request.put( BRAMRequestBE{ writeen        : writeEn,
+				                                       responseOnWrite: False,
+				                                       address        : index,
+				                                       datain         : writeLn });
 				dirty[index] <= True;
 			end else if(r.op == Join) begin
-				bram.a.put('0, index, ?);
-				bram.b.put(writeEn, index, writeLn);
+				bram.portA.request.put( BRAMRequestBE{ writeen        : '0,
+				                                       responseOnWrite: False,
+				                                       address        : index,
+				                                       datain         : ? });
+				bram.portB.request.put( BRAMRequestBE{ writeen        : writeEn,
+				                                       responseOnWrite: False,
+				                                       address        : index,
+				                                       datain         : writeLn });
 				dirty[index] <= True;
 			end
 
@@ -168,15 +185,17 @@ module mkDirectDataCache (BareDataCache ifc);
     	Addr            addr       = bramReq.first().addr;
 		CacheWordSelect wordSelect = truncate(addr >> 2);
 
-		CacheLine line = bram.a.read; bramReq.deq();
+		bramReq.deq();
 
-		Data word = line[wordSelect];
-
-		if(op==Ld) begin
-			word = extendLoad(word, addr, ldFunc);
+		if(op == Ld) begin
+			CacheLine line <- bram.portA.response.get;
+			return tagged Valid extendLoad(line[wordSelect], addr, ldFunc);
+		end else if(op == Join) begin
+			CacheLine line <- bram.portA.response.get;
+			return tagged Valid line[wordSelect];
+		end else begin
+			return tagged Valid (?);
 		end
-
-		return tagged Valid word;
 
     endmethod
 
@@ -191,14 +210,20 @@ module mkDirectDataCache (BareDataCache ifc);
 		dirty[index] <= False;
 		tags [index] <= tag;
 
-		bram.b.put('1, index, line);
+		bram.portB.request.put( BRAMRequestBE{ writeen        : '1,
+		                                       responseOnWrite: False,
+		                                       address        : index,
+		                                       datain         : line });
 
 		if(valid[index] && dirty[index]) begin
 			bramReq.enq(BramReq{ req    : False,
 			                     op     : ?,
 			                     ldFunc : ?,
 			                     addr   : {{tags[index],index},'0}});
-			bram.a.put('0, index, ? );
+			bram.portA.request.put( BRAMRequestBE{ writeen        : '0,
+		                                           responseOnWrite: False,
+		                                           address        : index,
+		                                           datain         : ? });
 		end
 
     endmethod
@@ -206,7 +231,7 @@ module mkDirectDataCache (BareDataCache ifc);
     method ActionValue#(DataCacheWB) get() if(!bramReq.first().req);
 
     	CacheLineNum num   = truncateLSB(bramReq.first().addr);
-    	CacheLine    line  = bram.a.read; bramReq.deq();
+    	CacheLine    line  <- bram.portA.response.get; bramReq.deq();
 
     	return DataCacheWB { num:  num,
     	                     line: line};
