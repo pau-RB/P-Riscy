@@ -8,30 +8,33 @@ import Vector::*;
 import BRAM::*;
 
 typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(LSUCacheRows))) CacheTag;
-typedef Bit#(TLog#(LSUCacheRows)) CacheIndex;
-typedef Bit#(TLog#(CacheLineWords)) CacheOffset;
-typedef Bit#(TLog#(LSUCacheColumns)) CacheBank;
+typedef Bit#(TLog#(LSUCacheRows))                                              CacheIndex;
+typedef Bit#(TLog#(CacheLineWords))                                            CacheOffset;
+
+typedef Bit#(TLog#(LSUCacheColumns))                                           CacheBank;
 
 //////////// UTILITIES ////////////
 
-function CacheLineNum cacheLineNumReq(LSUReq#(transIdType) r) provisos(Bits#(LSUReq#(transIdType),reqSz));
-    Addr a = r.addr;
-    CacheLineNum num = truncateLSB(a);
-    return num;
+function CacheTag tagOf(Addr addr);
+	return truncateLSB(addr);
 endfunction
 
-function CacheLineNum cacheLineNumAddr(Addr a);
-    CacheLineNum num = truncateLSB(a);
-    return num;
+function CacheIndex indexOf(Addr addr);
+	return truncate(addr >> valueOf(TLog#(CacheLineBytes)));
 endfunction
 
-function Bit#(CacheLineBytes) writeEnDCR (DataCacheReq req);
-    
-    Bit#(CacheLineBytes) write_en = 0;
+function CacheOffset offsetOf(Addr addr);
+	return truncate(addr >> 2);
+endfunction
 
-    CacheByteSelect wordsel = truncate( req.addr & 32'hfffffffc );
-    CacheByteSelect halfsel = truncate( req.addr & 32'hfffffffe );
-    CacheByteSelect bytesel = truncate( req.addr & 32'hffffffff );
+
+function Bit#(4) writeEnDCR (DataCacheReq req);
+
+    Bit#(4) write_en = 0;
+
+    Bit#(2) bytesel = truncate(req.addr) & 2'b11;
+    Bit#(2) halfsel = truncate(req.addr) & 2'b10;
+    Bit#(2) wordsel = truncate(req.addr) & 2'b00;
 
     if( req.op == St ) begin
         case(req.stFunc)
@@ -47,7 +50,7 @@ function Bit#(CacheLineBytes) writeEnDCR (DataCacheReq req);
 
 endfunction
 
-function CacheLine embedDCR (DataCacheReq req);
+function Data embedDCR (DataCacheReq req);
 
     Data word = '0;
 
@@ -61,9 +64,7 @@ function CacheLine embedDCR (DataCacheReq req);
         word = {req.data};
     end
 
-    CacheLine line = replicate(word);
-
-    return line;
+    return word;
 
 endfunction
 
@@ -87,6 +88,19 @@ function Data extendLoad( Data value, Addr addr, LoadFunc func );
     endcase
 
 endfunction
+
+
+function CacheLineNum cacheLineNumReq(LSUReq#(transIdType) r) provisos(Bits#(LSUReq#(transIdType),reqSz));
+    Addr a = r.addr;
+    CacheLineNum num = truncateLSB(a);
+    return num;
+endfunction
+
+function CacheLineNum cacheLineNumAddr(Addr a);
+    CacheLineNum num = truncateLSB(a);
+    return num;
+endfunction
+
 
 module mkNullDataCache (BareDataCache ifc);
 
@@ -117,12 +131,12 @@ typedef struct{
 module mkDirectDataCache (BareDataCache ifc);
 
 	BRAM_Configure cfg = defaultValue;
-	cfg.memorySize   = valueOf(LSUCacheRows);
+	cfg.memorySize   = 0;
 	cfg.latency      = 1;
 	cfg.outFIFODepth = 1;
 
 	// Use port A for R and port B for W, important in Join (both operations)
-	BRAM2PortBE#(CacheIndex, CacheLine, CacheLineBytes) bram <- mkBRAM2ServerBE(cfg);
+	Vector#(CacheLineWords, BRAM2PortBE#(CacheIndex, Data, 4)) bram <- replicateM(mkBRAM2ServerBE(cfg));
 	Fifo#(1,BRAMmeta) bramMeta <- mkStageFifo();
 
 	Vector#(LSUCacheRows,Reg#(Bool))     valid <- replicateM(mkReg(False));
@@ -131,28 +145,23 @@ module mkDirectDataCache (BareDataCache ifc);
 
 	method ActionValue#(Bool) req(DataCacheReq r);
 
-		CacheTag             tag     = truncateLSB(r.addr);
-		CacheIndex           index   = truncate(r.addr >> valueOf(TLog#(CacheLineBytes)));
-		Bit#(CacheLineBytes) writeEn = writeEnDCR(r);
-		CacheLine            writeLn = embedDCR(r);
-
-		if (valid[index] && (tags[index] == tag)) begin // hit
+		if (valid[indexOf(r.addr)] && (tags[indexOf(r.addr)] == tagOf(r.addr))) begin // hit
 
 			if(r.op == St || r.op == Join)
-				dirty[index] <= True;
+				dirty[indexOf(r.addr)] <= True;
 
 			bramMeta.enq(BRAMmeta{ req   : True,
 			                       ldFunc: (r.op == Join) ? LW : r.ldFunc,
 			                       addr  : r.addr});
 
-			bram.portA.request.put( BRAMRequestBE{ writeen        : '0,
-			                                       responseOnWrite: True,
-			                                       address        : index,
-			                                       datain         : ? });
-			bram.portB.request.put( BRAMRequestBE{ writeen        : writeEn,
-			                                       responseOnWrite: True,
-			                                       address        : index,
-			                                       datain         : writeLn });
+			bram[offsetOf(r.addr)].portA.request.put( BRAMRequestBE{ writeen        : '0,
+			                                                         responseOnWrite: True,
+			                                                         address        : indexOf(r.addr),
+			                                                         datain         : ? });
+			bram[offsetOf(r.addr)].portB.request.put( BRAMRequestBE{ writeen        : writeEnDCR(r),
+			                                                         responseOnWrite: True,
+			                                                         address        : indexOf(r.addr),
+			                                                         datain         : embedDCR(r) });
 			return True;
 
 		end else begin // miss
@@ -167,14 +176,13 @@ module mkDirectDataCache (BareDataCache ifc);
 
     	LoadFunc        ldFunc     = bramMeta.first.ldFunc;
     	Addr            addr       = bramMeta.first.addr;
-		CacheWordSelect wordSelect = truncate(addr >> 2);
 
 		bramMeta.deq();
 
-		CacheLine line <- bram.portA.response.get;
-		                  bram.portB.response.get;
+		Data word <- bram[offsetOf(addr)].portA.response.get;
+		             bram[offsetOf(addr)].portB.response.get;
 
-		return extendLoad(line[wordSelect], addr, ldFunc);
+		return extendLoad(word, addr, ldFunc);
 
     endmethod
 
@@ -187,32 +195,40 @@ module mkDirectDataCache (BareDataCache ifc);
 		dirty[index] <= False;
 		tags [index] <= tag;
 
-		bram.portB.request.put( BRAMRequestBE{ writeen        : '1,
-		                                       responseOnWrite: False,
-		                                       address        : index,
-		                                       datain         : wb.line });
+		for (Integer i = 0; i < valueOf(CacheLineWords); i=i+1) begin
+			bram[i].portB.request.put( BRAMRequestBE{ writeen        : '1,
+			                                          responseOnWrite: False,
+			                                          address        : index,
+			                                          datain         : wb.line[i] });
+		end
 
 		if(valid[index] && dirty[index]) begin
 			bramMeta.enq(BRAMmeta{ req    : False,
 			                       ldFunc : ?,
 			                       addr   : {{tags[index],index},'0}});
-			bram.portA.request.put( BRAMRequestBE{ writeen        : '0,
-			                                       responseOnWrite: False,
-			                                       address        : index,
-			                                       datain         : ? });
+			for (Integer i = 0; i < valueOf(CacheLineWords); i=i+1) begin
+				bram[i].portA.request.put( BRAMRequestBE{ writeen        : '0,
+				                                          responseOnWrite: False,
+				                                          address        : index,
+				                                          datain         : ? });
+			end
 		end
 
-    endmethod
+	endmethod
 
-    method ActionValue#(DataCacheWB) get() if(!bramMeta.first().req);
+	method ActionValue#(DataCacheWB) get() if(!bramMeta.first().req);
 
-    	CacheLineNum num   = truncateLSB(bramMeta.first().addr);
-    	CacheLine    line  <- bram.portA.response.get; bramMeta.deq();
+		CacheLineNum num  = truncateLSB(bramMeta.first().addr); bramMeta.deq();
+		CacheLine    line = replicate('0);
 
-    	return DataCacheWB { num:  num,
-    	                     line: line};
+		for (Integer i = 0; i < valueOf(CacheLineWords); i=i+1) begin
+			line[i] <- bram[i].portA.response.get;
+		end
 
-    endmethod
+		return DataCacheWB { num:  num,
+		                     line: line};
+
+	endmethod
 
 endmodule
 
