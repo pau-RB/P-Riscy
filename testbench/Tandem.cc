@@ -90,10 +90,6 @@ tandem_mm tandem_compare(CommitReport spike, CommitReport dut) {
 		}
 		if(dut.wbRes != spike.wbRes && dut.wbDst != 0) {
 			tandem_report("Result mismatch!");
-			if(dut.iType == iTypeLd) {
-				tandem_data("Spike addr", spike.addr);
-				tandem_data("Dut addr  ", dut.addr);
-			}
 			tandem_data("Spike result", spike.wbRes);
 			tandem_data("Dut result  ", dut.wbRes);
 			return tandem_mm::wbRes;
