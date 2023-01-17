@@ -229,55 +229,41 @@ module mkDirectDataCache (BareDataCache ifc);
     endmethod
 
 endmodule
-/*
+
 module mkAssociativeDataCache (BareDataCache ifc);
 
 	Vector#(LSUCacheColumns,BareDataCache) bank <- replicateM(mkDirectDataCache());
-	Fifo#(1,CacheBank) bankHit <- mkStageFifo();
-	Reg#(CacheBank) bankPut <- mkReg(0);
 	Fifo#(1,DataCacheWB) wbFifo <- mkBypassFifo();
 
 	for (Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
 		rule do_COLLECT_WB;
-			let wb <- bank[i].get();
+			let wb <- bank[i].getWB();
 			wbFifo.enq(wb);
 		endrule
 	end
 
-	method ActionValue#(Bool) req(DataCacheReq r) if(!wbFifo.notEmpty());
-		Bool      hit      = False;
-		CacheBank whichHit = ?;
-		for(Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
-			let hitBank <- bank[fromInteger(i)].req(r);
-			if(hitBank) begin
-				whichHit = fromInteger(i);
-				hit = True;
-			end
-		end
-		if(hit) begin
-			bankHit.enq(whichHit);
-		end
-		return hit;
+	method Action req(DataCacheReq r) if(!wbFifo.notEmpty());
+		for(Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1)
+			 bank[fromInteger(i)].req(r);
 	endmethod
 
 	method ActionValue#(DataCacheResp) resp();
-		bankHit.deq();
-		let r <- bank[bankHit.first()].resp();
-		return r;
+		DataCacheResp vres = tagged Invalid;
+		for(Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
+			let res <- bank[fromInteger(i)].resp();
+			if(isValid(res))
+				vres = res;
+		end
+		return vres;
 	endmethod
 
-	method Action put(DataCacheWB wb);
-		bank[bankPut].put(wb);
-		bankPut <= bankPut+1;
-	endmethod
-
-	method ActionValue#(DataCacheWB) get();
+	method ActionValue#(DataCacheWB) getWB();
 		wbFifo.deq();
 		return wbFifo.first();
 	endmethod
 
 endmodule
-*/
+
 typedef Bit#(TLog#(LSUmshrW)) LSUmshrId;
 
 typedef struct{
