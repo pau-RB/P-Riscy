@@ -4,15 +4,16 @@ import Vector::*;
 
 //////////// BARE DATA CACHE ////////////
 
+typedef enum{PUT,WB,LB,LH,LW,LBU,LHU,SB,SH,SW,JOIN} DataCacheOp deriving(Bits, Eq, FShow);
+
 typedef struct{
-    MemOp		op;
-    LoadFunc	ldFunc;
-    StoreFunc   stFunc;
+    DataCacheOp op;
     Addr		addr;
     Data		data;
+    CacheLine   line;
 } DataCacheReq deriving(Eq, Bits, FShow);
 
-typedef Data DataCacheResp;
+typedef Maybe#(Data) DataCacheResp;
 
 typedef struct {
 	CacheLineNum num;
@@ -20,10 +21,9 @@ typedef struct {
 } DataCacheWB deriving(Eq, Bits, FShow);
 
 interface BareDataCache;
-	method ActionValue#(Bool) req(DataCacheReq r);
-    method ActionValue#(DataCacheResp) resp;
-    method Action put(DataCacheWB wb);
-    method ActionValue#(DataCacheWB) get();
+	method Action req(DataCacheReq r);
+    method ActionValue#(DataCacheResp) resp();
+    method ActionValue#(DataCacheWB) getWB();
 endinterface
 
 //////////// LSU ////////////

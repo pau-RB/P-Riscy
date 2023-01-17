@@ -101,7 +101,7 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
 	//////////// BACKEND ////////////
 
-	BareDataCache l1d     <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
+	BareDataCache l1d     <- mkDirectDataCache(); //(lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
 	LSU#(WBToken) lsu     <- mkLSU(dataMem, l1d);
 	NTTX          nttx    <- mkNTTX(regFile, verif);
 	Backend       backend <- mkBackend (lsu         ,

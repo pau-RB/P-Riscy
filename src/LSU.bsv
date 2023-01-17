@@ -8,66 +8,80 @@ import Vector::*;
 import BRAM::*;
 
 typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(LSUCacheRows))) CacheTag;
-typedef Bit#(TLog#(LSUCacheRows)) CacheIndex;
-typedef Bit#(TLog#(CacheLineWords)) CacheOffset;
-typedef Bit#(TLog#(LSUCacheColumns)) CacheBank;
+typedef Bit#(TLog#(LSUCacheRows))                                              CacheIndex;
+typedef Bit#(TLog#(CacheLineWords))                                            CacheOffset;
+
+typedef Bit#(TLog#(LSUCacheColumns))                                           CacheBank;
 
 //////////// UTILITIES ////////////
 
-function CacheLineNum cacheLineNumReq(LSUReq#(transIdType) r) provisos(Bits#(LSUReq#(transIdType),reqSz));
-    Addr a = r.addr;
-    CacheLineNum num = truncateLSB(a);
+function DataCacheOp cacheOpOf(MemOp op, LoadFunc ldFunc, StoreFunc stFunc);
+	case(op)
+		Ld: case(ldFunc)
+				LB : return LB ;
+				LH : return LH ;
+				LW : return LW ;
+				LBU: return LBU;
+				LHU: return LHU;
+			endcase
+		St: case(stFunc)
+				SB: return SB;
+				SH: return SH;
+				SW: return SW;
+			endcase
+		Join: return JOIN;
+	endcase
+endfunction
+
+
+function CacheTag tagOf(Addr addr);
+	return truncateLSB(addr);
+endfunction
+
+function CacheIndex indexOf(Addr addr);
+	return truncate(addr >> valueOf(TLog#(CacheLineBytes)));
+endfunction
+
+function CacheOffset offsetOf(Addr addr);
+	return truncate(addr >> 2);
+endfunction
+
+function CacheLineNum lineNumOf(Addr addr);
+    CacheLineNum num = truncateLSB(addr);
     return num;
 endfunction
 
-function CacheLineNum cacheLineNumAddr(Addr a);
-    CacheLineNum num = truncateLSB(a);
-    return num;
-endfunction
 
-function Bit#(CacheLineBytes) writeEnDCR (DataCacheReq req);
-    
-    Bit#(CacheLineBytes) write_en = 0;
+function Bit#(CacheLineBytes) writeEnOf (DataCacheReq req);
 
-    CacheByteSelect wordsel = truncate( req.addr & 32'hfffffffc );
-    CacheByteSelect halfsel = truncate( req.addr & 32'hfffffffe );
-    CacheByteSelect bytesel = truncate( req.addr & 32'hffffffff );
+    CacheByteSelect wordsel = truncate(req.addr & 32'hfffffffc );
+    CacheByteSelect halfsel = truncate(req.addr & 32'hfffffffe );
+    CacheByteSelect bytesel = truncate(req.addr & 32'hffffffff );
 
-    if( req.op == St ) begin
-        case(req.stFunc)
-            SB:  write_en = 'b1    << bytesel;
-            SH:  write_en = 'b11   << halfsel;
-            SW:  write_en = 'b1111 << wordsel;
-        endcase
-    end else if ( req.op == Join ) begin
-        write_en = 'b1111 << wordsel;
-    end
-
-    return write_en;
+    case(req.op)
+    	PUT : return '1;
+        SB  : return 'b1    << bytesel;
+        SH  : return 'b11   << halfsel;
+        SW  : return 'b1111 << wordsel;
+        JOIN: return 'b1111 << wordsel;
+        default: return '0;
+    endcase
 
 endfunction
 
-function CacheLine embedDCR (DataCacheReq req);
+function CacheLine writeLnOf (DataCacheReq req);
 
-    Data word = '0;
-
-    if( req.op == St ) begin
-        case(req.stFunc)
-            SB:  word = {req.data[ 7:0],req.data[ 7:0],req.data[ 7:0],req.data[ 7:0]};
-            SH:  word = {req.data[15:0],req.data[15:0]};
-            SW:  word = {req.data};
-        endcase
-    end else if ( req.op == Join ) begin
-        word = {req.data};
-    end
-
-    CacheLine line = replicate(word);
-
-    return line;
+    case(req.op)
+        SB     : return replicate({req.data[ 7:0],req.data[ 7:0],req.data[ 7:0],req.data[ 7:0]});
+        SH     : return replicate({req.data[15:0],req.data[15:0]});
+        SW     : return replicate({req.data});
+        JOIN   : return replicate({32'd1});
+        default: return replicate('0);
+    endcase
 
 endfunction
 
-function Data extendLoad( Data value, Addr addr, LoadFunc func );
+function Data extendLoad( Data value, Addr addr, DataCacheOp op);
 
     Bit#(32) wordValue = value;
     
@@ -77,10 +91,10 @@ function Data extendLoad( Data value, Addr addr, LoadFunc func );
     Bit#(5)  bytesel   = {(addr[1:0] & 2'b11),3'b000};
     Bit#(8)  byteValue = truncate(value>>bytesel);
 
-    case(func)
-        LB:  return signExtend(byteValue);
-        LH:  return signExtend(halfValue);
-        LW:  return signExtend(wordValue);
+    case(op)
+        LB : return signExtend(byteValue);
+        LH : return signExtend(halfValue);
+        LW : return signExtend(wordValue);
         LBU: return zeroExtend(byteValue);
         LHU: return zeroExtend(halfValue);
         default: return value;
@@ -88,40 +102,20 @@ function Data extendLoad( Data value, Addr addr, LoadFunc func );
 
 endfunction
 
-module mkNullDataCache (BareDataCache ifc);
-
-	method ActionValue#(Bool) req(DataCacheReq r);
-		return True;
-	endmethod
-
-    method ActionValue#(DataCacheResp) resp;
-    	return (?);
-    endmethod
-
-    method Action put(DataCacheWB wb);
-    endmethod
-
-    method ActionValue#(DataCacheWB) get() if(False);
-    	return DataCacheWB { num: '0,
-    						line: replicate(0) };
-    endmethod
-
-endmodule
 
 typedef struct{
-	Bool     req;
-    LoadFunc ldFunc;
-    Addr     addr;
+	DataCacheOp  op;
+	Bool         hit;
+    Addr         addr;
 } BRAMmeta deriving(Eq, Bits, FShow);
 
 module mkDirectDataCache (BareDataCache ifc);
 
 	BRAM_Configure cfg = defaultValue;
-	cfg.memorySize   = valueOf(LSUCacheRows);
+	cfg.memorySize   = 0;
 	cfg.latency      = 1;
 	cfg.outFIFODepth = 1;
 
-	// Use port A for R and port B for W, important in Join (both operations)
 	BRAM1PortBE#(CacheIndex, CacheLine, CacheLineBytes) bram <- mkBRAM1ServerBE(cfg);
 	Fifo#(1,BRAMmeta) bramMeta <- mkStageFifo();
 
@@ -129,105 +123,99 @@ module mkDirectDataCache (BareDataCache ifc);
 	Vector#(LSUCacheRows,Reg#(Bool))     dirty <- replicateM(mkReg(False));
 	Vector#(LSUCacheRows,Reg#(CacheTag)) tags  <- replicateM(mkReg(0));
 
-	Fifo#(1,DataCacheWB) inPut <- mkBypassFifo();
+	Fifo#(1,DataCacheReq) inReqQ <- mkBypassFifo();
 
-	rule do_PUT;
+	rule do_REQ;
 
-		DataCacheWB wb = inPut.first();
+		let req = inReqQ.first();
 
-		CacheTag     tag   = truncateLSB(wb.num);
-		CacheIndex   index = truncate(wb.num);
+		CacheIndex           index   = indexOf(req.addr);
+		Bit#(CacheLineBytes) writeEn = writeEnOf(req);
+		CacheLine            writeLn = writeLnOf(req);
 
-		if(valid[index] && dirty[index]) begin // is dirty
+		if(req.op == PUT) begin
 
-			$display("PUT DIRTY");
+			if(valid[index] && dirty[index]) begin // put new line and old is dirty
 
-			valid[index] <= False;
-			dirty[index] <= False;
-			bramMeta.enq(BRAMmeta{ req    : False,
-			                       ldFunc : ?,
-			                       addr   : {{tags[index],index},'0}});
-			bram.portA.request.put( BRAMRequestBE{ writeen        : '0,
-			                                       responseOnWrite: False,
-			                                       address        : index,
-			                                       datain         : ? });
-		end else begin // is clean
+				valid[index] <= False;
+				dirty[index] <= False;
+				bramMeta.enq(BRAMmeta{ op  : WB,
+				                       hit : True,
+				                       addr: {{tags[index],index},'0}});
+				bram.portA.request.put( BRAMRequestBE{ writeen        : '0,
+				                                       responseOnWrite: False,
+				                                       address        : index,
+				                                       datain         : ? });
+			end else begin // put new line and old is clean
 
-			$display("PUT CLEAN");
+				valid[index] <= True;
+				dirty[index] <= False;
+				tags [index] <= tagOf(req.addr);
+				bram.portA.request.put( BRAMRequestBE{ writeen        : '1,
+				                                       responseOnWrite: False,
+				                                       address        : index,
+				                                       datain         : req.line });
+				inReqQ.deq();
+			end
 
-			valid[index] <= True;
-			dirty[index] <= False;
-			tags [index] <= tag;
-			bram.portA.request.put( BRAMRequestBE{ writeen        : '1,
-			                                       responseOnWrite: False,
-			                                       address        : index,
-			                                       datain         : wb.line });
-			inPut.deq();
+		end else begin
+
+			if (valid[index] && (tags[index] == tagOf(req.addr))) begin // request hit
+
+				if(req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN) begin
+					dirty[index] <= True;
+				end
+
+				bramMeta.enq(BRAMmeta{ op  : req.op,
+				                       hit : True,
+				                       addr: req.addr});
+
+				bram.portA.request.put( BRAMRequestBE{ writeen        : writeEn,
+				                                       responseOnWrite: False,
+				                                       address        : index,
+				                                       datain         : writeLn });
+				inReqQ.deq();
+			end else begin // request miss
+
+				bramMeta.enq(BRAMmeta{ op  : req.op,
+				                       hit : False,
+				                       addr: req.addr});
+				inReqQ.deq();
+
+			end
+
 		end
 
 	endrule
 
-	method ActionValue#(Bool) req(DataCacheReq r) if(!inPut.notEmpty());
+	method Action req(DataCacheReq r);
 
-		CacheTag             tag     = truncateLSB(r.addr);
-		CacheIndex           index   = truncate(r.addr >> valueOf(TLog#(CacheLineBytes)));
-		Bit#(CacheLineBytes) writeEn = writeEnDCR(r);
-		CacheLine            writeLn = embedDCR(r);
-
-		if (valid[index] && (tags[index] == tag)) begin // hit
-
-			$display("HIT");
-
-			if(r.op == St || r.op == Join)
-				dirty[index] <= True;
-
-			bramMeta.enq(BRAMmeta{ req   : True,
-			                       ldFunc: (r.op == Join) ? LW : r.ldFunc,
-			                       addr  : r.addr});
-
-			bram.portA.request.put( BRAMRequestBE{ writeen        : writeEn,
-			                                       responseOnWrite: True,
-			                                       address        : index,
-			                                       datain         : writeLn });
-			return True;
-
-		end else begin // miss
-
-			$display("MISS");
-
-			return False;
-
-		end
+		inReqQ.enq(r);
 
 	endmethod
 
-    method ActionValue#(DataCacheResp) resp() if(bramMeta.first().req);
+    method ActionValue#(DataCacheResp) resp() if(bramMeta.first().op!=WB);
 
-    	$display("RESP");
-
-    	LoadFunc        ldFunc     = bramMeta.first.ldFunc;
+    	DataCacheOp     op         = bramMeta.first.op;
     	Addr            addr       = bramMeta.first.addr;
 		CacheWordSelect wordSelect = truncate(addr >> 2);
 
 		bramMeta.deq();
 
-		CacheLine line <- bram.portA.response.get;
-
-		return extendLoad(line[wordSelect], addr, ldFunc);
+		if(bramMeta.first.hit) begin
+			if(op==LB||op==LH||op==LW||op==LBU||op==LHU||op==JOIN) begin
+				CacheLine line <- bram.portA.response.get;
+				return tagged Valid extendLoad(line[wordSelect], addr, op);
+			end else begin
+				return tagged Valid ('0);
+			end
+		end else begin
+			return tagged Invalid;
+		end
 
     endmethod
 
-    method Action put(DataCacheWB wb);
-
-    	$display("PRE-PUT");
-
-		inPut.enq(wb);
-
-    endmethod
-
-    method ActionValue#(DataCacheWB) get() if(!bramMeta.first().req);
-
-    	$display("GET");
+    method ActionValue#(DataCacheWB) getWB() if(bramMeta.first().op==WB);
 
     	CacheLineNum num   = truncateLSB(bramMeta.first().addr);
     	CacheLine    line  <- bram.portA.response.get; bramMeta.deq();
@@ -238,7 +226,7 @@ module mkDirectDataCache (BareDataCache ifc);
     endmethod
 
 endmodule
-
+/*
 module mkAssociativeDataCache (BareDataCache ifc);
 
 	Vector#(LSUCacheColumns,BareDataCache) bank <- replicateM(mkDirectDataCache());
@@ -286,13 +274,12 @@ module mkAssociativeDataCache (BareDataCache ifc);
 	endmethod
 
 endmodule
-
+*/
 typedef Bit#(TLog#(LSUmshrW)) LSUmshrId;
 
 typedef struct{
-	transIdType transId;
-	Bool        isOld;
-	Bool        isHit;
+	LSUReq#(transIdType) req;
+	Bool                 isOld;
 } DataCacheToken#(type transIdType) deriving(Eq, Bits, FShow);
 
 typedef struct{
@@ -302,8 +289,8 @@ typedef struct{
 
 module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provisos(Bits#(transIdType,transIdTypeSz),FShow#(transIdType));
 
-	Vector#(LSUmshrW, Fifo#(LSUmshrD,LSUReq#(transIdType))) mshr      <- replicateM(mkPipelineFifo());
-	Ehr#(2,Maybe#(LSUmshrId))                               flushMSHR <- mkEhr(tagged Invalid);
+	Vector#(LSUmshrW, Fifo#(LSUmshrD,LSUReq#(transIdType))) mshr      <- replicateM(mkCFFifo());
+	Ehr#(2,Maybe#(LSUmshrId))                               retryMSHR <- mkEhr(tagged Invalid);
 
 	Fifo#(1, LSUReq#(transIdType))         inReqQ   <- mkBypassFifo();
 	Fifo#(1, DataCacheToken#(transIdType)) dcReqQ   <- mkStageFifo();
@@ -321,70 +308,34 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
     Reg#(Data) dSt   <- mkReg(0);
     Reg#(Data) dJoin <- mkReg(0);
 
-	rule do_RETRY if(isValid(flushMSHR[0]));
+	rule do_INREQ if(!isValid(retryMSHR[1]));
 
-		LSUmshrId mshrId = fromMaybe(?,flushMSHR[0]);
+		LSUReq#(transIdType) req = inReqQ.first(); inReqQ.deq();
 
-		if(mshr[mshrId].notEmpty()) begin
-
-			let r = mshr[mshrId].first(); mshr[mshrId].deq();
-			let hit <- dataCache.req(DataCacheReq{ op    : r.op,
-			                                       ldFunc: r.ldFunc,
-			                                       stFunc: r.stFunc,
-			                                       addr  : r.addr,
-			                                       data  : r.data });
-			dcReqQ.enq(DataCacheToken{ transId: r.transId,
-			                           isOld  : True,
-			                           isHit  : True });
-
-		end else begin
-
-			flushMSHR[0] <= tagged Invalid;
-
-		end
+		dataCache.req(DataCacheReq{ op  : cacheOpOf(req.op, req.ldFunc, req.stFunc),
+		                            addr: req.addr,
+		                            data: req.data,
+		                            line: ? });
+		dcReqQ.enq(DataCacheToken{ req  : req,
+		                           isOld: False });
 
 	endrule
 
-	rule do_WB;
+	rule do_RESP if(respQ.notFull() && oldRespQ.notFull() || !cmr_ext_DEBUG);
+	// If cmr_ext_DEBUG (verification), we must preserve the order
 
-		let r <- dataCache.get();
+		LSUReq#(transIdType) req = dcReqQ.first().req; dcReqQ.deq();
+		DataCacheResp d <- dataCache.resp();
 
-		mem.req(WideMemReq{ write_en: '1,
-		                    addr    : {r.num,0},
-		                    data    : r.line });
-
-	endrule
-
-	rule do_MEMRESP if(!isValid(flushMSHR[0]));
-
-		let num  = cacheLineNumAddr(memReqQ.first().addr); memReqQ.deq();
-		let line <- mem.resp();
-		dataCache.put(DataCacheWB{ num:  num,
-		                           line: line });
-		flushMSHR[0] <= tagged Valid memReqQ.first().mshr;
-
-	endrule
-
-	rule do_INREQ if(!isValid(flushMSHR[1]));
-
-		LSUReq#(transIdType) r = inReqQ.first();
-
-		// Try data cache
-		Bool hit <- dataCache.req(DataCacheReq{ op    : r.op,
-		                                        ldFunc: r.ldFunc,
-		                                        stFunc: r.stFunc,
-		                                        addr  : r.addr,
-		                                        data  : r.data });
-
-		// Try matching an older mshr
+		// Try matching an older mshr in case of miss
 		Maybe#(LSUmshrId) isMatch = tagged Invalid;
 		for (Integer i = 0; i < valueOf(LSUmshrW); i = i+1) begin
-			if(mshr[fromInteger(i)].notEmpty() && cacheLineNumReq(mshr[fromInteger(i)].first()) == cacheLineNumReq(r)) begin
+			if(mshr[fromInteger(i)].notEmpty() && lineNumOf(mshr[fromInteger(i)].first().addr) == lineNumOf(req.addr)) begin
 				isMatch = tagged Valid fromInteger(i);
 			end
 		end
 
-		// Try to allocate a new mshr
+		// Try to allocate a new mshr in case of miss
 		Maybe#(LSUmshrId) isEmpty = tagged Invalid;
 		for (Integer i = 0; i < valueOf(LSUmshrW); i = i+1) begin
 			if(!mshr[fromInteger(i)].notEmpty()) begin
@@ -392,53 +343,57 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 			end
 		end
 
-		if(hit) begin
-			dcReqQ.enq(DataCacheToken{ transId: r.transId,
-			                           isOld  : False,
-			                           isHit  : True });
-			inReqQ.deq();
+		if(isValid(d)) begin // Hit
 
-		end else if(isValid(isMatch)) begin
+			if(dcReqQ.first().isOld) begin // Old hit
+				oldRespQ.enq(LSUResp{ valid  : True,
+				                      data   : fromMaybe(?,d),
+				                      transId: req.transId });
+			end else begin // Young hit
+				respQ.enq(LSUResp{ valid  : True,
+				                   data   : fromMaybe(?,d),
+				                   transId: req.transId });
+			end
 
-			dcReqQ.enq(DataCacheToken{ transId: r.transId,
-			                           isOld  : False,
-			                           isHit  : False });
-			inReqQ.deq();
+		end else begin // Young miss
 
-			mshr[fromMaybe(?,isMatch)].enq(r);
+			respQ.enq(LSUResp{ valid  : False,
+			                   data   : ?,
+			                   transId: req.transId });
 
-		end else if(isValid(isEmpty)) begin
+			if(isValid(isMatch)) begin
 
-			dcReqQ.enq(DataCacheToken{ transId: r.transId,
-			                           isOld  : False,
-			                           isHit  : False });
-			inReqQ.deq();
+				mshr[fromMaybe(?,isMatch)].enq(req);
 
-			mshr[fromMaybe(?,isEmpty)].enq(r);
+			end else if(isValid(isEmpty)) begin
 
-			memReqQ.enq(MemReqToken{ addr: r.addr,
-			                         mshr: fromMaybe(?,isEmpty) });
-			mem.req(WideMemReq{ write_en: '0,
-								addr    : r.addr,
-								data    : ? });
+				mshr[fromMaybe(?,isEmpty)].enq(req);
+
+				memReqQ.enq(MemReqToken{ addr: req.addr,
+				                         mshr: fromMaybe(?,isEmpty) });
+				mem.req(WideMemReq{ write_en: '0,
+									addr    : req.addr,
+									data    : ? });
+
+			end
 
 		end
 
 		if(mem_ext_DEBUG) begin
-			if (hit) begin
-				case (r.op)
+			if (isValid(d)) begin // hit
+				case (req.op)
 					Ld:   hLd   <= hLd+1;
 					St:   hSt   <= hSt+1;
 					Join: hJoin <= hJoin+1;
 				endcase
 			end else if(isValid(isMatch) || isValid(isEmpty)) begin
-				case (r.op)
+				case (req.op)
 					Ld:   mLd   <= mLd+1;
 					St:   mSt   <= mSt+1;
 					Join: mJoin <= mJoin+1;
 				endcase
 			end else begin
-				case (r.op)
+				case (req.op)
 					Ld:   dLd   <= dLd+1;
 					St:   dSt   <= dSt+1;
 					Join: dJoin <= dJoin+1;
@@ -448,32 +403,46 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 	endrule
 
-	rule do_RESP if(respQ.notFull() && oldRespQ.notFull() || !cmr_ext_DEBUG);
-	// If cmr_ext_DEBUG (verification), we must preserve the order
+	rule do_MEMRESP if(!isValid(retryMSHR[0]));
 
-		let r = dcReqQ.first(); dcReqQ.deq();
+		let line <- mem.resp(); memReqQ.deq();
+		dataCache.req(DataCacheReq{ op  : PUT,
+		                            addr: memReqQ.first().addr,
+		                            data: ?,
+		                            line: line });
+		retryMSHR[0] <= tagged Valid memReqQ.first().mshr;
 
-		if(r.isOld) begin
+	endrule
 
-			let d <- dataCache.resp();
-			oldRespQ.enq(LSUResp{ valid  : True,
-			                      data   : d,
-			                      transId: r.transId });
+	rule do_RETRY if(isValid(retryMSHR[0]));
 
-		end else if(r.isHit) begin
+		LSUmshrId mshrId = fromMaybe(?,retryMSHR[0]);
 
-			let d <- dataCache.resp();
-			respQ.enq(LSUResp{ valid  : True,
-			                   data   : d,
-			                   transId: r.transId });
+		if(mshr[mshrId].notEmpty()) begin
+
+			let req = mshr[mshrId].first(); mshr[mshrId].deq();
+			dataCache.req(DataCacheReq{ op  : cacheOpOf(req.op, req.ldFunc, req.stFunc),
+			                            addr: req.addr,
+			                            data: req.data,
+			                            line: ? });
+			dcReqQ.enq(DataCacheToken{ req  : req,
+			                           isOld: True});
 
 		end else begin
 
-			respQ.enq(LSUResp{ valid  : False,
-			                   data   : ?,
-			                   transId: r.transId });
+			retryMSHR[0] <= tagged Invalid;
 
 		end
+
+	endrule
+
+	rule do_WB;
+
+		let r <- dataCache.getWB();
+
+		mem.req(WideMemReq{ write_en: '1,
+		                    addr    : {r.num,0},
+		                    data    : r.line });
 
 	endrule
 
