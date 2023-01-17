@@ -71,33 +71,7 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
 	//////////// ARBITER ////////////
 
-	function Bool isAnyInst(ExecToken inst);
-		return True;
-	endfunction
-
-	function Bool isNonInst(ExecToken inst);
-		return False;
-	endfunction
-
-	function Bool isMemInst(ExecToken inst);
-		return (inst.inst.iType == Ld          || inst.inst.iType == St    ||
-		        inst.inst.iType == Fork        || inst.inst.iType == Forkr ||
-		        inst.inst.iType == Join        || inst.inst.iType == Ghost );
-	endfunction
-
-	function Bool isArithInst(ExecToken inst);
-		return (inst.inst.iType == Unsupported || inst.inst.iType == Alu   ||
-		        inst.inst.iType == Mul         || inst.inst.iType == J     ||
-		        inst.inst.iType == Jr          || inst.inst.iType == Br    ||
-		        inst.inst.iType == Auipc );
-	endfunction
-
-	Vector#(BackWidth, function Bool accept(ExecToken inst)) filter1 = newVector;
-	Vector#(BackWidth, function Bool accept(ExecToken inst)) filter2 = newVector;
-	for(Integer i = 1; i < valueOf(BackWidth); i = i+1) filter1[i] = isArithInst; filter1[0] = isMemInst;
-	for(Integer i = 1; i < valueOf(BackWidth); i = i+1) filter2[i] = isArithInst; filter2[0] = isAnyInst;
-
-	SyncArbiter#(FrontWidth, BackWidth, ExecToken) arbiter <- mkSyncArbiter(coreStarted, filter1, filter2);
+	SyncArbiter arbiter <- mkSyncArbiter();
 
 	//////////// BACKEND ////////////
 
