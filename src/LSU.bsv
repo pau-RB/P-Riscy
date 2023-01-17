@@ -122,14 +122,52 @@ module mkDirectDataCache (BareDataCache ifc);
 	cfg.outFIFODepth = 1;
 
 	// Use port A for R and port B for W, important in Join (both operations)
-	BRAM2PortBE#(CacheIndex, CacheLine, CacheLineBytes) bram <- mkBRAM2ServerBE(cfg);
+	BRAM1PortBE#(CacheIndex, CacheLine, CacheLineBytes) bram <- mkBRAM1ServerBE(cfg);
 	Fifo#(1,BRAMmeta) bramMeta <- mkStageFifo();
 
 	Vector#(LSUCacheRows,Reg#(Bool))     valid <- replicateM(mkReg(False));
 	Vector#(LSUCacheRows,Reg#(Bool))     dirty <- replicateM(mkReg(False));
 	Vector#(LSUCacheRows,Reg#(CacheTag)) tags  <- replicateM(mkReg(0));
 
-	method ActionValue#(Bool) req(DataCacheReq r);
+	Fifo#(1,DataCacheWB) inPut <- mkBypassFifo();
+
+	rule do_PUT;
+
+		DataCacheWB wb = inPut.first();
+
+		CacheTag     tag   = truncateLSB(wb.num);
+		CacheIndex   index = truncate(wb.num);
+
+		if(valid[index] && dirty[index]) begin // is dirty
+
+			$display("PUT DIRTY");
+
+			valid[index] <= False;
+			dirty[index] <= False;
+			bramMeta.enq(BRAMmeta{ req    : False,
+			                       ldFunc : ?,
+			                       addr   : {{tags[index],index},'0}});
+			bram.portA.request.put( BRAMRequestBE{ writeen        : '0,
+			                                       responseOnWrite: False,
+			                                       address        : index,
+			                                       datain         : ? });
+		end else begin // is clean
+
+			$display("PUT CLEAN");
+
+			valid[index] <= True;
+			dirty[index] <= False;
+			tags [index] <= tag;
+			bram.portA.request.put( BRAMRequestBE{ writeen        : '1,
+			                                       responseOnWrite: False,
+			                                       address        : index,
+			                                       datain         : wb.line });
+			inPut.deq();
+		end
+
+	endrule
+
+	method ActionValue#(Bool) req(DataCacheReq r) if(!inPut.notEmpty());
 
 		CacheTag             tag     = truncateLSB(r.addr);
 		CacheIndex           index   = truncate(r.addr >> valueOf(TLog#(CacheLineBytes)));
@@ -138,6 +176,8 @@ module mkDirectDataCache (BareDataCache ifc);
 
 		if (valid[index] && (tags[index] == tag)) begin // hit
 
+			$display("HIT");
+
 			if(r.op == St || r.op == Join)
 				dirty[index] <= True;
 
@@ -145,17 +185,15 @@ module mkDirectDataCache (BareDataCache ifc);
 			                       ldFunc: (r.op == Join) ? LW : r.ldFunc,
 			                       addr  : r.addr});
 
-			bram.portA.request.put( BRAMRequestBE{ writeen        : '0,
-			                                       responseOnWrite: True,
-			                                       address        : index,
-			                                       datain         : ? });
-			bram.portB.request.put( BRAMRequestBE{ writeen        : writeEn,
+			bram.portA.request.put( BRAMRequestBE{ writeen        : writeEn,
 			                                       responseOnWrite: True,
 			                                       address        : index,
 			                                       datain         : writeLn });
 			return True;
 
 		end else begin // miss
+
+			$display("MISS");
 
 			return False;
 
@@ -165,6 +203,8 @@ module mkDirectDataCache (BareDataCache ifc);
 
     method ActionValue#(DataCacheResp) resp() if(bramMeta.first().req);
 
+    	$display("RESP");
+
     	LoadFunc        ldFunc     = bramMeta.first.ldFunc;
     	Addr            addr       = bramMeta.first.addr;
 		CacheWordSelect wordSelect = truncate(addr >> 2);
@@ -172,7 +212,6 @@ module mkDirectDataCache (BareDataCache ifc);
 		bramMeta.deq();
 
 		CacheLine line <- bram.portA.response.get;
-		                  bram.portB.response.get;
 
 		return extendLoad(line[wordSelect], addr, ldFunc);
 
@@ -180,31 +219,15 @@ module mkDirectDataCache (BareDataCache ifc);
 
     method Action put(DataCacheWB wb);
 
-		CacheTag     tag   = truncateLSB(wb.num);
-		CacheIndex   index = truncate(wb.num);
+    	$display("PRE-PUT");
 
-		valid[index] <= True;
-		dirty[index] <= False;
-		tags [index] <= tag;
-
-		bram.portB.request.put( BRAMRequestBE{ writeen        : '1,
-		                                       responseOnWrite: False,
-		                                       address        : index,
-		                                       datain         : wb.line });
-
-		if(valid[index] && dirty[index]) begin
-			bramMeta.enq(BRAMmeta{ req    : False,
-			                       ldFunc : ?,
-			                       addr   : {{tags[index],index},'0}});
-			bram.portA.request.put( BRAMRequestBE{ writeen        : '0,
-			                                       responseOnWrite: False,
-			                                       address        : index,
-			                                       datain         : ? });
-		end
+		inPut.enq(wb);
 
     endmethod
 
     method ActionValue#(DataCacheWB) get() if(!bramMeta.first().req);
+
+    	$display("GET");
 
     	CacheLineNum num   = truncateLSB(bramMeta.first().addr);
     	CacheLine    line  <- bram.portA.response.get; bramMeta.deq();
