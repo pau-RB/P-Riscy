@@ -119,6 +119,9 @@ module mkDirectDataCache (BareDataCache ifc);
 	cfg.latency      = 1;
 	cfg.outFIFODepth = 2;
 
+	Fifo#(1,DataCacheReq)  reqQ <- mkBypassFifo();
+	Fifo#(1,DataCacheResp) resQ <- mkBypassFifo();
+
 	BRAM1PortBE#(CacheIndex, CacheLine, CacheLineBytes) bram <- mkBRAM1ServerBE(cfg);
 	Fifo#(1,BRAMmeta) bramMeta <- mkStageFifo();
 
@@ -126,11 +129,9 @@ module mkDirectDataCache (BareDataCache ifc);
 	Vector#(LSUCacheRows,Reg#(Bool))     dirty <- replicateM(mkReg(False));
 	Vector#(LSUCacheRows,Reg#(CacheTag)) tags  <- replicateM(mkReg(0));
 
-	Fifo#(1,DataCacheReq) inReqQ <- mkBypassFifo();
-
 	rule do_REQ;
 
-		DataCacheReq req = inReqQ.first();
+		DataCacheReq req = reqQ.first();
 		CacheIndex index = indexOf(req.addr);
 
 		if(req.op == PUT) begin
@@ -155,7 +156,7 @@ module mkDirectDataCache (BareDataCache ifc);
 				                                       responseOnWrite: False,
 				                                       address        : index,
 				                                       datain         : req.line });
-				inReqQ.deq();
+				reqQ.deq();
 			end
 
 		end else begin
@@ -171,7 +172,7 @@ module mkDirectDataCache (BareDataCache ifc);
 				                                       responseOnWrite: False,
 				                                       address        : index,
 				                                       datain         : ? });
-				inReqQ.deq();
+				reqQ.deq();
 			end else begin // request miss
 				bramMeta.enq(BRAMmeta{ req: req,
 				                       hit: False });
@@ -179,22 +180,16 @@ module mkDirectDataCache (BareDataCache ifc);
 				                                       responseOnWrite: False,
 				                                       address        : index,
 				                                       datain         : ? });
-				inReqQ.deq();
+				reqQ.deq();
 			end
 
 		end
 
 	endrule
 
-	method Action req(DataCacheReq r);
+	rule do_RESP if(bramMeta.first().req.op!=WB);
 
-		inReqQ.enq(r);
-
-	endmethod
-
-    method ActionValue#(DataCacheResp) resp() if(bramMeta.first().req.op!=WB);
-
-    	CacheLine    line <- bram.portA.response.get;
+		CacheLine    line <- bram.portA.response.get;
     	DataCacheReq req   = bramMeta.first.req;
     	Bool         hit   = bramMeta.first.hit;
     	bramMeta.deq();
@@ -211,10 +206,23 @@ module mkDirectDataCache (BareDataCache ifc);
 				                                       address        : index,
 				                                       datain         : writeLn });
 			end
-			return tagged Valid extendLoad(line[wordSelect], req.addr, req.op);
+			resQ.enq(tagged Valid extendLoad(line[wordSelect], req.addr, req.op));
 		end else begin
-			return tagged Invalid;
+			resQ.enq(tagged Invalid);
 		end
+
+	endrule
+
+	method Action req(DataCacheReq r);
+
+		reqQ.enq(r);
+
+	endmethod
+
+    method ActionValue#(DataCacheResp) resp();
+
+    	resQ.deq();
+    	return resQ.first();
 
     endmethod
 
