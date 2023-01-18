@@ -383,24 +383,26 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 		end
 
 		if(mem_ext_DEBUG) begin
-			if (isValid(d)) begin // hit
-				case (req.op)
-					Ld:   hLd   <= hLd+1;
-					St:   hSt   <= hSt+1;
-					Join: hJoin <= hJoin+1;
-				endcase
-			end else if(isValid(isMatch) || isValid(isEmpty)) begin
-				case (req.op)
-					Ld:   mLd   <= mLd+1;
-					St:   mSt   <= mSt+1;
-					Join: mJoin <= mJoin+1;
-				endcase
-			end else begin
-				case (req.op)
-					Ld:   dLd   <= dLd+1;
-					St:   dSt   <= dSt+1;
-					Join: dJoin <= dJoin+1;
-				endcase
+			if(!dcReqQ.first().isOld) begin
+				if (isValid(d)) begin // hit
+					case (req.op)
+						Ld:   hLd   <= hLd+1;
+						St:   hSt   <= hSt+1;
+						Join: hJoin <= hJoin+1;
+					endcase
+				end else if(isValid(isMatch) || isValid(isEmpty)) begin
+					case (req.op)
+						Ld:   mLd   <= mLd+1;
+						St:   mSt   <= mSt+1;
+						Join: mJoin <= mJoin+1;
+					endcase
+				end else begin
+					case (req.op)
+						Ld:   dLd   <= dLd+1;
+						St:   dSt   <= dSt+1;
+						Join: dJoin <= dJoin+1;
+					endcase
+				end
 			end
 		end
 
