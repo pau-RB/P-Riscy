@@ -233,6 +233,7 @@ endmodule
 module mkAssociativeDataCache (BareDataCache ifc);
 
 	Vector#(LSUCacheColumns,BareDataCache) bank <- replicateM(mkDirectDataCache());
+	Reg#(CacheBank) bankPut <- mkReg(0);
 	Fifo#(1,DataCacheWB) wbFifo <- mkBypassFifo();
 
 	for (Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
@@ -243,8 +244,13 @@ module mkAssociativeDataCache (BareDataCache ifc);
 	end
 
 	method Action req(DataCacheReq r) if(!wbFifo.notEmpty());
-		for(Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1)
+		if(r.op==PUT) begin
+			bank[bankPut].req(r);
+			bankPut <= bankPut+1;
+		end else begin
+			for(Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1)
 			 bank[fromInteger(i)].req(r);
+		end
 	endmethod
 
 	method ActionValue#(DataCacheResp) resp();
