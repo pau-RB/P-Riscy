@@ -4,7 +4,7 @@ import Vector::*;
 
 //////////// BARE DATA CACHE ////////////
 
-typedef enum{PUT,WB,LB,LH,LW,LBU,LHU,SB,SH,SW,JOIN} DataCacheOp deriving(Bits, Eq, FShow);
+typedef enum{PUT,LB,LH,LW,LBU,LHU,SB,SH,SW,JOIN} DataCacheOp deriving(Bits, Eq, FShow);
 
 typedef struct{
     DataCacheOp op;
@@ -21,6 +21,7 @@ typedef struct {
 } DataCacheWB deriving(Eq, Bits, FShow);
 
 interface BareDataCache;
+    method Action invalidate();
 	method Action req(DataCacheReq r);
     method ActionValue#(DataCacheResp) resp();
     method ActionValue#(DataCacheWB) getWB();

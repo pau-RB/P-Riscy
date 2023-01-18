@@ -11,7 +11,7 @@ typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(LSUCacheRows))) C
 typedef Bit#(TLog#(LSUCacheRows))                                              CacheIndex;
 typedef Bit#(TLog#(CacheLineWords))                                            CacheOffset;
 
-typedef Bit#(TLog#(LSUCacheColumns))                                           CacheBank;
+typedef Bit#(TLog#(LSUCacheColumns))                                           CacheLane;
 
 //////////// UTILITIES ////////////
 
@@ -108,163 +108,179 @@ endfunction
 
 
 typedef struct{
-	DataCacheReq req;
-	Bool         hit;
-} BRAMmeta deriving(Eq, Bits, FShow);
+	Bool     valid;
+	Bool     dirty;
+} CacheMeta deriving(Eq, Bits, FShow);
 
 module mkDirectDataCache (BareDataCache ifc);
 
-	BRAM_Configure cfg = defaultValue;
-	cfg.memorySize   = 0;
-	cfg.latency      = 1;
-	cfg.outFIFODepth = 2;
+	Reg#(Maybe#(CacheIndex)) invIndex <- mkReg(tagged Valid 0);
+
+	BRAM_Configure cfg = BRAM_Configure { memorySize              : 0,
+	                                      latency                 : 1,
+	                                      outFIFODepth            : 2,
+	                                      loadFormat              : None,
+	                                      allowWriteResponseBypass: False };
 
 	Fifo#(1,DataCacheReq)  reqQ <- mkBypassFifo();
 	Fifo#(1,DataCacheResp) resQ <- mkBypassFifo();
+	Fifo#(1,DataCacheWB)   wbQ  <- mkBypassFifo();
 
-	BRAM1PortBE#(CacheIndex, CacheLine, CacheLineBytes) bram <- mkBRAM1ServerBE(cfg);
-	Fifo#(1,BRAMmeta) bramMeta <- mkStageFifo();
+	BRAM1PortBE#(CacheIndex, CacheLine, CacheLineBytes) dataArray <- mkBRAM1ServerBE(cfg);
+	BRAM1Port  #(CacheIndex, CacheTag                 ) tagsArray <- mkBRAM1Server  (cfg);
+	BRAM1Port  #(CacheIndex, CacheMeta                ) metaArray <- mkBRAM1Server  (cfg);
+	Fifo#(1,DataCacheReq) bramReq <- mkStageFifo();
 
-	Vector#(LSUCacheRows,Reg#(Bool))     valid <- replicateM(mkReg(False));
-	Vector#(LSUCacheRows,Reg#(Bool))     dirty <- replicateM(mkReg(False));
-	Vector#(LSUCacheRows,Reg#(CacheTag)) tags  <- replicateM(mkReg(0));
+	rule do_invalidate if (invIndex matches tagged Valid .index);
 
-	rule do_REQ;
+		CacheMeta newMeta = CacheMeta { valid: False,
+		                                dirty: False };
+		metaArray.portA.request.put( BRAMRequest  { write          : True,
+		                                            responseOnWrite: False,
+		                                            address        : index,
+		                                            datain         : newMeta } );
+		if(index < fromInteger(valueOf(TSub#(LSUCacheRows,1)))) begin
+			invIndex <= tagged Valid (index+1);
+		end else begin
+			invIndex <= tagged Invalid;
+		end
 
-		DataCacheReq req = reqQ.first();
+	endrule
+
+	rule do_REQ if(!wbQ.notEmpty() && !isValid(invIndex));
+
+		DataCacheReq req = reqQ.first(); reqQ.deq();
 		CacheIndex index = indexOf(req.addr);
+
+		bramReq.enq(req);
+		dataArray.portA.request.put( BRAMRequestBE{ writeen        : '0,
+		                                            responseOnWrite: False,
+		                                            address        : index,
+		                                            datain         : ? } );
+		tagsArray.portA.request.put( BRAMRequest  { write          : False,
+		                                            responseOnWrite: False,
+		                                            address        : index,
+		                                            datain         : ? } );
+		metaArray.portA.request.put( BRAMRequest  { write          : False,
+		                                            responseOnWrite: False,
+		                                            address        : index,
+		                                            datain         : ? } );
+	endrule
+
+	rule do_RESP;
+
+		DataCacheReq req = bramReq.first(); bramReq.deq();
+
+		CacheLine  data <- dataArray.portA.response.get;
+		CacheTag   tag  <- tagsArray.portA.response.get;
+		CacheMeta  meta <- metaArray.portA.response.get;
+
+		CacheIndex           index      = indexOf     (req.addr);
+		CacheWordSelect      wordSelect = wordSelectOf(req.addr);
+		Bit#(CacheLineBytes) writeEn    = writeEnOf   (req.addr, req.op);
+		CacheLine            writeLn    = writeLnOf   (req.addr, req.op, req.data);
 
 		if(req.op == PUT) begin
 
-			if(valid[index] && dirty[index]) begin // put new line and old is dirty
-				valid[index] <= False;
-				dirty[index] <= False;
-				bramMeta.enq(BRAMmeta { req : DataCacheReq { op  : WB,
-				                                             addr: {{tags[index],index},'0},
-				                                             data: ?,
-				                                             line: ? },
-				                        hit : True });
-				bram.portA.request.put( BRAMRequestBE{ writeen        : '0,
-				                                       responseOnWrite: False,
-				                                       address        : index,
-				                                       datain         : ? });
-			end else begin // put new line and old is clean
-				valid[index] <= True;
-				dirty[index] <= False;
-				tags [index] <= tagOf(req.addr);
-				bram.portA.request.put( BRAMRequestBE{ writeen        : '1,
-				                                       responseOnWrite: False,
-				                                       address        : index,
-				                                       datain         : req.line });
-				reqQ.deq();
+			if(meta.valid && meta.dirty) begin // old line is dirty
+				wbQ.enq(DataCacheWB { num : {tag,index},
+				                      line: data });
 			end
 
-		end else begin
-			if (valid[index] && (tags[index] == tagOf(req.addr))) begin // request hit
-				if(req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN) begin
-					dirty[index] <= True;
-				end
+			CacheMeta newMeta = CacheMeta { valid: True,
+			                                dirty: False };
 
-				bramMeta.enq(BRAMmeta{ req : req,
-				                       hit : True });
+			dataArray.portA.request.put( BRAMRequestBE{ writeen        : '1,
+			                                            responseOnWrite: False,
+			                                            address        : index,
+			                                            datain         : req.line } );
+			tagsArray.portA.request.put( BRAMRequest  { write          : True,
+			                                            responseOnWrite: False,
+			                                            address        : index,
+			                                            datain         : tagOf(req.addr)} );
+			metaArray.portA.request.put( BRAMRequest  { write          : True,
+			                                            responseOnWrite: False,
+			                                            address        : index,
+			                                            datain         : newMeta } );
 
-				bram.portA.request.put( BRAMRequestBE{ writeen        : '0,
-				                                       responseOnWrite: False,
-				                                       address        : index,
-				                                       datain         : ? });
-				reqQ.deq();
-			end else begin // request miss
-				bramMeta.enq(BRAMmeta{ req: req,
-				                       hit: False });
-				bram.portA.request.put( BRAMRequestBE{ writeen        : '0,
-				                                       responseOnWrite: False,
-				                                       address        : index,
-				                                       datain         : ? });
-				reqQ.deq();
+		end else if (meta.valid && (tag == tagOf(req.addr))) begin // request hit
+
+			if(req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN) begin
+				CacheMeta newMeta = CacheMeta { valid: True,
+				                                dirty: True };
+
+				dataArray.portA.request.put( BRAMRequestBE{ writeen        : writeEn,
+				                                            responseOnWrite: False,
+				                                            address        : index,
+				                                            datain         : writeLn } );
+				metaArray.portA.request.put( BRAMRequest  { write          : True,
+				                                            responseOnWrite: False,
+				                                            address        : index,
+				                                            datain         : newMeta } );
 			end
 
-		end
+			resQ.enq(tagged Valid extendLoad(data[wordSelect], req.addr, req.op));
 
-	endrule
+		end else begin // request miss
 
-	rule do_RESP if(bramMeta.first().req.op!=WB);
-
-		CacheLine    line <- bram.portA.response.get;
-    	DataCacheReq req   = bramMeta.first.req;
-    	Bool         hit   = bramMeta.first.hit;
-    	bramMeta.deq();
-
-		CacheIndex           index      = indexOf(req.addr);
-		CacheWordSelect      wordSelect = wordSelectOf(req.addr);
-		Bit#(CacheLineBytes) writeEn    = writeEnOf(req.addr, req.op);
-		CacheLine            writeLn    = writeLnOf(req.addr, req.op, req.data);
-
-		if(bramMeta.first.hit) begin
-			if(req.op==SB || req.op==SH || req.op==SW || req.op==JOIN) begin
-				bram.portA.request.put( BRAMRequestBE{ writeen        : writeEn,
-				                                       responseOnWrite: False,
-				                                       address        : index,
-				                                       datain         : writeLn });
-			end
-			resQ.enq(tagged Valid extendLoad(line[wordSelect], req.addr, req.op));
-		end else begin
 			resQ.enq(tagged Invalid);
+
 		end
 
 	endrule
 
-	method Action req(DataCacheReq r);
-
-		reqQ.enq(r);
-
+	method Action invalidate();
+		invIndex <= tagged Valid 0;
 	endmethod
 
-    method ActionValue#(DataCacheResp) resp();
+	method Action req(DataCacheReq r);
+		reqQ.enq(r);
+	endmethod
 
-    	resQ.deq();
-    	return resQ.first();
+	method ActionValue#(DataCacheResp) resp();
+		resQ.deq();
+		return resQ.first();
+	endmethod
 
-    endmethod
-
-    method ActionValue#(DataCacheWB) getWB() if(bramMeta.first().req.op==WB);
-
-    	CacheLineNum num   = truncateLSB(bramMeta.first().req.addr);
-    	CacheLine    line  <- bram.portA.response.get; bramMeta.deq();
-
-    	return DataCacheWB { num:  num,
-    	                     line: line};
-
-    endmethod
+	method ActionValue#(DataCacheWB) getWB();
+		wbQ.deq();
+		return wbQ.first();
+	endmethod
 
 endmodule
 
 module mkAssociativeDataCache (BareDataCache ifc);
 
-	Vector#(LSUCacheColumns,BareDataCache) bank <- replicateM(mkDirectDataCache());
-	Reg#(CacheBank) bankPut <- mkReg(0);
+	Vector#(LSUCacheColumns,BareDataCache) lane <- replicateM(mkDirectDataCache());
+	Reg#(CacheLane) replaceIndex <- mkReg(0);
 	Fifo#(1,DataCacheWB) wbFifo <- mkBypassFifo();
 
 	for (Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
 		rule do_COLLECT_WB;
-			let wb <- bank[i].getWB();
+			let wb <- lane[i].getWB();
 			wbFifo.enq(wb);
 		endrule
 	end
 
+	method Action invalidate();
+		for (Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1)
+			lane[i].invalidate();
+	endmethod
+
 	method Action req(DataCacheReq r) if(!wbFifo.notEmpty());
 		if(r.op==PUT) begin
-			bank[bankPut].req(r);
-			bankPut <= bankPut+1;
+			lane[replaceIndex].req(r);
+			replaceIndex <= replaceIndex+1;
 		end else begin
 			for(Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1)
-			 bank[fromInteger(i)].req(r);
+				lane[fromInteger(i)].req(r);
 		end
 	endmethod
 
 	method ActionValue#(DataCacheResp) resp();
 		DataCacheResp vres = tagged Invalid;
 		for(Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
-			let res <- bank[fromInteger(i)].resp();
+			let res <- lane[fromInteger(i)].resp();
 			if(isValid(res))
 				vres = res;
 		end
