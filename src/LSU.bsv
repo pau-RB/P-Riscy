@@ -317,15 +317,15 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 	Fifo#(1, LSUResp#(transIdType))        respQ    <- mkBypassFifo();
 	Fifo#(1, LSUResp#(transIdType))        oldRespQ <- mkBypassFifo();
 
-    Reg#(Data) hLd   <- mkReg(0);
-    Reg#(Data) hSt   <- mkReg(0);
-    Reg#(Data) hJoin <- mkReg(0);
-    Reg#(Data) mLd   <- mkReg(0);
-    Reg#(Data) mSt   <- mkReg(0);
-    Reg#(Data) mJoin <- mkReg(0);
-    Reg#(Data) dLd   <- mkReg(0);
-    Reg#(Data) dSt   <- mkReg(0);
-    Reg#(Data) dJoin <- mkReg(0);
+    Ehr#(2,Data) hLd   <- mkEhr(0);
+    Ehr#(2,Data) hSt   <- mkEhr(0);
+    Ehr#(2,Data) hJoin <- mkEhr(0);
+    Ehr#(2,Data) mLd   <- mkEhr(0);
+    Ehr#(2,Data) mSt   <- mkEhr(0);
+    Ehr#(2,Data) mJoin <- mkEhr(0);
+    Ehr#(2,Data) dLd   <- mkEhr(0);
+    Ehr#(2,Data) dSt   <- mkEhr(0);
+    Ehr#(2,Data) dJoin <- mkEhr(0);
 
 	rule do_INREQ if(!isValid(retryMSHR[1]));
 
@@ -402,21 +402,21 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 			if(!dcReqQ.first().isOld) begin
 				if (isValid(d)) begin // hit
 					case (req.op)
-						Ld:   hLd   <= hLd+1;
-						St:   hSt   <= hSt+1;
-						Join: hJoin <= hJoin+1;
+						Ld:   hLd  [0] <= hLd  [0]+1;
+						St:   hSt  [0] <= hSt  [0]+1;
+						Join: hJoin[0] <= hJoin[0]+1;
 					endcase
 				end else if(isValid(isMatch) || isValid(isEmpty)) begin
 					case (req.op)
-						Ld:   mLd   <= mLd+1;
-						St:   mSt   <= mSt+1;
-						Join: mJoin <= mJoin+1;
+						Ld:   mLd  [0] <= mLd  [0]+1;
+						St:   mSt  [0] <= mSt  [0]+1;
+						Join: mJoin[0] <= mJoin[0]+1;
 					endcase
 				end else begin
 					case (req.op)
-						Ld:   dLd   <= dLd+1;
-						St:   dSt   <= dSt+1;
-						Join: dJoin <= dJoin+1;
+						Ld:   dLd  [0] <= dLd  [0]+1;
+						St:   dSt  [0] <= dSt  [0]+1;
+						Join: dJoin[0] <= dJoin[0]+1;
 					endcase
 				end
 			end
@@ -482,15 +482,15 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 	endmethod
 
 	method LSUStat getStat();
-		return LSUStat{ hLd      : hLd,
-		                hSt      : hSt,
-		                hJoin    : hJoin,
-		                mLd      : mLd,
-		                mSt      : mSt,
-		                mJoin    : mJoin,
-		                dLd      : dLd,
-		                dSt      : dSt,
-		                dJoin    : dJoin };
+		return LSUStat{ hLd      : hLd  [1],
+		                hSt      : hSt  [1],
+		                hJoin    : hJoin[1],
+		                mLd      : mLd  [1],
+		                mSt      : mSt  [1],
+		                mJoin    : mJoin[1],
+		                dLd      : dLd  [1],
+		                dSt      : dSt  [1],
+		                dJoin    : dJoin[1] };
 	endmethod
 
 endmodule
