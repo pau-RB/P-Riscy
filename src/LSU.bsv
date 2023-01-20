@@ -122,14 +122,16 @@ module mkDirectDataCache (BareDataCache ifc);
 	                                      loadFormat              : None,
 	                                      allowWriteResponseBypass: False };
 
-	Fifo#(1,DataCacheReq)  reqQ <- mkBypassFifo();
-	Fifo#(1,DataCacheResp) resQ <- mkBypassFifo();
-	Fifo#(1,DataCacheWB)   wbQ  <- mkBypassFifo();
+	BRAM2PortBE#(CacheIndex, CacheLine, CacheLineBytes) dataArray <- mkBRAM2ServerBE(cfg);
+	BRAM2Port  #(CacheIndex, CacheTag                 ) tagsArray <- mkBRAM2Server  (cfg);
+	BRAM2Port  #(CacheIndex, CacheMeta                ) metaArray <- mkBRAM2Server  (cfg);
 
-	BRAM1PortBE#(CacheIndex, CacheLine, CacheLineBytes) dataArray <- mkBRAM1ServerBE(cfg);
-	BRAM1Port  #(CacheIndex, CacheTag                 ) tagsArray <- mkBRAM1Server  (cfg);
-	BRAM1Port  #(CacheIndex, CacheMeta                ) metaArray <- mkBRAM1Server  (cfg);
-	Fifo#(1,DataCacheReq) bramReq <- mkStageFifo();
+	Fifo#(2,DataCacheReq)  reqQ    <- mkBypassFifo();
+	Fifo#(2,DataCacheReq)  bramReq <- mkCFFifo();
+	Fifo#(2,DataCacheResp) resQ    <- mkBypassFifo();
+	Fifo#(2,DataCacheWB)   wbQ     <- mkBypassFifo();
+
+	Ehr#(3,Maybe#(CacheIndex)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts
 
 	rule do_invalidate if (invIndex matches tagged Valid .index);
 
@@ -147,7 +149,11 @@ module mkDirectDataCache (BareDataCache ifc);
 
 	endrule
 
-	rule do_REQ if(!wbQ.notEmpty() && !isValid(invIndex));
+	rule do_WPI;
+		writePortIndex[2] <= tagged Invalid;
+	endrule
+
+	rule do_REQ if(!wbQ.notEmpty() && !isValid(invIndex) && (!isValid(writePortIndex[1]) || fromMaybe(?,writePortIndex[1]) != indexOf(reqQ.first.addr)));
 
 		DataCacheReq req = reqQ.first(); reqQ.deq();
 		CacheIndex index = indexOf(req.addr);
@@ -180,6 +186,10 @@ module mkDirectDataCache (BareDataCache ifc);
 		Bit#(CacheLineBytes) writeEn    = writeEnOf   (req.addr, req.op);
 		CacheLine            writeLn    = writeLnOf   (req.addr, req.op, req.data);
 
+		if(req.op == PUT || req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN) begin
+			writePortIndex[0] <= tagged Valid (index);
+		end
+
 		if(req.op == PUT) begin
 
 			if(meta.valid && meta.dirty) begin // old line is dirty
@@ -190,15 +200,15 @@ module mkDirectDataCache (BareDataCache ifc);
 			CacheMeta newMeta = CacheMeta { valid: True,
 			                                dirty: False };
 
-			dataArray.portA.request.put( BRAMRequestBE{ writeen        : '1,
+			dataArray.portB.request.put( BRAMRequestBE{ writeen        : '1,
 			                                            responseOnWrite: False,
 			                                            address        : index,
 			                                            datain         : req.line } );
-			tagsArray.portA.request.put( BRAMRequest  { write          : True,
+			tagsArray.portB.request.put( BRAMRequest  { write          : True,
 			                                            responseOnWrite: False,
 			                                            address        : index,
 			                                            datain         : tagOf(req.addr)} );
-			metaArray.portA.request.put( BRAMRequest  { write          : True,
+			metaArray.portB.request.put( BRAMRequest  { write          : True,
 			                                            responseOnWrite: False,
 			                                            address        : index,
 			                                            datain         : newMeta } );
@@ -209,11 +219,11 @@ module mkDirectDataCache (BareDataCache ifc);
 				CacheMeta newMeta = CacheMeta { valid: True,
 				                                dirty: True };
 
-				dataArray.portA.request.put( BRAMRequestBE{ writeen        : writeEn,
+				dataArray.portB.request.put( BRAMRequestBE{ writeen        : writeEn,
 				                                            responseOnWrite: False,
 				                                            address        : index,
 				                                            datain         : writeLn } );
-				metaArray.portA.request.put( BRAMRequest  { write          : True,
+				metaArray.portB.request.put( BRAMRequest  { write          : True,
 				                                            responseOnWrite: False,
 				                                            address        : index,
 				                                            datain         : newMeta } );
@@ -253,7 +263,7 @@ module mkAssociativeDataCache (BareDataCache ifc);
 
 	Vector#(LSUCacheColumns,BareDataCache) lane <- replicateM(mkDirectDataCache());
 	Reg#(CacheLane) replaceIndex <- mkReg(0);
-	Fifo#(1,DataCacheWB) wbFifo <- mkBypassFifo();
+	Fifo#(2,DataCacheWB) wbFifo <- mkBypassFifo();
 
 	for (Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
 		rule do_COLLECT_WB;
@@ -312,7 +322,7 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 	Ehr#(2,Maybe#(LSUmshrId))                               retryMSHR <- mkEhr(tagged Invalid);
 
 	Fifo#(1, LSUReq#(transIdType))         inReqQ   <- mkBypassFifo();
-	Fifo#(1, DataCacheToken#(transIdType)) dcReqQ   <- mkStageFifo();
+	Fifo#(2, DataCacheToken#(transIdType)) dcReqQ   <- mkPipelineFifo();
 	Fifo#(LSUmshrW, MemReqToken)           memReqQ  <- mkPipelineFifo();
 	Fifo#(1, LSUResp#(transIdType))        respQ    <- mkBypassFifo();
 	Fifo#(1, LSUResp#(transIdType))        oldRespQ <- mkBypassFifo();
