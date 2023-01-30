@@ -3,6 +3,8 @@ import Types::*;
 import CMRTypes::*;
 import LSUTypes::*;
 import Fifo::*;
+import FIFOF::*;
+import SpecialFIFOs::*;
 import Ehr::*;
 import Vector::*;
 import BRAM::*;
@@ -126,10 +128,10 @@ module mkDirectDataCache (BareDataCache ifc);
 	BRAM2Port  #(CacheIndex, CacheTag                 ) tagsArray <- mkBRAM2Server  (cfg);
 	BRAM2Port  #(CacheIndex, CacheMeta                ) metaArray <- mkBRAM2Server  (cfg);
 
-	Fifo#(2,DataCacheReq)  reqQ    <- mkBypassFifo();
-	Fifo#(2,DataCacheReq)  bramReq <- mkCFFifo();
-	Fifo#(2,DataCacheResp) resQ    <- mkBypassFifo();
-	Fifo#(2,DataCacheWB)   wbQ     <- mkBypassFifo();
+	FIFOF#(DataCacheReq)  reqQ    <- mkSizedBypassFIFOF(2);
+	FIFOF#(DataCacheReq)  bramReq <- mkFIFOF();
+	FIFOF#(DataCacheResp) resQ    <- mkSizedBypassFIFOF(2);
+	FIFOF#(DataCacheWB)   wbQ     <- mkSizedBypassFIFOF(2);
 
 	Ehr#(3,Maybe#(CacheIndex)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts
 
@@ -263,7 +265,7 @@ module mkAssociativeDataCache (BareDataCache ifc);
 
 	Vector#(LSUCacheColumns,BareDataCache) lane <- replicateM(mkDirectDataCache());
 	Reg#(CacheLane) replaceIndex <- mkReg(0);
-	Fifo#(2,DataCacheWB) wbFifo <- mkBypassFifo();
+	FIFOF#(DataCacheWB) wbFifo <- mkBypassFIFOF();
 
 	for (Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
 		rule do_COLLECT_WB;
@@ -321,21 +323,21 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 	Vector#(LSUmshrW, Fifo#(LSUmshrD,LSUReq#(transIdType))) mshr      <- replicateM(mkCFFifo());
 	Ehr#(2,Maybe#(LSUmshrId))                               retryMSHR <- mkEhr(tagged Invalid);
 
-	Fifo#(1, LSUReq#(transIdType))         inReqQ   <- mkBypassFifo();
-	Fifo#(2, DataCacheToken#(transIdType)) dcReqQ   <- mkPipelineFifo();
-	Fifo#(LSUmshrW, MemReqToken)           memReqQ  <- mkPipelineFifo();
-	Fifo#(1, LSUResp#(transIdType))        respQ    <- mkBypassFifo();
-	Fifo#(1, LSUResp#(transIdType))        oldRespQ <- mkBypassFifo();
+	FIFOF#(LSUReq#(transIdType))         inReqQ   <- mkBypassFIFOF();
+	FIFOF#(DataCacheToken#(transIdType)) dcReqQ   <- mkSizedFIFOF(2);
+	FIFOF#(MemReqToken)                  memReqQ  <- mkSizedFIFOF(valueOf(LSUmshrW));
+	FIFOF#(LSUResp#(transIdType))        respQ    <- mkBypassFIFOF();
+	FIFOF#(LSUResp#(transIdType))        oldRespQ <- mkBypassFIFOF();
 
-    Ehr#(2,Data) hLd   <- mkEhr(0);
-    Ehr#(2,Data) hSt   <- mkEhr(0);
-    Ehr#(2,Data) hJoin <- mkEhr(0);
-    Ehr#(2,Data) mLd   <- mkEhr(0);
-    Ehr#(2,Data) mSt   <- mkEhr(0);
-    Ehr#(2,Data) mJoin <- mkEhr(0);
-    Ehr#(2,Data) dLd   <- mkEhr(0);
-    Ehr#(2,Data) dSt   <- mkEhr(0);
-    Ehr#(2,Data) dJoin <- mkEhr(0);
+	Ehr#(2,Data) hLd   <- mkEhr(0);
+	Ehr#(2,Data) hSt   <- mkEhr(0);
+	Ehr#(2,Data) hJoin <- mkEhr(0);
+	Ehr#(2,Data) mLd   <- mkEhr(0);
+	Ehr#(2,Data) mSt   <- mkEhr(0);
+	Ehr#(2,Data) mJoin <- mkEhr(0);
+	Ehr#(2,Data) dLd   <- mkEhr(0);
+	Ehr#(2,Data) dSt   <- mkEhr(0);
+	Ehr#(2,Data) dJoin <- mkEhr(0);
 
 	rule do_INREQ if(!isValid(retryMSHR[1]));
 
@@ -401,8 +403,8 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 				memReqQ.enq(MemReqToken{ addr: req.addr,
 				                         mshr: fromMaybe(?,isEmpty) });
 				mem.req(WideMemReq{ write_en: '0,
-									addr    : req.addr,
-									data    : ? });
+				                    addr    : req.addr,
+				                    data    : ? });
 
 			end
 
