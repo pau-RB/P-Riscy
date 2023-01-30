@@ -1,6 +1,7 @@
 import Types::*;
 import Config::*;
-import Fifo::*;
+import FIFOF::*;
+import SpecialFIFOs::*;
 import CMRTypes::*;
 import Vector::*;
 import Ehr::*;
@@ -37,8 +38,8 @@ module mkSyncArbiter(Bool                                     coreStarted,
 	                 SyncArbiter#(n, m, t) ifc) provisos(Bits#(t,tSz), FShow#(t));
 
 	// Queues
-	Vector#(n, Fifo#(1,t))         inputQueue  <- replicateM(mkStageFifo());
-	Fifo#(1, Vector#(m,Maybe#(t))) outputQueue <- mkStageFifo();
+	Vector#(n, FIFOF#(t))        inputQueue  <- replicateM(mkPipelineFIFOF());
+	FIFOF#(Vector#(m,Maybe#(t))) outputQueue <- mkPipelineFIFOF();
 
 	// Performance debug
 	Ehr#(3,Vector#(n,Maybe#(t))) perf_sel_inst  <- mkEhr(replicate(tagged Invalid));
