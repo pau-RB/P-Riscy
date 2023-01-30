@@ -364,13 +364,13 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 
 					if (mem_ext_DEBUG == True) begin
 						if(commitInst.iType == St && commitInst.addr == msr_ADDR) begin
-							FetchStat fsr = ?; //frontEnd.getStat();
 							LSUStat   lsr = lsu.getStat();
 							MemStat   msr = MemStat{ verifID: verif.getVerifID(feID),
 							                         cycle  : numCycles,
 							                         commit : numCommit[0],
 							                         data   : commitInst.data,
-							                         fetch  : fsr,
+							                         fetch  : ?,
+							                         arbiter: ?,
 							                         lsu    : lsr };
 							memStatReportQ.enq(msr);
 						end
