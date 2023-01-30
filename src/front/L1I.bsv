@@ -1,7 +1,8 @@
 import Config::*;
 import Types::*;
 import Ehr::*;
-import Fifo::*;
+import FIFOF::*;
+import SpecialFIFOs::*;
 import BRAM::*;
 import Vector::*;
 
@@ -34,10 +35,10 @@ module mkDirectL1I(WideMem mem, L1I#(n) ifc);
     BRAM1Port#(CacheIndex, CacheEntry) bram <- mkBRAM1Server(cfg);
     Vector#(L1ICacheRows, Reg#(Bool)) valid <- replicateM(mkReg(False));
 
-    Fifo#(1         , BramReq#(Bit#(TLog#(n)))) bramReq <- mkStageFifo();
-    Fifo#(TAdd#(n,1), BramReq#(Bit#(TLog#(n)))) memReqQ <- mkPipelineFifo();
+    FIFOF#(BramReq#(Bit#(TLog#(n)))) bramReq <- mkPipelineFIFOF();
+    FIFOF#(BramReq#(Bit#(TLog#(n)))) memReqQ <- mkSizedFIFOF(valueOf(TAdd#(n,1)));
 
-    Vector#(n, Fifo#(1,ReadWideMemResp)) respQ <- replicateM(mkPipelineFifo());
+    Vector#(n, FIFOF#(ReadWideMemResp)) respQ <- replicateM(mkPipelineFIFOF());
     Vector#(n, Ehr#(2,Bool)) busy <- replicateM(mkEhr(False));
 
     Reg#(Data) numHit  <- mkReg(0);

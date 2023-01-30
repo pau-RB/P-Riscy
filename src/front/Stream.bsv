@@ -1,6 +1,7 @@
 import Types::*;
 import ProcTypes::*;
-import Fifo::*;
+import FIFOF::*;
+import SpecialFIFOs::*;
 import Ehr::*;
 
 interface Stream;
@@ -35,17 +36,17 @@ endinterface
 //
 module mkStream (ReadWideMem l1I, Stream ifc);
 
-	Ehr#(4,StreamStatus)   state     <- mkEhr(Empty);
-	Ehr#(2,Addr)           pc        <- mkEhr('0);
-	Reg#(Epoch)            epoch     <- mkReg('0);
+	Ehr#(4,StreamStatus)    state     <- mkEhr(Empty);
+	Ehr#(2,Addr)            pc        <- mkEhr('0);
+	Reg#(Epoch)             epoch     <- mkReg('0);
 
-	Fifo#(1,DecToken)      inst      <- mkStageFifo();
-	Fifo#(1,Redirect)      redirectQ <- mkBypassFifo();
+	FIFOF#(DecToken)        instQ     <- mkPipelineFIFOF();
+	FIFOF#(Redirect)        redirectQ <- mkBypassFIFOF();
 	
-	Reg #(CacheLine)       l0I       <- mkRegU();
-	Ehr #(2, CacheLineNum) l0Iline   <- mkEhr(?);
-	Ehr #(2, Bool)         l0Ival    <- mkEhr(False);
-	Fifo#(1, CacheLineNum) l1Ireq    <- mkPipelineFifo();
+	Reg  #(CacheLine)       l0I       <- mkRegU();
+	Ehr  #(2, CacheLineNum) l0Iline   <- mkEhr(?);
+	Ehr  #(2, Bool)         l0Ival    <- mkEhr(False);
+	FIFOF#(CacheLineNum)    l1Ireq    <- mkPipelineFIFOF();
 
 	// Note: After pc+4 we might request a new line. Then, we might receive
 	// a redirect request and generate a new L1I request. When getting the
@@ -88,9 +89,9 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 			// Fetch real instruction
 			CacheWordSelect wordSelect = truncate(pc[0] >> 2);
-			inst.enq(DecToken{ inst : tagged Valid l0I[wordSelect],
-							   pc   : pc[0],
-							   epoch: epoch});
+			instQ.enq(DecToken{ inst : tagged Valid l0I[wordSelect],
+			                    pc   : pc[0],
+			                    epoch: epoch});
 			pc[0] <= pc[0]+4;
 
 		end else if (state[2] == Evict) begin
@@ -99,18 +100,18 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 				// Fetch real instruction
 				CacheWordSelect wordSelect = truncate(pc[0] >> 2);
-				inst.enq(DecToken{ inst : tagged Valid l0I[wordSelect],
-								   pc   : pc[0],
-								   epoch: epoch});
+				instQ.enq(DecToken{ inst : tagged Valid l0I[wordSelect],
+				                    pc   : pc[0],
+				                    epoch: epoch});
 				pc[0] <= pc[0]+4;
 
 			end else begin
 				
 				// Fetch ghost
 				state[2] <= Dry;
-				inst.enq(DecToken{ inst : tagged Invalid,
-								   pc   : pc[0],
-								   epoch: epoch});
+				instQ.enq(DecToken{ inst : tagged Invalid,
+				                    pc   : pc[0],
+				                    epoch: epoch});
 
 			end
 
@@ -118,9 +119,9 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 			
 			// Fetch ghost
 			state[2] <= Dry;
-			inst.enq(DecToken{ inst : tagged Invalid,
-							   pc   : pc[0],
-							   epoch: epoch});
+			instQ.enq(DecToken{ inst : tagged Invalid,
+			                    pc   : pc[0],
+			                    epoch: epoch});
 
 		end
 
@@ -153,7 +154,7 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 	// 5 - Consider external requests
 	// Flow control
 	method ActionValue#(DecToken) fetch();
-		DecToken i = inst.first(); inst.deq();
+		DecToken i = instQ.first(); instQ.deq();
 		return i;
 	endmethod	
 
@@ -188,15 +189,15 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 	endmethod
 
 	method Addr firstPC();
-		if(inst.notEmpty()) begin
-			return inst.first().pc;
+		if(instQ.notEmpty()) begin
+			return instQ.first().pc;
 		end else begin
 			return '0;
 		end
 	endmethod
 
 	method Bool notEmpty();
-		return  inst.notEmpty();
+		return  instQ.notEmpty();
 	endmethod
 
 	method Bool isl0Ihit();
