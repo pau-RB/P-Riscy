@@ -1,7 +1,8 @@
 import Types::*;
 import ProcTypes::*;
 import Config::*;
-import Fifo::*;
+import FIFOF::*;
+import SpecialFIFOs::*;
 import CMRTypes::*;
 import Vector::*;
 import Ehr::*;
@@ -106,8 +107,8 @@ endfunction
 module mkSyncArbiter(SyncArbiter ifc);
 
 	// Queues
-	Vector#(FrontWidth, Fifo#(1,ExecToken))        inputQueue  <- replicateM(mkStageFifo());
-	Fifo#(1, Vector#(BackWidth,Maybe#(ExecToken))) outputQueue <- mkStageFifo();
+	Vector#(FrontWidth, FIFOF#(ExecToken))        inputQueue  <- replicateM(mkPipelineFIFOF());
+	FIFOF#(Vector#(BackWidth, Maybe#(ExecToken))) outputQueue <- mkPipelineFIFOF();
 
 	// Performance debug
 	Ehr#(3,Vector#(FrontWidth,Maybe#(ExecToken)))  perf_sel_inst  <- mkEhr(replicate(tagged Invalid));

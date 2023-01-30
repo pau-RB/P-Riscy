@@ -1,5 +1,6 @@
 import Types::*;
-import Fifo::*;
+import FIFOF::*;
+import SpecialFIFOs::*;
 import Vector::*;
 
 interface DelayedWideMem#(numeric type delayLatency);
@@ -9,7 +10,7 @@ endinterface
 
 module mkWideMemDelay(WideMem mem, DelayedWideMem#(delayLatency) ifc);
 
-	Vector#(delayLatency, Fifo#(1,WideMemReq)) forward <- replicateM(mkStageFifo());
+	Vector#(delayLatency, FIFOF#(WideMemReq)) forward <- replicateM(mkPipelineFIFOF());
 	let inQ = forward[0];
 	let outQ = forward[valueof(delayLatency)-1];
 

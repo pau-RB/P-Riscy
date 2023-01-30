@@ -7,7 +7,8 @@ import ProcTypes::*;
 import CMRTypes::*;
 
 // include
-import Fifo::*;
+import FIFOF::*;
+import SpecialFIFOs::*;
 import Vector::*;
 import Ehr::*;
 
@@ -86,10 +87,10 @@ module mkFrontend (WideMem                             mem        ,
 	L1I#(FrontWidth) l1I <- mkDirectL1I(mem);
 
 	// Stages
-	Vector#(FrontWidth, Fifo#(1,RFToken)  ) regfetchQ  <- replicateM(mkStageFifo() );
-	Vector#(FrontWidth, Fifo#(1,ExecToken)) arbiterQ   <- replicateM(mkBypassFifo());
-	Vector#(FrontWidth, Fifo#(1,Redirect) ) redirectQ  <- replicateM(mkBypassFifo());
-	Vector#(FrontWidth, Ehr#(2,Bool)      ) rfLock     <- replicateM(mkEhr(False));
+	Vector#(FrontWidth, FIFOF#(RFToken)  ) regfetchQ  <- replicateM(mkPipelineFIFOF() );
+	Vector#(FrontWidth, FIFOF#(ExecToken)) arbiterQ   <- replicateM(mkBypassFIFOF());
+	Vector#(FrontWidth, FIFOF#(Redirect) ) redirectQ  <- replicateM(mkBypassFIFOF());
+	Vector#(FrontWidth, Ehr#(2,Bool)     ) rfLock     <- replicateM(mkEhr(False));
 
 	// Stats
 	Reg#(Data) numEmpty <- mkReg(0);

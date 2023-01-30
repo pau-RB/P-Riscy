@@ -92,6 +92,10 @@ tandem_mm tandem_compare(CommitReport spike, CommitReport dut) {
 			tandem_report("Result mismatch!");
 			tandem_data("Spike result", spike.wbRes);
 			tandem_data("Dut result  ", dut.wbRes);
+			if(dut.iType == iTypeLd || dut.iType == iTypeSt) {
+				tandem_data("Spike addr", spike.addr);
+				tandem_data("Dut addr  ", dut.addr);
+			}
 			return tandem_mm::wbRes;
 		}
 	} else {

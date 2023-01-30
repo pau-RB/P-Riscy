@@ -1,8 +1,9 @@
 import Config::*;
 import Types::*;
 import Ehr::*;
-import Fifo::*;
-import BRAMCore::*;
+import FIFOF::*;
+import SpecialFIFOs::*;
+import BRAM::*;
 import Vector::*;
 
 typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(L1ICacheRows))) CacheTag;
@@ -27,14 +28,17 @@ endinterface
 
 module mkDirectL1I(WideMem mem, L1I#(n) ifc);
 
-    BRAM_PORT#(CacheIndex, CacheEntry) bram <- mkBRAMCore1(valueOf(L1ICacheRows), False);
+    BRAM_Configure cfg = defaultValue;
+    cfg.memorySize = valueOf(L1ICacheRows);
+    cfg.latency    = 1;
+
+    BRAM1Port#(CacheIndex, CacheEntry) bram <- mkBRAM1Server(cfg);
     Vector#(L1ICacheRows, Reg#(Bool)) valid <- replicateM(mkReg(False));
 
+    FIFOF#(BramReq#(Bit#(TLog#(n)))) bramReq <- mkPipelineFIFOF();
+    FIFOF#(BramReq#(Bit#(TLog#(n)))) memReqQ <- mkSizedFIFOF(valueOf(TAdd#(n,1)));
 
-    Fifo#(1         , BramReq#(Bit#(TLog#(n)))) bramReq <- mkStageFifo();
-    Fifo#(TAdd#(n,1), BramReq#(Bit#(TLog#(n)))) memReqQ <- mkPipelineFifo();
-
-    Vector#(n, Fifo#(1,ReadWideMemResp)) respQ <- replicateM(mkPipelineFifo());
+    Vector#(n, FIFOF#(ReadWideMemResp)) respQ <- replicateM(mkPipelineFIFOF());
     Vector#(n, Ehr#(2,Bool)) busy <- replicateM(mkEhr(False));
 
     Reg#(Data) numHit  <- mkReg(0);
@@ -47,7 +51,7 @@ module mkDirectL1I(WideMem mem, L1I#(n) ifc);
         Addr                     addr     = req.addr;
         CacheTag                 tag      = truncateLSB(addr);
         CacheIndex               index    = truncate(addr >> valueOf(TLog#(CacheLineBytes)));
-        CacheEntry               entry    = bram.read();
+        CacheEntry               entry   <- bram.portA.response.get();
 
         if (valid[index] && (entry.tag == tag)) begin // hit
             respQ[transID].enq(entry.line);
@@ -79,8 +83,12 @@ module mkDirectL1I(WideMem mem, L1I#(n) ifc);
 
         CacheTag   tag   = truncateLSB(addr);
         CacheIndex index = truncate(addr >> valueOf(TLog#(CacheLineBytes)));
-        bram.put(True, index, CacheEntry{ tag  : tag,
-                                          line : line });
+
+        bram.portA.request.put( BRAMRequest { write          : True,
+                                              responseOnWrite: False,
+                                              address        : index,
+                                              datain         : CacheEntry{ tag  : tag, line : line } });
+
         valid[index] <= True;
 
     endrule
@@ -92,7 +100,11 @@ module mkDirectL1I(WideMem mem, L1I#(n) ifc);
 
                 method Action req(ReadWideMemReq addr) if(!busy[fromInteger(i)][1]);
                     CacheIndex index = truncate(addr >> valueOf(TLog#(CacheLineBytes)));
-                    bram.put(False, index, ?);
+                    bram.portA.request.put( BRAMRequest { write          : False,
+                                                          responseOnWrite: False,
+                                                          address        : index,
+                                                          datain         : ? });
+
                     bramReq.enq(BramReq{ transID: fromInteger(i),
                                          addr   : addr });
                     busy[fromInteger(i)][1] <= True;

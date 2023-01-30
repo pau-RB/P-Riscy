@@ -10,7 +10,6 @@ import WideMemSplit::*;
 import WideMemDelay::*;
 import FIFOF::*;
 import BRAMFIFO::*;
-import Fifo::*;
 import Config::*;
 import Vector::*;
 
