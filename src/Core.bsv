@@ -9,8 +9,6 @@ import LSUTypes::*;
 import CMRTypes::*;
 
 // include
-import Fifo::*;
-import MFifo::*;
 import Vector::*;
 import Ehr::*;
 
