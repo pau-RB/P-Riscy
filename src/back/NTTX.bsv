@@ -1,7 +1,8 @@
 import Types::*;
 import ProcTypes::*;
 import Config::*;
-import Fifo::*;
+import FIFOF::*;
+import SpecialFIFOs::*;
 import Ehr::*;
 import RFile::*;
 import Vector::*;
@@ -21,7 +22,7 @@ endinterface
 
 module mkNTTX (Vector#(FrontWidth, RFile) rf, VerifMaster verif, NTTX ifc);
 
-	Fifo#(CTQ_LEN,ContToken) out <- mkPipelineFifo();
+	FIFOF#(ContToken) out <- mkSizedBypassFIFOF(valueOf(CTQ_LEN));
 
 	method Action evict(FrontID feID, Addr pc);
 		out.enq(ContToken{

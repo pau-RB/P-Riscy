@@ -9,7 +9,8 @@ import LSUTypes::*;
 import CMRTypes::*;
 
 // include
-import Fifo::*;
+import FIFOF::*;
+import SpecialFIFOs::*;
 import MFifo::*;
 import Vector::*;
 import Ehr::*;
@@ -70,9 +71,9 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 	              Backend ifc);
 
 	// Stages
-	Fifo#(1,Vector#(BackWidth,Maybe#(ExecToken)))  executeQ        <- mkBypassFifo();
-	Fifo#(1,Vector#(BackWidth,Maybe#(MemToken)))   memoryQ         <- mkStageFifo();
-	Fifo#(1,Vector#(BackWidth,Maybe#(WBToken)))    commitQ         <- mkStageFifo();
+	FIFOF#(Vector#(BackWidth,Maybe#(ExecToken)))    executeQ        <- mkBypassFIFOF();
+	FIFOF#(Vector#(BackWidth,Maybe#(MemToken)))     memoryQ         <- mkPipelineFIFOF();
+	FIFOF#(Vector#(BackWidth,Maybe#(WBToken)))      commitQ         <- mkPipelineFIFOF();
 
 	Vector#(FrontWidth, Ehr#(3, Maybe#(void    ))) toWBsbRemove    <- replicateM(mkEhr(tagged Invalid));
 	Vector#(FrontWidth, Ehr#(3, Maybe#(RFwb    ))) toWBrfWriteBack <- replicateM(mkEhr(tagged Invalid));
@@ -80,13 +81,13 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 	Vector#(FrontWidth, Ehr#(3, Maybe#(Redirect))) toWBstRedirect  <- replicateM(mkEhr(tagged Invalid));
 
 	// Upstream
-	Vector#(FrontWidth, Fifo#(1,Redirect))         redirectQ       <- replicateM(mkBypassFifo());
+	Vector#(FrontWidth, FIFOF#(Redirect))          redirectQ       <- replicateM(mkBypassFIFOF());
 
 	// CMR
 	MFifo#(CTHQ_LEN,BackWidth,CommitReport)        commitReportQ   <- mkPipelineMFifo();
-	Fifo# (CTHQ_LEN,Message)                       messageReportQ  <- mkPipelineFifo();
-	Fifo# (CTHQ_LEN,Message)                       hexReportQ      <- mkPipelineFifo();
-	Fifo# (CTHQ_LEN,MemStat)                       memStatReportQ  <- mkPipelineFifo();
+	FIFOF#(Message)                                messageReportQ  <- mkSizedFIFOF(valueOf(CTHQ_LEN));
+	FIFOF#(Message)                                hexReportQ      <- mkSizedFIFOF(valueOf(CTHQ_LEN));
+	FIFOF#(MemStat)                                memStatReportQ  <- mkSizedFIFOF(valueOf(CTHQ_LEN));
 
 	// Perf debug
 	Ehr#(2,Vector#(BackWidth,Maybe#(ExecToken)))   perf_exec_inst  <- mkEhr(replicate(tagged Invalid));
