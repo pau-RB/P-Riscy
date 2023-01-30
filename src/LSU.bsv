@@ -2,7 +2,7 @@ import Config::*;
 import Types::*;
 import CMRTypes::*;
 import LSUTypes::*;
-import Fifo::*;
+import CFFifo::*;
 import FIFOF::*;
 import SpecialFIFOs::*;
 import Ehr::*;

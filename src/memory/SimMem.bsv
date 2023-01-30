@@ -1,6 +1,6 @@
 import Vector::*;
 import RegFile::*;
-import Fifo::*;
+import CFFifo::*;
 import GetPut::*;
 import ClientServer::*;
 import Connectable::*;
