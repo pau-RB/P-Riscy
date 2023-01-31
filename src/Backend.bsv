@@ -148,47 +148,46 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 		Vector#(BackWidth, Maybe#(MemToken)) toMem    = memoryQ.first(); memoryQ.deq();
 		Vector#(BackWidth, Maybe#(WBToken))  toCommit = replicate(tagged Invalid);
 
-		if(isValid(toMem[0])) begin
-
-			let mToken = fromMaybe(?, toMem[0]);
+		// Mem lane
+		if(toMem[0] matches tagged Valid .mToken) begin
 			let wToken = WBToken{ inst   : mToken.inst,
 			                      pc     : mToken.pc,
 			                      feID   : mToken.feID,
 			                      epoch  : mToken.epoch,
 			                      rawInst: mToken.rawInst};
 
-			Data mulDiv = mulStage2(mToken.mul);
-			if(mToken.inst.iType == Mul) begin
-				wToken.inst.data = mulDiv;
-			end
-
 			toCommit[0] = tagged Valid wToken;
 
 			// Send LSU req, if the instruction is valid
-			Maybe#(MemOp) memOp = case (mToken.inst.iType)
-				Ld  : tagged Valid Ld;
-				St  : tagged Valid St;
-				Join: tagged Valid Join;
-				default: tagged Invalid;
-			endcase;
+			if (mToken.epoch == wbEpoch[mToken.feID][1]) begin
+				if (mToken.inst.iType == Ld) begin
+					lsu.req(LSUReq{ op     : Ld,
+					                ldFunc : mToken.inst.ldFunc,
+					                stFunc : mToken.inst.stFunc,
+					                addr   : mToken.inst.addr,
+					                data   : mToken.inst.data,
+					                transId: wToken });
+				end else if (mToken.inst.iType == St) begin
+					lsu.req(LSUReq{ op     : St,
+					                ldFunc : mToken.inst.ldFunc,
+					                stFunc : mToken.inst.stFunc,
+					                addr   : mToken.inst.addr,
+					                data   : mToken.inst.data,
+					                transId: wToken });
+				end else if(mToken.inst.iType == Join) begin
+					lsu.req(LSUReq{ op     : Join,
+					                ldFunc : mToken.inst.ldFunc,
+					                stFunc : mToken.inst.stFunc,
+					                addr   : mToken.inst.addr,
+					                data   : mToken.inst.data,
+					                transId: wToken });
+				end 
+			end
+		end
 
-			if (mToken.epoch == wbEpoch[mToken.feID][1] && isValid(memOp)) begin
-
-	    		lsu.req(LSUReq{ op     : fromMaybe(?,memOp),
-	    		                ldFunc : mToken.inst.ldFunc,
-	    		                stFunc : mToken.inst.stFunc,
-	    		                addr   : mToken.inst.addr,
-	    		                data   : mToken.inst.data,
-	    		                transId: wToken });
-
-	    	end
-
-	    end
-
-	    for(Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
-	    	if(isValid(toMem[i])) begin
-
-	    		let mToken = fromMaybe(?, toMem[i]);
+		// Arith lanes
+		for(Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
+			if(toMem[i] matches tagged Valid .mToken) begin
 				let wToken = WBToken{ inst   : mToken.inst,
 				                      pc     : mToken.pc,
 				                      feID   : mToken.feID,
@@ -196,12 +195,9 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 				                      rawInst: mToken.rawInst};
 
 				Data mulDiv = mulStage2(mToken.mul);
-				if(mToken.inst.iType == Mul) begin
+				if(mToken.inst.iType == Mul)
 					wToken.inst.data = mulDiv;
-				end
-
 				toCommit[i] = tagged Valid wToken;
-
 			end
 	    end
 
