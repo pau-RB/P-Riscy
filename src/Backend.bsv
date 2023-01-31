@@ -106,21 +106,29 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 		Vector#(BackWidth, Maybe#(ExecToken)) toExec = executeQ.first(); executeQ.deq();
 		Vector#(BackWidth, Maybe#(MemToken) ) toMem  = replicate(tagged Invalid);
 
-		// Instruction Execute
-		for (Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
-			if(isValid(toExec[i])) begin
-				let eToken = fromMaybe(?,toExec[i]);
+		// Mem lane
+		if(toExec[0] matches tagged Valid .eToken) begin
+			let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
+			let mToken   = MemToken{ inst   : execInst,
+				                     mul    : ?,
+				                     pc     : eToken.pc,
+				                     feID   : eToken.feID,
+				                     epoch  : eToken.epoch,
+				                     rawInst: eToken.rawInst};
+			toMem[0] = tagged Valid mToken;
+		end
 
+		// Arith lanes
+		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
+			if(toExec[i] matches tagged Valid .eToken) begin
 				let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
 				let mulInst  = mulStage1(eToken.arg1, eToken.arg2, eToken.inst.mulFunc);
-
 				let mToken   = MemToken{ inst   : execInst,
 				                         mul    : mulInst,
 				                         pc     : eToken.pc,
 				                         feID   : eToken.feID,
 				                         epoch  : eToken.epoch,
 				                         rawInst: eToken.rawInst};
-
 				toMem[i] = tagged Valid mToken;
 			end
 		end
