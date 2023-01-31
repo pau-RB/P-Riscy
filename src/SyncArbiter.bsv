@@ -95,7 +95,7 @@ typedef struct {
 endfunction
 
 
-module mkSyncArbiter(SyncArbiter ifc);
+module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc);
 
 	// Queues
 	Vector#(FrontWidth, FIFOF#(ExecToken))        inputQueue  <- replicateM(mkPipelineFIFOF());
@@ -112,7 +112,7 @@ module mkSyncArbiter(SyncArbiter ifc);
 
 	//////////// SELECT ////////////
 
-	rule do_select;
+	rule do_select if(coreStarted);
 
 		Vector#(FrontWidth,Maybe#(ExecToken)) inst = replicate(tagged Invalid);
 		Bool takenAny = False;

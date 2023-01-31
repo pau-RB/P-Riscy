@@ -69,7 +69,7 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
 	//////////// ARBITER ////////////
 
-	SyncArbiter arbiter <- mkSyncArbiter();
+	SyncArbiter arbiter <- mkSyncArbiter(coreStarted);
 
 	//////////// BACKEND ////////////
 
