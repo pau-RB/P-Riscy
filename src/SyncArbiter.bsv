@@ -62,43 +62,34 @@ typedef struct {
 } InstSelect deriving(Bits);
 
 
-(*noinline*) function InstSelect select(Vector#(FrontWidth,Maybe#(ExecToken)) inst, Vector#(FrontWidth,Bool) instPriority);
+(*noinline*) function InstSelect select(Vector#(FrontWidth,Maybe#(ExecToken)) inst);
 
 	Vector#(BackWidth,Maybe#(ExecToken)) forward  = replicate(tagged Invalid);
+	Vector#(FrontWidth,Bool)             takenM   = replicate(False);
+	Vector#(FrontWidth,Bool)             takenA   = replicate(False);
 	Vector#(FrontWidth,Bool)             taken    = replicate(False);
 
+	// Memory
 	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-
-		if(isValid(inst[i]) && !taken[i] && !isValid(forward[0]) && isMemInst(fromMaybe(?,inst[i]))) begin
+		if(isValid(inst[i]) && !isValid(forward[0]) && isMemInst(fromMaybe(?,inst[i]))) begin
 			forward[0] = inst[i];
-			taken  [i] = True;
+			takenM [i] = True;
 		end
+	end
 
+	// Arithmetic
+	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 		for (Integer j = 1; j < valueOf(BackWidth); j=j+1) begin
-			if(isValid(inst[i]) && !taken[i] && !isValid(forward[j]) && isArithInst(fromMaybe(?,inst[i]))) begin
+			if(isValid(inst[i]) && !takenA[i] && !isValid(forward[j]) && isArithInst(fromMaybe(?,inst[i]))) begin
 				forward[j] = inst[i];
-				taken  [i] = True;
+				takenA [i] = True;
 			end
 		end
-
 	end
-/*
-	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 
-		if(isValid(inst[i]) && !taken[i] && !isValid(forward[0]) && isAnyInst(fromMaybe(?,inst[i]))) begin
-			forward[0] = inst[i];
-			taken  [i] = True;
-		end
+	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1)
+		taken[i] = takenM[i] || takenA[i];
 
-		for (Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-			if(isValid(inst[i]) && !taken[i] && !isValid(forward[j]) && isArithInst(fromMaybe(?,inst[i]))) begin
-				forward[j] = inst[i];
-				taken  [i] = True;
-			end
-		end
-
-	end
-*/
 	return InstSelect{ taken: taken, forward: forward};
 
 endfunction
@@ -121,33 +112,26 @@ module mkSyncArbiter(SyncArbiter ifc);
 
 	//////////// SELECT ////////////
 
-	Vector#(FrontWidth,Reg#(Bool)) selectPriority <- replicateM(mkReg(True));
-
 	rule do_select;
 
-		Vector#(FrontWidth,Maybe#(ExecToken)) inst         = replicate(tagged Invalid);
-		Vector#(FrontWidth,Bool             ) instPriority = replicate(False);
+		Vector#(FrontWidth,Maybe#(ExecToken)) inst = replicate(tagged Invalid);
 		Bool takenAny = False;
 
 		// Candidate instructions
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 			if(inputQueue[i].notEmpty()) begin
 				inst        [i] = tagged Valid inputQueue[i].first();
-				instPriority[i] = selectPriority[i];
 			end
 		end
 
 		// Select
-		InstSelect sel = select(inst, instPriority);
+		InstSelect sel = select(inst);
 
 		// Dequeue taken instructions
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 			if(sel.taken[i]) begin
 				takenAny = True;
 				inputQueue[i].deq();
-				selectPriority[i] <= False;
-			end else begin
-				selectPriority[i] <= True;
 			end
 		end
 
