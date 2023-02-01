@@ -131,7 +131,7 @@ module mkDirectDataCache (BareDataCache ifc);
 	FIFOF#(DataCacheReq)  reqQ    <- mkSizedBypassFIFOF(2);
 	FIFOF#(DataCacheReq)  bramReq <- mkFIFOF();
 	FIFOF#(DataCacheResp) resQ    <- mkSizedBypassFIFOF(2);
-	FIFOF#(DataCacheWB)   wbQ     <- mkSizedBypassFIFOF(2);
+	FIFOF#(WideMemReq)    wbQ     <- mkSizedBypassFIFOF(2);
 
 	Ehr#(3,Maybe#(CacheIndex)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts
 
@@ -195,8 +195,9 @@ module mkDirectDataCache (BareDataCache ifc);
 		if(req.op == PUT) begin
 
 			if(meta.valid && meta.dirty) begin // old line is dirty
-				wbQ.enq(DataCacheWB { num : {tag,index},
-				                      line: data });
+				wbQ.enq(WideMemReq { write: True,
+				                     num  : {tag,index},
+				                     line : data });
 			end
 
 			CacheMeta newMeta = CacheMeta { valid: True,
@@ -254,7 +255,7 @@ module mkDirectDataCache (BareDataCache ifc);
 		return resQ.first();
 	endmethod
 
-	method ActionValue#(DataCacheWB) getWB();
+	method ActionValue#(WideMemReq) getWB();
 		wbQ.deq();
 		return wbQ.first();
 	endmethod
@@ -265,7 +266,7 @@ module mkAssociativeDataCache (BareDataCache ifc);
 
 	Vector#(LSUCacheColumns,BareDataCache) lane <- replicateM(mkDirectDataCache());
 	Reg#(CacheLane) replaceIndex <- mkReg(0);
-	FIFOF#(DataCacheWB) wbFifo <- mkBypassFIFOF();
+	FIFOF#(WideMemReq) wbFifo <- mkBypassFIFOF();
 
 	for (Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
 		rule do_COLLECT_WB;
@@ -299,7 +300,7 @@ module mkAssociativeDataCache (BareDataCache ifc);
 		return vres;
 	endmethod
 
-	method ActionValue#(DataCacheWB) getWB();
+	method ActionValue#(WideMemReq) getWB();
 		wbFifo.deq();
 		return wbFifo.first();
 	endmethod
