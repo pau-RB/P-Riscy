@@ -6,6 +6,7 @@ import ProcTypes::*;
 import CMRTypes::*;
 import Memory::*;
 import WideMemBRAM::*;
+import WideMemCache::*;
 import WideMemSplit::*;
 import WideMemDelay::*;
 import FIFOF::*;
@@ -32,7 +33,8 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
 	WideMem                              mainBRAM     <- mkWideMemBRAM();
 	DelayedWideMem#(TSub#(RAMLatency,2)) mainMem      <- mkWideMemDelay(mainBRAM);
-	SplitWideMem#(2,TMul#(2,FrontWidth)) mainSplit    <- mkSplitWideMem(True, mainMem.delayed);
+	WideMem                              mainL2       <- mkWideMemCache(mainMem.delayed);
+	SplitWideMem#(2,TMul#(2,FrontWidth)) mainSplit    <- mkSplitWideMem(True, mainL2);
 
 	VerifMaster                          verif        <- mkVerifMaster();
 	Core                                 dut          <- mkCore7SS(mainSplit.port[0], mainSplit.port[1], verif);

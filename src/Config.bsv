@@ -42,6 +42,9 @@ Bool lsuAssociative = True;
 typedef FrontWidth LSUmshrW;
 typedef FrontWidth LSUmshrD;
 
+// L2
+typedef 256 L2CacheRows;   // Must be power of 2
+
 // Verification
 typedef Bit#(32) VerifID;
 
