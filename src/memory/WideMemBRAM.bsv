@@ -3,24 +3,24 @@ import BRAM::*;
 
 module mkWideMemBRAM(WideMem);
 
-	BRAM_Configure cfg = defaultValue;
-	cfg.memorySize = valueOf(TExp#(WMBAddrSz));
-	cfg.latency    = 2;
+	BRAM_Configure cfg = BRAM_Configure { memorySize              : 0,
+	                                      latency                 : 2,
+	                                      outFIFODepth            : 2,
+	                                      loadFormat              : None,
+	                                      allowWriteResponseBypass: False };
 
-	BRAM1PortBE#(WMBAddr, CacheLine, CacheLineBytes) bram <- mkBRAM1ServerBE(cfg);
+	BRAM1Port#(WMBAddr, CacheLine) bram <- mkBRAM1Server(cfg);
 
 	method Action req(WideMemReq r);
-		bram.portA.request.put( BRAMRequestBE{
-			writeen:         r.write_en, 
-			responseOnWrite: False, 
-			address:         truncate(r.addr >> valueOf(TLog#(CacheLineBytes))), 
-			datain:          r.data 
-		} );
+		bram.portA.request.put( BRAMRequest { write          : r.write, 
+		                                      responseOnWrite: False, 
+		                                      address        : truncate(r.num), 
+		                                      datain         : r.line  } );
 	endmethod
 
 	method ActionValue#(CacheLine) resp;
-    	let d <- bram.portA.response.get;
-        return d;
-    endmethod
+		CacheLine line <- bram.portA.response.get;
+	return line;
+	endmethod
 
 endmodule

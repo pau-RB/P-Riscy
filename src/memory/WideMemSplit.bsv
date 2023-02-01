@@ -28,7 +28,7 @@ module mkSplitWideMem(  Bool initDone, WideMem mem,
             reqFifos[ fromMaybe(?,req_index) ].deq();
 
             mem.req(req);
-            if( req.write_en == 0 ) begin
+            if(!req.write) begin
                 // req is a load, so keep track of the source
                 reqSource.enq( fromMaybe(?,req_index) );
             end

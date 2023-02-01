@@ -24,9 +24,9 @@ typedef enum{SB,SH,SW} StoreFunc deriving(Bits, Eq, FShow);
 typedef enum{LB,LH,LW,LBU,LHU} LoadFunc deriving(Bits, Eq, FShow);
 
 typedef struct{
-    Bit#(CacheLineBytes) write_en;  // Byte write enable
-    Addr                 addr;
-    CacheLine            data;      // Vector#(CacheLineWords, Data)
+    Bool         write;
+    CacheLineNum num;
+    CacheLine    line;
 } WideMemReq deriving(Eq,Bits);
 
 typedef CacheLine WideMemResp;

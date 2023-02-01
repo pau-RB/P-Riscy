@@ -7,8 +7,13 @@ import BRAM::*;
 import Vector::*;
 
 typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(L1ICacheRows))) CacheTag;
-typedef Bit#(TLog#(L1ICacheRows)) CacheIndex;
-typedef Bit#(TLog#(CacheLineWords)) CacheOffset;
+typedef Bit#(TLog#(L1ICacheRows))                                              CacheIndex;
+typedef Bit#(TLog#(CacheLineWords))                                            CacheOffset;
+
+function CacheLineNum lineNumOf(Addr addr);
+    CacheLineNum num = truncateLSB(addr);
+    return num;
+endfunction
 
 typedef struct{
     CacheTag  tag;
@@ -60,9 +65,9 @@ module mkDirectL1I(WideMem mem, L1I#(n) ifc);
                 numHit <= numHit+1;    
             end
         end else begin // miss
-            mem.req(WideMemReq{ write_en: '0,
-                                addr    : addr,
-                                data    : ? });
+            mem.req(WideMemReq{ write: False,
+                                num  : lineNumOf(addr),
+                                line : ? });
             memReqQ.enq(BramReq{ transID: transID,
                                  addr   : addr });
 

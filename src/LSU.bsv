@@ -402,9 +402,9 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 				memReqQ.enq(MemReqToken{ addr: req.addr,
 				                         mshr: fromMaybe(?,isEmpty) });
-				mem.req(WideMemReq{ write_en: '0,
-				                    addr    : req.addr,
-				                    data    : ? });
+				mem.req(WideMemReq{ write: False,
+				                    num  : lineNumOf(req.addr),
+				                    line : ? });
 
 			end
 
@@ -471,11 +471,11 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 	rule do_WB;
 
-		let r <- dataCache.getWB();
+		let req <- dataCache.getWB();
 
-		mem.req(WideMemReq{ write_en: '1,
-		                    addr    : {r.num,0},
-		                    data    : r.line });
+		mem.req(WideMemReq{ write: True,
+		                    num  : req.num,
+		                    line : req.line });
 
 	endrule
 

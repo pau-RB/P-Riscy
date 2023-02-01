@@ -13,154 +13,164 @@ import BRAMFIFO::*;
 import Config::*;
 import Vector::*;
 
-function WideMemReq toWideMemReq(Addr addr, Data data);
+typedef Bit#(TLog#(CacheLineWords)) CacheOffset;
 
-    CacheByteSelect wordsel = truncate(addr & 32'hfffffffc);
-    Bit#(CacheLineBytes) writeEn = 'b1111 << wordsel;
-    CacheLine writeLn = replicate(data);
+function CacheOffset offsetOf(Addr addr);
+	return truncate(addr >> 2);
+endfunction
 
-    return WideMemReq { write_en: writeEn,
-                        addr: addr,
-                        data: writeLn };
-
+function CacheLineNum lineNumOf(Addr addr);
+    CacheLineNum num = truncateLSB(addr);
+    return num;
 endfunction
 
 interface ConnectalWrapper;
-   interface FromHost connectProc;
+	interface FromHost connectProc;
 endinterface
 
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
-   WideMem                              mainBRAM     <- mkWideMemBRAM();
-   DelayedWideMem#(TSub#(RAMLatency,2)) mainMem      <- mkWideMemDelay(mainBRAM);
-   SplitWideMem#(2,TMul#(2,FrontWidth)) mainSplit    <- mkSplitWideMem(True, mainMem.delayed);
+	WideMem                              mainBRAM     <- mkWideMemBRAM();
+	DelayedWideMem#(TSub#(RAMLatency,2)) mainMem      <- mkWideMemDelay(mainBRAM);
+	SplitWideMem#(2,TMul#(2,FrontWidth)) mainSplit    <- mkSplitWideMem(True, mainMem.delayed);
 
-   VerifMaster                          verif        <- mkVerifMaster();
-   Core                                 dut          <- mkCore7SS(mainSplit.port[0], mainSplit.port[1], verif);
+	VerifMaster                          verif        <- mkVerifMaster();
+	Core                                 dut          <- mkCore7SS(mainSplit.port[0], mainSplit.port[1], verif);
 
-   Reg#(Bool)                           memInit      <- mkReg(False);
-   FIFOF#(ContToken)                    mainTokenQ   <- mkSizedBRAMFIFOF(valueOf(MTQ_LEN));
-   Reg#(Data)                           commitTarget <- mkReg(80);
-   Reg#(FrontID)                        evictTarget  <- mkReg(0);
+	Reg#(Bool)                           memInit      <- mkReg(False);
+	FIFOF#(ContToken)                    mainTokenQ   <- mkSizedBRAMFIFOF(valueOf(MTQ_LEN));
+	Reg#(Data)                           commitTarget <- mkReg(80);
+	Reg#(FrontID)                        evictTarget  <- mkReg(0);
 
-   FIFOF#(CommitReport)                 mainCMRQ     <- mkSizedBRAMFIFOF(cmr_ext_DEBUG?valueOf(MTHQ_LEN):4);
-   FIFOF#(Message)                      mainMSGQ     <- mkSizedBRAMFIFOF(msg_ext_DEBUG?valueOf(MTHQ_LEN):4);
-   FIFOF#(Message)                      mainHEXQ     <- mkSizedBRAMFIFOF(hex_ext_DEBUG?valueOf(MTHQ_LEN):4);
-   FIFOF#(MemStat)                      mainMSRQ     <- mkSizedBRAMFIFOF(mem_ext_DEBUG?valueOf(MTHQ_LEN):4);
+	FIFOF#(CommitReport)                 mainCMRQ     <- mkSizedBRAMFIFOF(cmr_ext_DEBUG?valueOf(MTHQ_LEN):4);
+	FIFOF#(Message)                      mainMSGQ     <- mkSizedBRAMFIFOF(msg_ext_DEBUG?valueOf(MTHQ_LEN):4);
+	FIFOF#(Message)                      mainHEXQ     <- mkSizedBRAMFIFOF(hex_ext_DEBUG?valueOf(MTHQ_LEN):4);
+	FIFOF#(MemStat)                      mainMSRQ     <- mkSizedBRAMFIFOF(mem_ext_DEBUG?valueOf(MTHQ_LEN):4);
 
-   //////////// RELAY REPORTS ////////////
+	//////////// RELAY REPORTS ////////////
 
-   rule getCMR if(cmr_ext_DEBUG);
-      let latest <- dut.getCMR();
-      mainCMRQ.enq(latest);
-   endrule
+	rule getCMR if(cmr_ext_DEBUG);
+		let latest <- dut.getCMR();
+		mainCMRQ.enq(latest);
+	endrule
 
-   rule getMSG if(msg_ext_DEBUG);
-      let latest <- dut.getMSG();
-      mainMSGQ.enq(latest);
-   endrule
+	rule getMSG if(msg_ext_DEBUG);
+		let latest <- dut.getMSG();
+		mainMSGQ.enq(latest);
+	endrule
 
-   rule getHEX if(hex_ext_DEBUG);
-      let latest <- dut.getHEX();
-      mainHEXQ.enq(latest);
-   endrule
+	rule getHEX if(hex_ext_DEBUG);
+		let latest <- dut.getHEX();
+		mainHEXQ.enq(latest);
+	endrule
 
-   rule getMSR if(mem_ext_DEBUG);
-      let latest <- dut.getMSR();
-      mainMSRQ.enq(latest);
-   endrule
+	rule getMSR if(mem_ext_DEBUG);
+		let latest <- dut.getMSR();
+		mainMSRQ.enq(latest);
+	endrule
 
-   rule relayCMR if(cmr_ext_DEBUG);
-        CommitReport cmr = mainCMRQ.first(); mainCMRQ.deq();
-        Bit#(8) iType = zeroExtend(pack(cmr.iType));
-        Bit#(8) wbDst = zeroExtend(pack(cmr.wbDst));
-        ind.reportCMR(cmr.cycle, cmr.verifID, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
-   endrule
+	rule relayCMR if(cmr_ext_DEBUG);
+		CommitReport cmr = mainCMRQ.first(); mainCMRQ.deq();
+		Bit#(8) iType = zeroExtend(pack(cmr.iType));
+		Bit#(8) wbDst = zeroExtend(pack(cmr.wbDst));
+		ind.reportCMR(cmr.cycle, cmr.verifID, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
+	endrule
 
-   rule relayMSG if(msg_ext_DEBUG);
-        Message msg = mainMSGQ.first(); mainMSGQ.deq();
-        ind.reportMSG(msg.verifID, msg.cycle, msg.commit, msg.data);
-   endrule
+	rule relayMSG if(msg_ext_DEBUG);
+		Message msg = mainMSGQ.first(); mainMSGQ.deq();
+		ind.reportMSG(msg.verifID, msg.cycle, msg.commit, msg.data);
+	endrule
 
-   rule relayHEX if(hex_ext_DEBUG);
-        Message msg = mainHEXQ.first(); mainHEXQ.deq();
-        ind.reportHEX(msg.verifID, msg.cycle, msg.commit, msg.data);
-   endrule
+	rule relayHEX if(hex_ext_DEBUG);
+		Message msg = mainHEXQ.first(); mainHEXQ.deq();
+		ind.reportHEX(msg.verifID, msg.cycle, msg.commit, msg.data);
+	endrule
 
-   rule relayMSR if(mem_ext_DEBUG);
-         MemStat msr = mainMSRQ.first(); mainMSRQ.deq();
-         ind.reportMSR(msr.verifID,
-                       msr.cycle,          msr.commit,           msr.data,
-                       msr.fetch.hit,      msr.fetch.miss,       msr.fetch.empty,
-                       msr.arbiter.memOvb, msr.arbiter.arithOvb, msr.arbiter.empty,
-                       msr.lsu.hLd,        msr.lsu.hSt,          msr.lsu.hJoin,
-                       msr.lsu.mLd,        msr.lsu.mSt,          msr.lsu.mJoin,
-                       msr.lsu.dLd,        msr.lsu.dSt,          msr.lsu.dJoin);
-   endrule
+	rule relayMSR if(mem_ext_DEBUG);
+		MemStat msr = mainMSRQ.first(); mainMSRQ.deq();
+		ind.reportMSR(msr.verifID,
+		              msr.cycle,          msr.commit,           msr.data,
+		              msr.fetch.hit,      msr.fetch.miss,       msr.fetch.empty,
+		              msr.arbiter.memOvb, msr.arbiter.arithOvb, msr.arbiter.empty,
+		              msr.lsu.hLd,        msr.lsu.hSt,          msr.lsu.hJoin,
+		              msr.lsu.mLd,        msr.lsu.mSt,          msr.lsu.mJoin,
+		              msr.lsu.dLd,        msr.lsu.dSt,          msr.lsu.dJoin);
+	endrule
 
-   //////////// HANDLE THREADS ////////////
+	//////////// HANDLE THREADS ////////////
 
-   rule doEvict if(roundRobin && dut.getNumCommit() == commitTarget);
+	rule doEvict if(roundRobin && dut.getNumCommit() == commitTarget);
 
-      if(mainTokenQ.notEmpty) begin
-         dut.evict(evictTarget);
-         evictTarget  <=  (evictTarget == lastFrontID) ? '0 : evictTarget+1;
-      end
+		if(mainTokenQ.notEmpty) begin
+		   dut.evict(evictTarget);
+		   evictTarget  <=  (evictTarget == lastFrontID) ? '0 : evictTarget+1;
+		end
 
-      commitTarget <= commitTarget+fromInteger(valueOf(RR_INT));
+		commitTarget <= commitTarget+fromInteger(valueOf(RR_INT));
 
-   endrule
+	endrule
 
-   rule getContToken;
+	rule getContToken;
 
-      let t <- dut.getContToken();
-      mainTokenQ.enq(t);
+		let t <- dut.getContToken();
+		mainTokenQ.enq(t);
 
-   endrule
+	endrule
 
-   rule putContToken;
+	rule putContToken;
 
-      FrontID hart = 0;
+		FrontID hart = 0;
 
-      if(valueOf(FrontWidth) != 1) begin
-         for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-            if(!dut.available(hart)) begin
-               hart = (hart == lastFrontID) ? '0 : hart+1;
-            end
-         end
-      end
+		if(valueOf(FrontWidth) != 1) begin
+			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+				if(!dut.available(hart)) begin
+					hart = (hart == lastFrontID) ? '0 : hart+1;
+				end
+			end
+		end
 
-      let t = mainTokenQ.first(); mainTokenQ.deq();
-      dut.start(hart,t);
+		let t = mainTokenQ.first(); mainTokenQ.deq();
+		dut.start(hart,t);
 
-   endrule
+	endrule
 
-   //////////// INTERFACE ////////////
+	//////////// INTERFACE ////////////
 
-   interface FromHost connectProc;
+	Reg#(CacheLine) lineSend <- mkReg(replicate('0));
 
-      method Action setMem (Bit#(32) addr, Bit#(32) word);
+	interface FromHost connectProc;
 
-         mainMem.direct.req(toWideMemReq(addr, word));
+		method Action setMem (Bit#(32) addr, Bit#(32) word);
 
-         if(addr == max_ADDR) begin
-            memInit <= True;
-         end
+			CacheLine line = lineSend;
+			line[offsetOf(addr)] = word;
 
-      endmethod
+			if(offsetOf(addr) == '1) begin
+				mainMem.direct.req(WideMemReq { write: True,
+				                                num  : lineNumOf(addr),
+				                                line : line });
+			end
 
-      method Action startPC(Bit#(32) startpc) if(memInit);
+			lineSend <= line;
 
-         VerifID verifID <- verif.newVerifID();
+			if(addr == max_ADDR) begin
+				memInit <= True;
+			end
 
-         mainTokenQ.enq(ContToken{
-                           verifID: verifID,
-                           pc     : startpc,
-                           rfL    : replicate('0),
-                           rfH    : replicate('0)  });
+		endmethod
 
-      endmethod
+		method Action startPC(Bit#(32) startpc) if(memInit);
 
-   endinterface
+			VerifID verifID <- verif.newVerifID();
+
+			mainTokenQ.enq(ContToken{
+			                  verifID: verifID,
+			                  pc     : startpc,
+			                  rfL    : replicate('0),
+			                  rfH    : replicate('0)  });
+
+		endmethod
+
+	endinterface
 
 endmodule
