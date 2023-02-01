@@ -29,9 +29,9 @@ typedef struct{
     CacheLine    line;
 } WideMemReq deriving(Eq,Bits);
 
-typedef CacheLine WideMemResp;
-typedef Addr      ReadWideMemReq;
-typedef CacheLine ReadWideMemResp;
+typedef CacheLine    WideMemResp;
+typedef CacheLineNum ReadWideMemReq;
+typedef CacheLine    ReadWideMemResp;
 
 interface WideMem;
     method Action req(WideMemReq r);

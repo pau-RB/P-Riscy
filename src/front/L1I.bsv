@@ -10,19 +10,14 @@ typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(L1ICacheRows))) C
 typedef Bit#(TLog#(L1ICacheRows))                                              CacheIndex;
 typedef Bit#(TLog#(CacheLineWords))                                            CacheOffset;
 
-function CacheLineNum lineNumOf(Addr addr);
-    CacheLineNum num = truncateLSB(addr);
-    return num;
-endfunction
-
 typedef struct{
     CacheTag  tag;
     CacheLine line;
 } CacheEntry deriving(Eq, Bits, FShow);
 
 typedef struct{
-    transIdType transID;
-    Addr        addr;
+    transIdType  transID;
+    CacheLineNum num;
 } BramReq#(type transIdType) deriving(Eq, Bits, FShow);
 
 interface L1I#(numeric type n);
@@ -33,9 +28,11 @@ endinterface
 
 module mkDirectL1I(WideMem mem, L1I#(n) ifc);
 
-    BRAM_Configure cfg = defaultValue;
-    cfg.memorySize = valueOf(L1ICacheRows);
-    cfg.latency    = 1;
+    BRAM_Configure cfg = BRAM_Configure { memorySize              : 0,
+                                          latency                 : 1,
+                                          outFIFODepth            : 2,
+                                          loadFormat              : None,
+                                          allowWriteResponseBypass: False };
 
     BRAM1Port#(CacheIndex, CacheEntry) bram <- mkBRAM1Server(cfg);
     Vector#(L1ICacheRows, Reg#(Bool)) valid <- replicateM(mkReg(False));
@@ -53,23 +50,22 @@ module mkDirectL1I(WideMem mem, L1I#(n) ifc);
 
         BramReq#(Bit#(TLog#(n))) req      = bramReq.first(); bramReq.deq();
         Bit#(TLog#(n))           transID  = req.transID;
-        Addr                     addr     = req.addr;
-        CacheTag                 tag      = truncateLSB(addr);
-        CacheIndex               index    = truncate(addr >> valueOf(TLog#(CacheLineBytes)));
+        CacheLineNum             num      = req.num;
+        CacheIndex               index    = truncate(num);
+        CacheTag                 tag      = truncateLSB(num);
         CacheEntry               entry   <- bram.portA.response.get();
 
         if (valid[index] && (entry.tag == tag)) begin // hit
             respQ[transID].enq(entry.line);
-
             if(mem_ext_DEBUG == True) begin
                 numHit <= numHit+1;    
             end
         end else begin // miss
             mem.req(WideMemReq{ write: False,
-                                num  : lineNumOf(addr),
+                                num  : num,
                                 line : ? });
             memReqQ.enq(BramReq{ transID: transID,
-                                 addr   : addr });
+                                 num    : num });
 
             if(mem_ext_DEBUG == True) begin
                 numMiss <= numMiss+1;    
@@ -82,17 +78,16 @@ module mkDirectL1I(WideMem mem, L1I#(n) ifc);
 
         BramReq#(Bit#(TLog#(n))) req      = memReqQ.first(); memReqQ.deq();
         Bit#(TLog#(n))           transID  = req.transID;
-        Addr                     addr     = req.addr;
+        CacheLineNum             num      = req.num;
+        CacheIndex               index    = truncate(num);
+        CacheTag                 tag      = truncateLSB(num);
         CacheLine                line     <- mem.resp();
         respQ[transID].enq(line);
-
-        CacheTag   tag   = truncateLSB(addr);
-        CacheIndex index = truncate(addr >> valueOf(TLog#(CacheLineBytes)));
 
         bram.portA.request.put( BRAMRequest { write          : True,
                                               responseOnWrite: False,
                                               address        : index,
-                                              datain         : CacheEntry{ tag  : tag, line : line } });
+                                              datain         : CacheEntry{tag: tag, line: line }});
 
         valid[index] <= True;
 
@@ -103,15 +98,13 @@ module mkDirectL1I(WideMem mem, L1I#(n) ifc);
         wideMemIfcs[i] =
             (interface ReadWideMem;
 
-                method Action req(ReadWideMemReq addr) if(!busy[fromInteger(i)][1]);
-                    CacheIndex index = truncate(addr >> valueOf(TLog#(CacheLineBytes)));
+                method Action req(ReadWideMemReq num) if(!busy[fromInteger(i)][1]);
                     bram.portA.request.put( BRAMRequest { write          : False,
                                                           responseOnWrite: False,
-                                                          address        : index,
+                                                          address        : truncate(num),
                                                           datain         : ? });
-
                     bramReq.enq(BramReq{ transID: fromInteger(i),
-                                         addr   : addr });
+                                         num    : num });
                     busy[fromInteger(i)][1] <= True;
                 endmethod
 

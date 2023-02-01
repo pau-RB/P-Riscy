@@ -146,7 +146,7 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 	rule do_l1Ireq if (state[3] == Full && !nextl0Ihit);
 
-    	l1I.req({nextpcline,'0});
+    	l1I.req(nextpcline);
     	l1Ireq.enq(nextpcline);
 
 	endrule
