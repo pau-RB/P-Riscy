@@ -34,14 +34,16 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 	BRAM2Port#(CacheIndex, CacheTag ) tagsArray <- mkBRAM2Server(cfg);
 	BRAM2Port#(CacheIndex, CacheMeta) metaArray <- mkBRAM2Server(cfg);
 
-	FIFOF#(WideMemReq)  reqQ     <- mkFIFOF();
-	FIFOF#(WideMemReq)  bramReqQ <- mkFIFOF();
+	FIFOF#(WideMemReq)   reqQ <- mkFIFOF();
 
-	FIFOF#(Bool)        resQ     <- mkFIFOF();
-	FIFOF#(WideMemResp) hitQ     <- mkFIFOF();
-	FIFOF#(WideMemResp) misQ     <- mkFIFOF();
+	FIFOF#(WideMemReq)   brmQ <- mkFIFOF();
+	FIFOF#(CacheLineNum) memQ <- mkFIFOF();
 
-	FIFOF#(WideMemReq)  wbQ      <- mkFIFOF();
+	FIFOF#(Bool)         resQ <- mkFIFOF();
+	FIFOF#(WideMemResp)  hitQ <- mkFIFOF();
+	FIFOF#(WideMemResp)  misQ <- mkFIFOF();
+
+	FIFOF#(WideMemReq)   wbQ  <- mkFIFOF();
 
 	Ehr#(3,Maybe#(CacheIndex)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts
 	Reg#(Maybe#(CacheIndex))   invIndex       <- mkReg(tagged Valid 0); // Invalidate entries
@@ -71,7 +73,7 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 		WideMemReq req   = reqQ.first(); reqQ.deq();
 		CacheIndex index = indexOf(req.num);
 
-		bramReqQ.enq(req);
+		brmQ.enq(req);
 		dataArray.portA.request.put( BRAMRequest{ write          : False,
 		                                          responseOnWrite: False,
 		                                          address        : index,
@@ -89,7 +91,7 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 
 	rule do_RESP;
 
-		WideMemReq req = bramReqQ.first(); bramReqQ.deq();
+		WideMemReq req = brmQ.first(); brmQ.deq();
 
 		CacheLine  line <- dataArray.portA.response.get;
 		CacheTag   tag  <- tagsArray.portA.response.get;
@@ -130,8 +132,10 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 
 		end else begin // read miss
 
-			resQ.enq(False);
 			mem.req(req);
+
+			resQ.enq(False);
+			memQ.enq(req.num);
 
 		end
 
@@ -139,7 +143,13 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 
 	rule do_MEMRESP;
 
-		WideMemResp res <- mem.resp();
+		WideMemResp  res <- mem.resp();
+		CacheLineNum num  = memQ.first(); memQ.deq();
+
+		reqQ.enq(WideMemReq { write: True,
+		                      num  : num,
+		                      line : res });
+
 		misQ.enq(res);
 
 	endrule
