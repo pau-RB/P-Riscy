@@ -101,7 +101,7 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 
 			if(meta.valid && meta.dirty) begin // old line is dirty
 				wbQ.enq(WideMemReq { write: True,
-				                     num  : req.num,
+				                     num  : {tag,index},
 				                     line : line });
 			end
 
