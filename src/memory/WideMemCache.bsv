@@ -24,8 +24,6 @@ typedef struct{
 
 module mkWideMemCache(WideMem mem, WideMem ifc);
 
-	Reg#(Bool) busy <- mkReg(False); // Locking, for now
-
 	BRAM_Configure cfg = BRAM_Configure { memorySize              : 0,
 	                                      latency                 : 2,
 	                                      outFIFODepth            : 2,
@@ -38,7 +36,11 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 
 	FIFOF#(WideMemReq)  reqQ     <- mkFIFOF();
 	FIFOF#(WideMemReq)  bramReqQ <- mkFIFOF();
-	FIFOF#(WideMemResp) resQ     <- mkFIFOF();
+
+	FIFOF#(Bool)        resQ     <- mkFIFOF();
+	FIFOF#(WideMemResp) hitQ     <- mkFIFOF();
+	FIFOF#(WideMemResp) misQ     <- mkFIFOF();
+
 	FIFOF#(WideMemReq)  wbQ      <- mkFIFOF();
 
 	Ehr#(3,Maybe#(CacheIndex)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts
@@ -123,10 +125,12 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 
 		end else if (meta.valid && (tag == tagOf(req.num))) begin // read hit
 
-			resQ.enq(line);
+			resQ.enq(True);
+			hitQ.enq(line);
 
 		end else begin // read miss
 
+			resQ.enq(False);
 			mem.req(req);
 
 		end
@@ -136,7 +140,7 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 	rule do_MEMRESP;
 
 		WideMemResp res <- mem.resp();
-		resQ.enq(res);
+		misQ.enq(res);
 
 	endrule
 
@@ -148,16 +152,18 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 
 	endrule
 
-	method Action req(WideMemReq r) if(!busy);
+	method Action req(WideMemReq r);
 		reqQ.enq(r);
-		if(!r.write)
-			busy <= True;
 	endmethod
 
 	method ActionValue#(WideMemResp) resp;
-		WideMemResp res = resQ.first(); resQ.deq();
-		busy <= False;
-		return res;
+		if(resQ.first) begin // hit
+			WideMemResp res = hitQ.first(); hitQ.deq(); resQ.deq();
+			return res;
+		end else begin
+			WideMemResp res = misQ.first(); misQ.deq(); resQ.deq();
+			return res;
+		end
 	endmethod
 
 endmodule
