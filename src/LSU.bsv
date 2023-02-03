@@ -128,10 +128,10 @@ module mkDirectDataCache (BareDataCache ifc);
 	BRAM2Port  #(CacheIndex, CacheTag                 ) tagsArray <- mkBRAM2Server  (cfg);
 	BRAM2Port  #(CacheIndex, CacheMeta                ) metaArray <- mkBRAM2Server  (cfg);
 
-	FIFOF#(DataCacheReq)  reqQ    <- mkSizedBypassFIFOF(2);
-	FIFOF#(DataCacheReq)  bramReq <- mkFIFOF();
-	FIFOF#(DataCacheResp) resQ    <- mkSizedBypassFIFOF(2);
-	FIFOF#(WideMemReq)    wbQ     <- mkSizedBypassFIFOF(2);
+	FIFOF#(DataCacheReq)  reqQ    <- mkBypassFIFOF();
+	FIFOF#(DataCacheReq)  bramReq <- mkPipelineFIFOF();
+	FIFOF#(DataCacheResp) resQ    <- mkBypassFIFOF();
+	FIFOF#(WideMemReq)    wbQ     <- mkBypassFIFOF();
 
 	Ehr#(3,Maybe#(CacheIndex)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts
 
@@ -325,7 +325,7 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 	Ehr#(2,Maybe#(LSUmshrId))                               retryMSHR <- mkEhr(tagged Invalid);
 
 	FIFOF#(LSUReq#(transIdType))         inReqQ   <- mkBypassFIFOF();
-	FIFOF#(DataCacheToken#(transIdType)) dcReqQ   <- mkSizedFIFOF(2);
+	FIFOF#(DataCacheToken#(transIdType)) dcReqQ   <- mkPipelineFIFOF();
 	FIFOF#(MemReqToken)                  memReqQ  <- mkSizedFIFOF(valueOf(LSUmshrW));
 	FIFOF#(LSUResp#(transIdType))        respQ    <- mkBypassFIFOF();
 	FIFOF#(LSUResp#(transIdType))        oldRespQ <- mkBypassFIFOF();
