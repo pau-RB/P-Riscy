@@ -43,8 +43,6 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 	FIFOF#(WideMemResp)  hitQ <- mkFIFOF();
 	FIFOF#(WideMemResp)  misQ <- mkFIFOF();
 
-	FIFOF#(WideMemReq)   wbQ  <- mkFIFOF();
-
 	Ehr#(3,Maybe#(CacheIndex)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts
 	Reg#(Maybe#(CacheIndex))   invIndex       <- mkReg(tagged Valid 0); // Invalidate entries
 
@@ -68,7 +66,7 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 
 	endrule
 
-	rule do_REQ if(!wbQ.notEmpty() && !isValid(invIndex) && (!isValid(writePortIndex[1]) || fromMaybe(?,writePortIndex[1]) != indexOf(reqQ.first.num)));
+	rule do_REQ if(!isValid(invIndex) && (!isValid(writePortIndex[1]) || fromMaybe(?,writePortIndex[1]) != indexOf(reqQ.first.num)));
 
 		WideMemReq req   = reqQ.first(); reqQ.deq();
 		CacheIndex index = indexOf(req.num);
@@ -102,7 +100,7 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 		if (req.write) begin // write
 
 			if(meta.valid && meta.dirty) begin // old line is dirty
-				wbQ.enq(WideMemReq { write: True,
+				mem.req(WideMemReq { write: True,
 				                     num  : {tag,index},
 				                     line : line });
 			end
@@ -151,14 +149,6 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 		                      line : res });
 
 		misQ.enq(res);
-
-	endrule
-
-	rule do_WB;
-
-		WideMemReq wb = wbQ.first(); wbQ.deq();
-
-		mem.req(wb);
 
 	endrule
 
