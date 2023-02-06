@@ -23,11 +23,11 @@ typedef struct{
 	Bool     dirty;
 } CacheMeta deriving(Eq, Bits, FShow);
 
-module mkWideMemCache(WideMem mem, WideMem ifc);
+module mkWideMemCache(WideMem mem, Integer n, WideMem ifc);
 
 	BRAM_Configure cfg = BRAM_Configure { memorySize              : 0,
 	                                      latency                 : 2,
-	                                      outFIFODepth            : 1,
+	                                      outFIFODepth            : 2,
 	                                      loadFormat              : None,
 	                                      allowWriteResponseBypass: False };
 
@@ -35,7 +35,7 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 	BRAM2Port#(CacheIndex, CacheTag ) tagsArray <- mkBRAM2Server(cfg);
 	BRAM2Port#(CacheIndex, CacheMeta) metaArray <- mkBRAM2Server(cfg);
 
-	FIFOF#(WideMemReq)   reqQ <- mkFIFOF();
+	FIFOF#(WideMemReq)   reqQ <- mkSizedFIFOF(n);
 
 	FIFOF#(WideMemReq)   brmQ <- mkPipelineFIFOF();
 	FIFOF#(CacheLineNum) memQ <- mkFIFOF();

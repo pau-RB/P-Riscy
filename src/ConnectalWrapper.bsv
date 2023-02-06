@@ -33,7 +33,7 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
 	WideMem                              mainBRAM     <- mkWideMemBRAM();
 	DelayedWideMem#(TSub#(RAMLatency,2)) mainMem      <- mkWideMemDelay(mainBRAM);
-	WideMem                              mainL2       <- mkWideMemCache(mainMem.delayed);
+	WideMem                              mainL2       <- mkWideMemCache(mainMem.delayed, valueOf(TMul#(2,FrontWidth)));
 	SplitWideMem#(2,TMul#(2,FrontWidth)) mainSplit    <- mkSplitWideMem(True, mainL2);
 
 	VerifMaster                          verif        <- mkVerifMaster();
