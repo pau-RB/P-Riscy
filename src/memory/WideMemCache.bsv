@@ -1,29 +1,34 @@
-import Config::*;
 import Types::*;
-
 import BRAM::*;
 import FIFOF::*;
 import SpecialFIFOs::*;
 import Vector::*;
 import Ehr::*;
 
-typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(L2CacheRows))) CacheTag;
-typedef Bit#(TLog#(L2CacheRows))                                              CacheIndex;
-
-function CacheTag tagOf(CacheLineNum num);
-	return truncateLSB(num);
-endfunction
-
-function CacheIndex indexOf(CacheLineNum num);
-	return truncate(num);
-endfunction
+typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(cacheRows))) CacheTag  #(numeric type cacheRows);
+typedef Bit#(TLog#(cacheRows))                                              CacheIndex#(numeric type cacheRows);
 
 typedef struct{
 	Bool     valid;
 	Bool     dirty;
 } CacheMeta deriving(Eq, Bits, FShow);
 
-module mkWideMemCache(WideMem mem, Integer n, WideMem ifc);
+interface WideMemCache#(numeric type cacheRows, numeric type numReq);
+    interface WideMem cache;
+endinterface
+
+module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) provisos( Log#(cacheRows, b__),
+                                                                                   Add#(c__, TLog#(cacheRows), CacheLineNumSz),
+                                                                                   Alias#(cacheTag, CacheTag#(cacheRows)),
+                                                                                   Alias#(cacheIdx, CacheIndex#(cacheRows)));
+
+	function cacheTag tagOf(CacheLineNum num);
+		return truncateLSB(num);
+	endfunction
+
+	function cacheIdx indexOf(CacheLineNum num);
+		return truncate(num);
+	endfunction
 
 	BRAM_Configure cfg = BRAM_Configure { memorySize              : 0,
 	                                      latency                 : 2,
@@ -31,11 +36,11 @@ module mkWideMemCache(WideMem mem, Integer n, WideMem ifc);
 	                                      loadFormat              : None,
 	                                      allowWriteResponseBypass: False };
 
-	BRAM2Port#(CacheIndex, CacheLine) dataArray <- mkBRAM2Server(cfg);
-	BRAM2Port#(CacheIndex, CacheTag ) tagsArray <- mkBRAM2Server(cfg);
-	BRAM2Port#(CacheIndex, CacheMeta) metaArray <- mkBRAM2Server(cfg);
+	BRAM2Port#(cacheIdx, CacheLine) dataArray <- mkBRAM2Server(cfg);
+	BRAM2Port#(cacheIdx, cacheTag ) tagsArray <- mkBRAM2Server(cfg);
+	BRAM2Port#(cacheIdx, CacheMeta) metaArray <- mkBRAM2Server(cfg);
 
-	FIFOF#(WideMemReq)   reqQ <- mkSizedFIFOF(n);
+	FIFOF#(WideMemReq)   reqQ <- mkSizedFIFOF(valueOf(numReq));
 
 	FIFOF#(WideMemReq)   brmQ <- mkPipelineFIFOF();
 	FIFOF#(CacheLineNum) memQ <- mkFIFOF();
@@ -44,8 +49,8 @@ module mkWideMemCache(WideMem mem, Integer n, WideMem ifc);
 	FIFOF#(WideMemResp)  hitQ <- mkFIFOF();
 	FIFOF#(WideMemResp)  misQ <- mkFIFOF();
 
-	Ehr#(3,Maybe#(CacheIndex)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts
-	Reg#(Maybe#(CacheIndex))   invIndex       <- mkReg(tagged Valid 0); // Invalidate entries
+	Ehr#(3,Maybe#(cacheIdx)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts
+	Reg#(Maybe#(cacheIdx))   invIndex       <- mkReg(tagged Valid 0); // Invalidate entries
 
 	rule do_WPI;
 		writePortIndex[2] <= tagged Invalid;
@@ -59,7 +64,7 @@ module mkWideMemCache(WideMem mem, Integer n, WideMem ifc);
 		                                            responseOnWrite: False,
 		                                            address        : index,
 		                                            datain         : newMeta } );
-		if(index < fromInteger(valueOf(TSub#(L2CacheRows,1)))) begin
+		if(index < fromInteger(valueOf(TSub#(cacheRows,1)))) begin
 			invIndex <= tagged Valid (index+1);
 		end else begin
 			invIndex <= tagged Invalid;
@@ -69,8 +74,8 @@ module mkWideMemCache(WideMem mem, Integer n, WideMem ifc);
 
 	rule do_REQ if(!isValid(invIndex) && (!isValid(writePortIndex[1]) || fromMaybe(?,writePortIndex[1]) != indexOf(reqQ.first.num)));
 
-		WideMemReq req   = reqQ.first(); reqQ.deq();
-		CacheIndex index = indexOf(req.num);
+		WideMemReq req = reqQ.first(); reqQ.deq();
+		cacheIdx index = indexOf(req.num);
 
 		brmQ.enq(req);
 		dataArray.portA.request.put( BRAMRequest{ write          : False,
@@ -92,11 +97,11 @@ module mkWideMemCache(WideMem mem, Integer n, WideMem ifc);
 
 		WideMemReq req = brmQ.first(); brmQ.deq();
 
-		CacheLine  line <- dataArray.portA.response.get;
-		CacheTag   tag  <- tagsArray.portA.response.get;
-		CacheMeta  meta <- metaArray.portA.response.get;
+		CacheLine line <- dataArray.portA.response.get;
+		cacheTag  tag  <- tagsArray.portA.response.get;
+		CacheMeta meta <- metaArray.portA.response.get;
 
-		CacheIndex index = indexOf(req.num);
+		cacheIdx index = indexOf(req.num);
 
 		if (req.write) begin // write
 
@@ -153,18 +158,22 @@ module mkWideMemCache(WideMem mem, Integer n, WideMem ifc);
 
 	endrule
 
-	method Action req(WideMemReq r);
-		reqQ.enq(r);
-	endmethod
+	interface WideMem cache;
 
-	method ActionValue#(WideMemResp) resp;
-		if(resQ.first) begin // hit
-			WideMemResp res = hitQ.first(); hitQ.deq(); resQ.deq();
-			return res;
-		end else begin
-			WideMemResp res = misQ.first(); misQ.deq(); resQ.deq();
-			return res;
-		end
-	endmethod
+		method Action req(WideMemReq r);
+			reqQ.enq(r);
+		endmethod
+
+		method ActionValue#(WideMemResp) resp;
+			if(resQ.first) begin // hit
+				WideMemResp res = hitQ.first(); hitQ.deq(); resQ.deq();
+				return res;
+			end else begin
+				WideMemResp res = misQ.first(); misQ.deq(); resQ.deq();
+				return res;
+			end
+		endmethod
+
+	endinterface
 
 endmodule

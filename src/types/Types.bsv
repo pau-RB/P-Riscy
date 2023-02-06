@@ -16,7 +16,9 @@ typedef 16                                        CacheLineWords;
 typedef TMul#(CacheLineWords, 4)                  CacheLineBytes;
 typedef Bit#( TLog#(CacheLineBytes) )             CacheByteSelect;
 typedef Bit#( TLog#(CacheLineWords) )             CacheWordSelect;
-typedef Bit#(TSub#(AddrSz,TLog#(CacheLineBytes))) CacheLineNum;
+
+typedef TSub#(AddrSz,TLog#(CacheLineBytes))       CacheLineNumSz;
+typedef Bit#(CacheLineNumSz)                      CacheLineNum;
 typedef Vector#(CacheLineWords, Data)             CacheLine;
 
 typedef enum{Ld, St, Join} MemOp deriving(Eq, Bits, FShow);
