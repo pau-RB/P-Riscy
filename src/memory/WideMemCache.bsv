@@ -3,6 +3,7 @@ import Types::*;
 
 import BRAM::*;
 import FIFOF::*;
+import SpecialFIFOs::*;
 import Vector::*;
 import Ehr::*;
 
@@ -26,7 +27,7 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 
 	BRAM_Configure cfg = BRAM_Configure { memorySize              : 0,
 	                                      latency                 : 2,
-	                                      outFIFODepth            : 2,
+	                                      outFIFODepth            : 1,
 	                                      loadFormat              : None,
 	                                      allowWriteResponseBypass: False };
 
@@ -36,7 +37,7 @@ module mkWideMemCache(WideMem mem, WideMem ifc);
 
 	FIFOF#(WideMemReq)   reqQ <- mkFIFOF();
 
-	FIFOF#(WideMemReq)   brmQ <- mkFIFOF();
+	FIFOF#(WideMemReq)   brmQ <- mkPipelineFIFOF();
 	FIFOF#(CacheLineNum) memQ <- mkFIFOF();
 
 	FIFOF#(Bool)         resQ <- mkFIFOF();
