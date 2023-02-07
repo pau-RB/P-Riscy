@@ -1,4 +1,6 @@
 import Types::*;
+import Config::*;
+import CMRTypes::*;
 import BRAM::*;
 import FIFOF::*;
 import SpecialFIFOs::*;
@@ -15,12 +17,15 @@ typedef struct{
 
 interface WideMemCache#(numeric type cacheRows, numeric type numReq);
     interface WideMem cache;
+    method WMCStat getStat();
 endinterface
 
 module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) provisos( Log#(cacheRows, b__),
                                                                                    Add#(c__, TLog#(cacheRows), CacheLineNumSz),
                                                                                    Alias#(cacheTag, CacheTag#(cacheRows)),
                                                                                    Alias#(cacheIdx, CacheIndex#(cacheRows)));
+
+	//////////// UTILITIES ////////////
 
 	function cacheTag tagOf(CacheLineNum num);
 		return truncateLSB(num);
@@ -29,6 +34,8 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 	function cacheIdx indexOf(CacheLineNum num);
 		return truncate(num);
 	endfunction
+
+	//////////// BRAM ////////////
 
 	BRAM_Configure cfg = BRAM_Configure { memorySize              : 0,
 	                                      latency                 : 2,
@@ -39,6 +46,8 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 	BRAM2Port#(cacheIdx, CacheLine) dataArray <- mkBRAM2Server(cfg);
 	BRAM2Port#(cacheIdx, cacheTag ) tagsArray <- mkBRAM2Server(cfg);
 	BRAM2Port#(cacheIdx, CacheMeta) metaArray <- mkBRAM2Server(cfg);
+
+	//////////// Queues ////////////
 
 	FIFOF#(WideMemReq)   reqQ <- mkSizedFIFOF(valueOf(numReq));
 
@@ -51,6 +60,15 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 
 	Ehr#(3,Maybe#(cacheIdx)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts
 	Reg#(Maybe#(cacheIdx))   invIndex       <- mkReg(tagged Valid 0); // Invalidate entries
+
+	//////////// STATS ////////////
+
+	Ehr#(2,Data) tWR <- mkEhr(0); // Total writes
+	Ehr#(2,Data) tWB <- mkEhr(0); // Total writebacks
+	Ehr#(2,Data) hRD <- mkEhr(0); // Total hits on read
+	Ehr#(2,Data) mRD <- mkEhr(0); // Total miss on read
+
+	//////////// RULES ////////////
 
 	rule do_WPI;
 		writePortIndex[2] <= tagged Invalid;
@@ -105,6 +123,8 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 
 		if (req.write) begin // write
 
+
+
 			if(meta.valid && meta.dirty) begin // old line is dirty
 				mem.req(WideMemReq { write: True,
 				                     num  : {tag,index},
@@ -143,6 +163,18 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 
 		end
 
+		if (mem_ext_DEBUG) begin
+			if (req.write) begin // write
+				tWR[0] <= tWR[0]+1;
+				if(meta.valid && meta.dirty)  // old line is dirty
+					tWB[0] <= tWB[0]+1;
+			end else if (meta.valid && (tag == tagOf(req.num))) begin // read hit
+				hRD[0] <= hRD[0]+1;
+			end else begin // read miss
+				mRD[0] <= mRD[0]+1;
+			end
+		end
+
 	endrule
 
 	rule do_MEMRESP;
@@ -175,5 +207,12 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 		endmethod
 
 	endinterface
+
+	method WMCStat getStat();
+		return WMCStat{ tWR: tWR[1],
+		                tWB: tWB[1],
+		                hRD: hRD[1],
+		                mRD: mRD[1] };
+	endmethod
 
 endmodule

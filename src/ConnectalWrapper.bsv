@@ -68,6 +68,7 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
 	rule getMSR if(mem_ext_DEBUG);
 		let latest <- dut.getMSR();
+		latest.l2s = mainL2.getStat();
 		mainMSRQ.enq(latest);
 	endrule
 
@@ -96,7 +97,8 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 		              msr.arbiter.memOvb, msr.arbiter.arithOvb, msr.arbiter.empty,
 		              msr.lsu.hLd,        msr.lsu.hSt,          msr.lsu.hJoin,
 		              msr.lsu.mLd,        msr.lsu.mSt,          msr.lsu.mJoin,
-		              msr.lsu.dLd,        msr.lsu.dSt,          msr.lsu.dJoin);
+		              msr.lsu.dLd,        msr.lsu.dSt,          msr.lsu.dJoin,
+		              msr.l2s.tWR,        msr.l2s.tWB,          msr.l2s.hRD,       msr.l2s.mRD);
 	endrule
 
 	//////////// HANDLE THREADS ////////////

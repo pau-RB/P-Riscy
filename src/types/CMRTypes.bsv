@@ -45,6 +45,13 @@ typedef struct{
 } LSUStat deriving(Eq, Bits, FShow);
 
 typedef struct{
+	Data tWR; // Total writes
+	Data tWB; // Total writebacks
+	Data hRD; // Total hits on read
+	Data mRD; // Total miss on read
+} WMCStat deriving(Eq, Bits, FShow);
+
+typedef struct{
 	VerifID     verifID;
 	Data        cycle;
 	Data        commit;
@@ -52,6 +59,7 @@ typedef struct{
 	FetchStat   fetch;
 	ArbiterStat arbiter;
 	LSUStat     lsu;
+	WMCStat     l2s;
 } MemStat deriving(Eq, Bits, FShow);
 
 // Construct CMR

@@ -86,6 +86,13 @@ typedef struct {
 } LSUStat;
 
 typedef struct {
+	Data tWR; // Total writes
+	Data tWB; // Total writebacks
+	Data hRD; // Total hits on read
+	Data mRD; // Total miss on read
+} WMCStat;
+
+typedef struct {
 	VerifID     verifID;
 	Data        cycle;
 	Data        commit;
@@ -93,6 +100,7 @@ typedef struct {
 	FetchStat   fetch;
 	ArbiterStat arbiter;
 	LSUStat     lsu;
+	WMCStat     l2s;
 } MemStat;
 
 #endif

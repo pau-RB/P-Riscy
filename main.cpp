@@ -143,7 +143,8 @@ class ToHost: public ToHostWrapper {
                                  const uint32_t aMemOvb, const uint32_t aArithOvb, const uint32_t aEmpty, 
                                  const uint32_t hLd,     const uint32_t hSt,       const uint32_t hJoin,
                                  const uint32_t mLd,     const uint32_t mSt,       const uint32_t mJoin,
-                                 const uint32_t dLd,     const uint32_t dSt,       const uint32_t dJoin){
+                                 const uint32_t dLd,     const uint32_t dSt,       const uint32_t dJoin,
+                                 const uint32_t l2tWR,   const uint32_t l2tWB,     const uint32_t l2hRD,   const uint32_t l2mRD){
 
             if(error_detected) {
                 return;
@@ -152,6 +153,7 @@ class ToHost: public ToHostWrapper {
             FetchStat   fetch  ;
             ArbiterStat arbiter;
             LSUStat     lsu    ;
+            WMCStat     l2s    ;
             MemStat     msr    ;
 
             fetch.hit        = fHit     ;
@@ -172,6 +174,11 @@ class ToHost: public ToHostWrapper {
             lsu.dSt          = dSt      ;
             lsu.dJoin        = dJoin    ;
 
+            l2s.tWR          = l2tWR    ;
+            l2s.tWB          = l2tWB    ;
+            l2s.hRD          = l2hRD    ;
+            l2s.mRD          = l2mRD    ;
+
             msr.verifID      = verifID  ;
             msr.cycle        = cycle    ;
             msr.commit       = commit   ;
@@ -179,6 +186,7 @@ class ToHost: public ToHostWrapper {
             msr.fetch        = fetch    ;
             msr.arbiter      = arbiter  ;
             msr.lsu          = lsu      ;
+            msr.l2s          = l2s      ;
 
             inter->print_MSR_dut(msr);
 
