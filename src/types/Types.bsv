@@ -32,17 +32,10 @@ typedef struct{
 } WideMemReq deriving(Eq,Bits);
 
 typedef CacheLine    WideMemResp;
-typedef CacheLineNum ReadWideMemReq;
-typedef CacheLine    ReadWideMemResp;
 
 interface WideMem;
     method Action req(WideMemReq r);
     method ActionValue#(WideMemResp) resp;
-endinterface
-
-interface ReadWideMem;
-    method Action req(ReadWideMemReq r);
-    method ActionValue#(ReadWideMemResp) resp;
 endinterface
 
 //////////// BRAM ////////////

@@ -20,7 +20,7 @@ typedef struct{
 } BramReq#(type transIdType) deriving(Eq, Bits, FShow);
 
 interface L1I#(numeric type numHart, numeric type cacheRows);
-    interface Vector#(numHart, ReadWideMem) port;
+    interface Vector#(numHart, WideMem) port;
     method Data getNumHit();
     method Data getNumMiss();
 endinterface
@@ -58,7 +58,7 @@ module mkDirectL1I(WideMem mem, L1I#(numHart, cacheRows) ifc) provisos(Add#(a__,
     FIFOF#(bramReq) brmQ <- mkFIFOF();
     FIFOF#(bramReq) memQ <- mkSizedFIFOF(valueOf(TAdd#(numHart,1)));
 
-    Vector#(numHart, FIFOF#(ReadWideMemResp)) respQ   <- replicateM(mkPipelineFIFOF());
+    Vector#(numHart, FIFOF#(WideMemResp)) respQ   <- replicateM(mkPipelineFIFOF());
 
     Reg#(Data) numHit  <- mkReg(0);
     Reg#(Data) numMiss <- mkReg(0);
@@ -75,8 +75,6 @@ module mkDirectL1I(WideMem mem, L1I#(numHart, cacheRows) ifc) provisos(Add#(a__,
         if (valid[index] && (entry.tag == tag)) begin // hit
 
             respQ[req.transID].enq(entry.line);
-            if(mem_ext_DEBUG == True)
-                numHit <= numHit+1;
 
         end else begin // miss
 
@@ -85,9 +83,15 @@ module mkDirectL1I(WideMem mem, L1I#(numHart, cacheRows) ifc) provisos(Add#(a__,
                                 line : ? });
             memQ.enq(BramReq{ transID: req.transID,
                               num    : req.num });
-            if(mem_ext_DEBUG == True)
-                numMiss <= numMiss+1;
 
+        end
+
+        if(mem_ext_DEBUG == True) begin
+            if (valid[index] && (entry.tag == tag)) begin // hit
+                numHit <= numHit+1;
+            end else begin // miss
+                numMiss <= numMiss+1;
+            end
         end
 
     endrule
@@ -110,21 +114,21 @@ module mkDirectL1I(WideMem mem, L1I#(numHart, cacheRows) ifc) provisos(Add#(a__,
 
     endrule
 
-    Vector#(numHart, ReadWideMem) wideMemIfcs = newVector;
+    Vector#(numHart, WideMem) wideMemIfcs = newVector;
     for( Integer i = 0; i < valueOf(numHart); i = i+1 ) begin
         wideMemIfcs[i] =
-            (interface ReadWideMem;
+            (interface WideMem;
 
-                method Action req(ReadWideMemReq num);
+                method Action req(WideMemReq r);
                     cache.portA.request.put( BRAMRequest { write          : False,
                                                            responseOnWrite: False,
-                                                           address        : indexOf(num),
+                                                           address        : indexOf(r.num),
                                                            datain         : ? });
                     brmQ.enq(BramReq{ transID: fromInteger(i),
-                                      num    : num });
+                                      num    : r.num });
                 endmethod
 
-                method ActionValue#(ReadWideMemResp) resp;
+                method ActionValue#(WideMemResp) resp;
                     respQ[fromInteger(i)].deq();
                     return respQ[fromInteger(i)].first();
                 endmethod

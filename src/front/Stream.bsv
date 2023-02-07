@@ -34,7 +34,7 @@ endinterface
 //
 // l1Iresp  C l1Ireq
 //
-module mkStream (ReadWideMem l1I, Stream ifc);
+module mkStream (WideMem l1I, Stream ifc);
 
 	Ehr#(4,StreamStatus)    state     <- mkEhr(Empty);
 	Ehr#(2,Addr)            pc        <- mkEhr('0);
@@ -146,7 +146,9 @@ module mkStream (ReadWideMem l1I, Stream ifc);
 
 	rule do_l1Ireq if (state[3] == Full && !nextl0Ihit);
 
-    	l1I.req(nextpcline);
+    	l1I.req(WideMemReq { write: False,
+    	                     num  : nextpcline,
+    	                     line : ? } );
     	l1Ireq.enq(nextpcline);
 
 	endrule
