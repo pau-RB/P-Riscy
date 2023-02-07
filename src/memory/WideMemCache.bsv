@@ -11,9 +11,16 @@ typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(cacheRows))) Cach
 typedef Bit#(TLog#(cacheRows))                                              CacheIndex#(numeric type cacheRows);
 
 typedef struct{
-	Bool     valid;
-	Bool     dirty;
+	Bool valid;
+	Bool dirty;
 } CacheMeta deriving(Eq, Bits, FShow);
+
+typedef struct{
+    Bool         write;
+    Bool         dirty;
+    CacheLineNum num;
+    CacheLine    line;
+} WMCReq deriving(Eq, Bits, FShow);
 
 interface WideMemCache#(numeric type cacheRows, numeric type numReq);
     interface WideMem cache;
@@ -49,9 +56,8 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 
 	//////////// Queues ////////////
 
-	FIFOF#(WideMemReq)   reqQ <- mkSizedFIFOF(valueOf(numReq));
-
-	FIFOF#(WideMemReq)   brmQ <- mkPipelineFIFOF();
+	FIFOF#(WMCReq)       reqQ <- mkSizedFIFOF(valueOf(numReq));
+	FIFOF#(WMCReq)       brmQ <- mkPipelineFIFOF();
 	FIFOF#(CacheLineNum) memQ <- mkFIFOF();
 
 	FIFOF#(Bool)         resQ <- mkFIFOF();
@@ -92,10 +98,11 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 
 	rule do_REQ if(!isValid(invIndex) && (!isValid(writePortIndex[1]) || fromMaybe(?,writePortIndex[1]) != indexOf(reqQ.first.num)));
 
-		WideMemReq req = reqQ.first(); reqQ.deq();
+		WMCReq req = reqQ.first(); reqQ.deq();
 		cacheIdx index = indexOf(req.num);
 
 		brmQ.enq(req);
+
 		dataArray.portA.request.put( BRAMRequest{ write          : False,
 		                                          responseOnWrite: False,
 		                                          address        : index,
@@ -113,7 +120,7 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 
 	rule do_RESP;
 
-		WideMemReq req = brmQ.first(); brmQ.deq();
+		WMCReq req = brmQ.first(); brmQ.deq();
 
 		CacheLine line <- dataArray.portA.response.get;
 		cacheTag  tag  <- tagsArray.portA.response.get;
@@ -132,7 +139,7 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 			end
 
 			CacheMeta newMeta = CacheMeta { valid: True,
-			                                dirty: True };
+			                                dirty: req.dirty };
 
 			dataArray.portB.request.put( BRAMRequest{ write          : True,
 			                                          responseOnWrite: False,
@@ -156,7 +163,9 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 
 		end else begin // read miss
 
-			mem.req(req);
+			mem.req( WideMemReq { write: req.write,
+			                      num  : req.num,
+			                      line : req.line } );
 
 			resQ.enq(False);
 			memQ.enq(req.num);
@@ -179,31 +188,39 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 
 	rule do_MEMRESP;
 
-		WideMemResp  res <- mem.resp();
+		WideMemResp  line <- mem.resp();
 		CacheLineNum num  = memQ.first(); memQ.deq();
 
-		reqQ.enq(WideMemReq { write: True,
-		                      num  : num,
-		                      line : res });
+		reqQ.enq( WMCReq { write: True,
+		                   dirty: False,
+		                   num  : num,
+		                   line : line } );
 
-		misQ.enq(res);
+		misQ.enq(line);
 
 	endrule
 
 	interface WideMem cache;
 
 		method Action req(WideMemReq r);
-			reqQ.enq(r);
+
+			reqQ.enq( WMCReq { write: r.write,
+			                   dirty: True,
+			                   num  : r.num,
+			                   line : r.line } );
+
 		endmethod
 
 		method ActionValue#(WideMemResp) resp;
+
 			if(resQ.first) begin // hit
 				WideMemResp res = hitQ.first(); hitQ.deq(); resQ.deq();
 				return res;
-			end else begin
+			end else begin // miss
 				WideMemResp res = misQ.first(); misQ.deq(); resQ.deq();
 				return res;
 			end
+
 		endmethod
 
 	endinterface
