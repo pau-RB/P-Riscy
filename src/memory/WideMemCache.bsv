@@ -82,9 +82,9 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheH
 	FIFOF#(WMCReq)       brmQ <- mkSizedFIFOF(5);
 	FIFOF#(CacheLineNum) memQ <- mkSizedFIFOF(valueOf(numReq));
 
-	FIFOF#(Bool)         resQ <- mkBypassFIFOF();
-	FIFOF#(WideMemResp)  hitQ <- mkBypassFIFOF();
-	FIFOF#(WideMemResp)  misQ <- mkBypassFIFOF();
+	FIFOF#(Bool)         resQ <- mkFIFOF();
+	FIFOF#(WideMemResp)  hitQ <- mkFIFOF();
+	FIFOF#(WideMemResp)  misQ <- mkFIFOF();
 
 	Reg#(Maybe#(cacheRowIdx)) invIndex <- mkReg(tagged Valid 0); // Invalidate entries
 
