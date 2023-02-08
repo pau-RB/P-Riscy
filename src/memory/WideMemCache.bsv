@@ -7,8 +7,9 @@ import SpecialFIFOs::*;
 import Vector::*;
 import Ehr::*;
 
-typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(cacheRows))) CacheTag  #(numeric type cacheRows   );
+typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(cacheRows))) CacheTag     #(numeric type cacheRows   );
 typedef Bit#(TLog#(cacheRows))                                              CacheRowIndex#(numeric type cacheRows   );
+typedef Bit#(TLog#(cacheHash))                                              CacheRowHash #(numeric type cacheHash   );
 typedef Bit#(TLog#(cacheColumns))                                           CacheColIndex#(numeric type cacheColumns);
 
 typedef struct{
@@ -24,17 +25,21 @@ typedef struct{
 	CacheLine    line ;
 } WMCReq deriving(Eq, Bits, FShow);
 
-interface WideMemCache#(numeric type cacheRows, numeric type cacheColumns, numeric type numReq);
+interface WideMemCache#(numeric type cacheRows, numeric type cacheColumns, numeric type cacheHash, numeric type numReq);
 	interface WideMem cache;
 	method WMCStat getStat();
 endinterface
 
-module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, numReq) ifc) provisos(Log#(cacheRows, b__),
-                                                                                                Add#(c__, TLog#(cacheRows), CacheLineNumSz),
-                                                                                                Log#(cacheColumns, d__),
-                                                                                                Alias#(cacheTag , CacheTag#(cacheRows)),
-                                                                                                Alias#(cacheRowIdx, CacheRowIndex#(cacheRows)),
-                                                                                                Alias#(cacheColIdx, CacheColIndex#(cacheColumns)));
+module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) ifc) provisos(Log#(cacheRows, b__),
+                                                                                                           Add#(c__, TLog#(cacheRows), CacheLineNumSz),
+                                                                                                           Log#(cacheColumns, d__),
+                                                                                                           Log#(cacheHash, e__),
+                                                                                                           Add#(f__, TLog#(cacheHash), TLog#(cacheRows)),
+                                                                                                           Add#(g__, TLog#(cacheHash), CacheLineNumSz),
+                                                                                                           Alias#(cacheTag ,    CacheTag#(cacheRows)),
+                                                                                                           Alias#(cacheRowIdx,  CacheRowIndex#(cacheRows)),
+                                                                                                           Alias#(cacheRowHash, CacheRowHash#(cacheHash)),
+                                                                                                           Alias#(cacheColIdx,  CacheColIndex#(cacheColumns)));
 
 	//////////// UTILITIES ////////////
 
@@ -43,6 +48,10 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, numReq
 	endfunction
 
 	function cacheRowIdx indexOf(CacheLineNum num);
+		return truncate(num);
+	endfunction
+
+	function cacheRowHash hashOf(CacheLineNum num);
 		return truncate(num);
 	endfunction
 
@@ -58,7 +67,7 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, numReq
 	Vector#(cacheColumns, BRAM2Port#(cacheRowIdx, cacheTag )) tagsArray <- replicateM(mkBRAM2Server(cfg));
 	Vector#(cacheColumns, BRAM2Port#(cacheRowIdx, CacheMeta)) metaArray <- replicateM(mkBRAM2Server(cfg));
 
-	Vector#(cacheColumns, Ehr#(3,Maybe#(cacheRowIdx)))   writePortIndex <- replicateM(mkEhr(tagged Invalid)); // Prevent conflicts
+	Vector#(cacheColumns, Ehr#(3,Maybe#(cacheRowHash))) writePortHash <- replicateM(mkEhr(tagged Invalid)); // Prevent conflicts
 
 	Reg#(cacheColIdx) replaceIndex <- mkReg(0);
 
@@ -143,7 +152,7 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, numReq
 	for (Integer i = 0; i < valueOf(cacheColumns); i=i+1) begin
 
 		rule do_WPI;
-			writePortIndex[i][2] <= tagged Invalid;
+			writePortHash[i][2] <= tagged Invalid;
 		endrule
 
 	end
@@ -151,7 +160,7 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, numReq
 
 	for (Integer i = 0; i < valueOf(cacheColumns); i=i+1) begin
 
-		rule do_COLREQ if(!isValid(invIndex) && !colWBQ[i].notEmpty() && (!isValid(writePortIndex[i][1]) || fromMaybe(?,writePortIndex[i][1]) != indexOf(colReqQ[i].first.num)));
+		rule do_COLREQ if(!isValid(invIndex) && !colWBQ[i].notEmpty() && (!isValid(writePortHash[i][1]) || fromMaybe(?,writePortHash[i][1]) != hashOf(colReqQ[i].first.num)));
 
 			WMCReq req = colReqQ[i].first(); colReqQ[i].deq();
 			cacheRowIdx index = indexOf(req.num);
@@ -196,8 +205,9 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, numReq
 					                                             responseOnWrite: False,
 					                                             address        : index,
 					                                             datain         : newMeta } );
-					writePortIndex[i][0] <= tagged Valid (index);
 				end
+
+				writePortHash[i][0] <= tagged Valid (hashOf(req.num));
 
 			end else if (req.write) begin // write
 
@@ -223,7 +233,7 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, numReq
 				                                             address        : index,
 				                                             datain         : newMeta } );
 
-				writePortIndex[i][0] <= tagged Valid (index);
+				writePortHash[i][0] <= tagged Valid (hashOf(req.num));
 
 			end else begin // read
 

@@ -31,10 +31,10 @@ endinterface
 
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
-	WideMem                                                         mainBRAM  <- mkWideMemBRAM();
-	WideMemDelay#(TSub#(RAMLatency,2))                              mainMem   <- mkWideMemDelay(mainBRAM);
-	WideMemCache#(L2CacheRows, L2CacheColumns, TMul#(2,FrontWidth)) mainL2    <- mkWideMemCache(mainMem.delayed);
-	WideMemSplit#(2,TMul#(2,FrontWidth))                            mainSplit <- mkSplitWideMem(mainL2.cache);
+	WideMem                                                                            mainBRAM  <- mkWideMemBRAM();
+	WideMemDelay#(TSub#(RAMLatency,2))                                                 mainMem   <- mkWideMemDelay(mainBRAM);
+	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, TMul#(2,FrontWidth)) mainL2    <- mkWideMemCache(mainMem.delayed);
+	WideMemSplit#(2,TMul#(2,FrontWidth))                                               mainSplit <- mkSplitWideMem(mainL2.cache);
 
 	VerifMaster                          verif        <- mkVerifMaster();
 	Core                                 dut          <- mkCore7SS(mainSplit.port[0], mainSplit.port[1], verif);
