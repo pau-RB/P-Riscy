@@ -7,8 +7,9 @@ import SpecialFIFOs::*;
 import Vector::*;
 import Ehr::*;
 
-typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(cacheRows))) CacheTag  #(numeric type cacheRows);
-typedef Bit#(TLog#(cacheRows))                                              CacheIndex#(numeric type cacheRows);
+typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(cacheRows))) CacheTag  #(numeric type cacheRows   );
+typedef Bit#(TLog#(cacheRows))                                              CacheRowIndex#(numeric type cacheRows   );
+typedef Bit#(TLog#(cacheColumns))                                           CacheColIndex#(numeric type cacheColumns);
 
 typedef struct{
 	Bool valid;
@@ -16,21 +17,24 @@ typedef struct{
 } CacheMeta deriving(Eq, Bits, FShow);
 
 typedef struct{
-    Bool         write;
-    Bool         dirty;
-    CacheLineNum num;
-    CacheLine    line;
+	Bool         inv  ; // Invalidate that entry if hit
+	Bool         write; // Write that entry
+	Bool         dirty; // If write, is it dirty?
+	CacheLineNum num  ;
+	CacheLine    line ;
 } WMCReq deriving(Eq, Bits, FShow);
 
-interface WideMemCache#(numeric type cacheRows, numeric type numReq);
-    interface WideMem cache;
-    method WMCStat getStat();
+interface WideMemCache#(numeric type cacheRows, numeric type cacheColumns, numeric type numReq);
+	interface WideMem cache;
+	method WMCStat getStat();
 endinterface
 
-module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) provisos( Log#(cacheRows, b__),
-                                                                                   Add#(c__, TLog#(cacheRows), CacheLineNumSz),
-                                                                                   Alias#(cacheTag, CacheTag#(cacheRows)),
-                                                                                   Alias#(cacheIdx, CacheIndex#(cacheRows)));
+module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, numReq) ifc) provisos(Log#(cacheRows, b__),
+                                                                                                Add#(c__, TLog#(cacheRows), CacheLineNumSz),
+                                                                                                Log#(cacheColumns, d__),
+                                                                                                Alias#(cacheTag , CacheTag#(cacheRows)),
+                                                                                                Alias#(cacheRowIdx, CacheRowIndex#(cacheRows)),
+                                                                                                Alias#(cacheColIdx, CacheColIndex#(cacheColumns)));
 
 	//////////// UTILITIES ////////////
 
@@ -38,7 +42,7 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 		return truncateLSB(num);
 	endfunction
 
-	function cacheIdx indexOf(CacheLineNum num);
+	function cacheRowIdx indexOf(CacheLineNum num);
 		return truncate(num);
 	endfunction
 
@@ -50,22 +54,30 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 	                                      loadFormat              : None,
 	                                      allowWriteResponseBypass: False };
 
-	BRAM2Port#(cacheIdx, CacheLine) dataArray <- mkBRAM2Server(cfg);
-	BRAM2Port#(cacheIdx, cacheTag ) tagsArray <- mkBRAM2Server(cfg);
-	BRAM2Port#(cacheIdx, CacheMeta) metaArray <- mkBRAM2Server(cfg);
+	Vector#(cacheColumns, BRAM2Port#(cacheRowIdx, CacheLine)) dataArray <- replicateM(mkBRAM2Server(cfg));
+	Vector#(cacheColumns, BRAM2Port#(cacheRowIdx, cacheTag )) tagsArray <- replicateM(mkBRAM2Server(cfg));
+	Vector#(cacheColumns, BRAM2Port#(cacheRowIdx, CacheMeta)) metaArray <- replicateM(mkBRAM2Server(cfg));
 
-	//////////// Queues ////////////
+	Vector#(cacheColumns, Ehr#(3,Maybe#(cacheRowIdx)))   writePortIndex <- replicateM(mkEhr(tagged Invalid)); // Prevent conflicts
+
+	Reg#(cacheColIdx) replaceIndex <- mkReg(0);
+
+	//////////// QUEUES ////////////
+
+	Vector#(cacheColumns, FIFOF#(WMCReq             )) colReqQ <- replicateM(mkPipelineFIFOF());
+	Vector#(cacheColumns, FIFOF#(WMCReq             )) colBRMQ <- replicateM(mkPipelineFIFOF());
+	Vector#(cacheColumns, FIFOF#(Maybe#(WideMemResp))) colResQ <- replicateM(mkPipelineFIFOF());
+	Vector#(cacheColumns, FIFOF#(WideMemReq         )) colWBQ  <- replicateM(mkPipelineFIFOF());
 
 	FIFOF#(WMCReq)       reqQ <- mkSizedFIFOF(valueOf(numReq));
-	FIFOF#(WMCReq)       brmQ <- mkPipelineFIFOF();
-	FIFOF#(CacheLineNum) memQ <- mkFIFOF();
+	FIFOF#(WMCReq)       brmQ <- mkSizedFIFOF(5);
+	FIFOF#(CacheLineNum) memQ <- mkSizedFIFOF(valueOf(numReq));
 
-	FIFOF#(Bool)         resQ <- mkFIFOF();
-	FIFOF#(WideMemResp)  hitQ <- mkFIFOF();
-	FIFOF#(WideMemResp)  misQ <- mkFIFOF();
+	FIFOF#(Bool)         resQ <- mkBypassFIFOF();
+	FIFOF#(WideMemResp)  hitQ <- mkBypassFIFOF();
+	FIFOF#(WideMemResp)  misQ <- mkBypassFIFOF();
 
-	Ehr#(3,Maybe#(cacheIdx)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts
-	Reg#(Maybe#(cacheIdx))   invIndex       <- mkReg(tagged Valid 0); // Invalidate entries
+	Reg#(Maybe#(cacheRowIdx)) invIndex <- mkReg(tagged Valid 0); // Invalidate entries
 
 	//////////// STATS ////////////
 
@@ -74,20 +86,20 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 	Ehr#(2,Data) hRD <- mkEhr(0); // Total hits on read
 	Ehr#(2,Data) mRD <- mkEhr(0); // Total miss on read
 
-	//////////// RULES ////////////
-
-	rule do_WPI;
-		writePortIndex[2] <= tagged Invalid;
-	endrule
+	//////////// INVALIDATE ON START ////////////
 
 	rule do_invalidate if (invIndex matches tagged Valid .index);
 
 		CacheMeta newMeta = CacheMeta { valid: False,
 		                                dirty: False };
-		metaArray.portA.request.put( BRAMRequest  { write          : True,
-		                                            responseOnWrite: False,
-		                                            address        : index,
-		                                            datain         : newMeta } );
+
+		for (Integer i = 0; i < valueOf(cacheColumns); i=i+1) begin
+			metaArray[i].portA.request.put( BRAMRequest  { write          : True,
+			                                               responseOnWrite: False,
+			                                               address        : index,
+			                                               datain         : newMeta } );
+		end
+
 		if(index < fromInteger(valueOf(TSub#(cacheRows,1)))) begin
 			invIndex <= tagged Valid (index+1);
 		end else begin
@@ -96,90 +108,190 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 
 	endrule
 
-	rule do_REQ if(!isValid(invIndex) && (!isValid(writePortIndex[1]) || fromMaybe(?,writePortIndex[1]) != indexOf(reqQ.first.num)));
+	//////////// ISSUE TO COLUMNS ////////////
+
+	rule do_ISSUEREQ;
 
 		WMCReq req = reqQ.first(); reqQ.deq();
-		cacheIdx index = indexOf(req.num);
 
-		brmQ.enq(req);
-
-		dataArray.portA.request.put( BRAMRequest{ write          : False,
-		                                          responseOnWrite: False,
-		                                          address        : index,
-		                                          datain         : ? } );
-		tagsArray.portA.request.put( BRAMRequest{ write          : False,
-		                                          responseOnWrite: False,
-		                                          address        : index,
-		                                          datain         : ? } );
-		metaArray.portA.request.put( BRAMRequest{ write          : False,
-		                                          responseOnWrite: False,
-		                                          address        : index,
-		                                          datain         : ? } );
+		if(req.write) begin // We only write on one columns
+			for (Integer i = 0; i < valueOf(cacheColumns); i=i+1)
+				if(fromInteger(i) == replaceIndex) begin
+					colReqQ[i].enq(WMCReq { inv  : False,
+					                        write: True,
+					                        dirty: req.dirty,
+					                        num  : req.num,
+					                        line : req.line });
+				end else begin
+					colReqQ[i].enq(WMCReq { inv  : True,
+					                        write: False,
+					                        dirty: req.dirty,
+					                        num  : req.num,
+					                        line : req.line });
+				end
+			replaceIndex <= replaceIndex+1;
+		end else begin // We try to read from al of them
+			brmQ.enq(req);
+			for (Integer i = 0; i < valueOf(cacheColumns); i=i+1)
+				colReqQ[i].enq(req);
+		end
 
 	endrule
+
+	//////////// COLUMNS DO REQUEST ////////////
+
+	for (Integer i = 0; i < valueOf(cacheColumns); i=i+1) begin
+
+		rule do_WPI;
+			writePortIndex[i][2] <= tagged Invalid;
+		endrule
+
+	end
+
+
+	for (Integer i = 0; i < valueOf(cacheColumns); i=i+1) begin
+
+		rule do_COLREQ if(!isValid(invIndex) && !colWBQ[i].notEmpty() && (!isValid(writePortIndex[i][1]) || fromMaybe(?,writePortIndex[i][1]) != indexOf(colReqQ[i].first.num)));
+
+			WMCReq req = colReqQ[i].first(); colReqQ[i].deq();
+			cacheRowIdx index = indexOf(req.num);
+
+			colBRMQ[i].enq(req);
+
+			dataArray[i].portA.request.put( BRAMRequest{ write          : False,
+			                                             responseOnWrite: False,
+			                                             address        : index,
+			                                             datain         : ? } );
+			tagsArray[i].portA.request.put( BRAMRequest{ write          : False,
+			                                             responseOnWrite: False,
+			                                             address        : index,
+			                                             datain         : ? } );
+			metaArray[i].portA.request.put( BRAMRequest{ write          : False,
+			                                             responseOnWrite: False,
+			                                             address        : index,
+			                                             datain         : ? } );
+
+		endrule
+
+	end
+
+	for (Integer i = 0; i < valueOf(cacheColumns); i=i+1) begin
+
+		rule do_COLRESP;
+
+			WMCReq req = colBRMQ[i].first(); colBRMQ[i].deq();
+
+			CacheLine line <- dataArray[i].portA.response.get;
+			cacheTag  tag  <- tagsArray[i].portA.response.get;
+			CacheMeta meta <- metaArray[i].portA.response.get;
+
+			cacheRowIdx index = indexOf(req.num);
+
+			if (req.inv) begin // invalidate
+
+				if (meta.valid && (tag == tagOf(req.num))) begin // hit
+					CacheMeta newMeta = CacheMeta { valid: False,
+					                                dirty: False };
+					metaArray[i].portB.request.put( BRAMRequest{ write          : True,
+					                                             responseOnWrite: False,
+					                                             address        : index,
+					                                             datain         : newMeta } );
+					writePortIndex[i][0] <= tagged Valid (index);
+				end
+
+			end else if (req.write) begin // write
+
+				if(meta.valid && meta.dirty) begin // old line is dirty
+					colWBQ[i].enq(WideMemReq { write: True,
+					                           num  : {tag,index},
+					                           line : line });
+				end
+
+				CacheMeta newMeta = CacheMeta { valid: True,
+				                                dirty: req.dirty };
+
+				dataArray[i].portB.request.put( BRAMRequest{ write          : True,
+				                                             responseOnWrite: False,
+				                                             address        : index,
+				                                             datain         : req.line } );
+				tagsArray[i].portB.request.put( BRAMRequest{ write          : True,
+				                                             responseOnWrite: False,
+				                                             address        : index,
+				                                             datain         : tagOf(req.num) } );
+				metaArray[i].portB.request.put( BRAMRequest{ write          : True,
+				                                             responseOnWrite: False,
+				                                             address        : index,
+				                                             datain         : newMeta } );
+
+				writePortIndex[i][0] <= tagged Valid (index);
+
+			end else begin // read
+
+				if (meta.valid && (tag == tagOf(req.num))) begin // read hit local
+
+					colResQ[i].enq(tagged Valid line);
+
+				end else begin // read miss local
+
+					colResQ[i].enq(tagged Invalid);
+
+				end
+
+			end
+
+			if (mem_ext_DEBUG)
+				if (req.write && meta.valid && meta.dirty)  // old line is dirty
+						tWB[0] <= tWB[0]+1;
+				
+		endrule
+
+	end
+
+	for (Integer i = 0; i < valueOf(cacheColumns); i=i+1) begin
+
+		rule do_WB;
+
+			WideMemReq req = colWBQ[i].first(); colWBQ[i].deq();
+			mem.req(req);
+
+		endrule
+
+	end
+
+	//////////// COLLECT RES ////////////
 
 	rule do_RESP;
 
 		WMCReq req = brmQ.first(); brmQ.deq();
 
-		CacheLine line <- dataArray.portA.response.get;
-		cacheTag  tag  <- tagsArray.portA.response.get;
-		CacheMeta meta <- metaArray.portA.response.get;
+		Maybe#(WideMemResp) res = tagged Invalid;
 
-		cacheIdx index = indexOf(req.num);
+		for(Integer i = 0; i < valueOf(cacheColumns); i=i+1) begin
+			colResQ[i].deq();
+			if(colResQ[i].first matches tagged Valid .line)
+				res = tagged Valid line;
+		end
 
-		if (req.write) begin // write
-
-
-
-			if(meta.valid && meta.dirty) begin // old line is dirty
-				mem.req(WideMemReq { write: True,
-				                     num  : {tag,index},
-				                     line : line });
-			end
-
-			CacheMeta newMeta = CacheMeta { valid: True,
-			                                dirty: req.dirty };
-
-			dataArray.portB.request.put( BRAMRequest{ write          : True,
-			                                          responseOnWrite: False,
-			                                          address        : index,
-			                                          datain         : req.line } );
-			tagsArray.portB.request.put( BRAMRequest{ write          : True,
-			                                          responseOnWrite: False,
-			                                          address        : index,
-			                                          datain         : tagOf(req.num) } );
-			metaArray.portB.request.put( BRAMRequest{ write          : True,
-			                                          responseOnWrite: False,
-			                                          address        : index,
-			                                          datain         : newMeta } );
-
-			writePortIndex[0] <= tagged Valid (index);
-
-		end else if (meta.valid && (tag == tagOf(req.num))) begin // read hit
-
+		if(res matches tagged Valid .line) begin // hit
 			resQ.enq(True);
 			hitQ.enq(line);
-
-		end else begin // read miss
-
-			mem.req( WideMemReq { write: req.write,
-			                      num  : req.num,
-			                      line : req.line } );
-
+		end else begin // miss
 			resQ.enq(False);
 			memQ.enq(req.num);
-
+			mem.req( WideMemReq { write: False,
+			                      num  : req.num,
+			                      line : req.line } );
 		end
 
 		if (mem_ext_DEBUG) begin
-			if (req.write) begin // write
+			if (req.write) begin
+				// write
 				tWR[0] <= tWR[0]+1;
-				if(meta.valid && meta.dirty)  // old line is dirty
-					tWB[0] <= tWB[0]+1;
-			end else if (meta.valid && (tag == tagOf(req.num))) begin // read hit
+			end else if (isValid(res)) begin
+				// read hit
 				hRD[0] <= hRD[0]+1;
-			end else begin // read miss
+			end else begin
+				// read miss
 				mRD[0] <= mRD[0]+1;
 			end
 		end
@@ -191,7 +303,8 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 		WideMemResp  line <- mem.resp();
 		CacheLineNum num  = memQ.first(); memQ.deq();
 
-		reqQ.enq( WMCReq { write: True,
+		reqQ.enq( WMCReq { inv  : False,
+		                   write: True,
 		                   dirty: False,
 		                   num  : num,
 		                   line : line } );
@@ -200,12 +313,15 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, numReq) ifc) proviso
 
 	endrule
 
+	//////////// INTERFACE ////////////
+
 	interface WideMem cache;
 
 		method Action req(WideMemReq r);
 
-			reqQ.enq( WMCReq { write: r.write,
-			                   dirty: True,
+			reqQ.enq( WMCReq { inv  : False,
+			                   write: r.write,
+			                   dirty: r.write,
 			                   num  : r.num,
 			                   line : r.line } );
 

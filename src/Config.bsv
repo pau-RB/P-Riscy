@@ -43,7 +43,8 @@ typedef FrontWidth LSUmshrW;
 typedef FrontWidth LSUmshrD;
 
 // L2
-typedef 256 L2CacheRows;   // Must be power of 2
+typedef 64 L2CacheRows;    // Must be power of 2
+typedef 4  L2CacheColumns; // Must be power of 2
 
 // Verification
 typedef Bit#(32) VerifID;
