@@ -284,10 +284,7 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, numReq
 		end
 
 		if (mem_ext_DEBUG) begin
-			if (req.write) begin
-				// write
-				tWR[0] <= tWR[0]+1;
-			end else if (isValid(res)) begin
+			if (isValid(res)) begin
 				// read hit
 				hRD[0] <= hRD[0]+1;
 			end else begin
@@ -324,6 +321,10 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, numReq
 			                   dirty: r.write,
 			                   num  : r.num,
 			                   line : r.line } );
+
+			if (mem_ext_DEBUG)
+				if (r.write)
+					tWR[0] <= tWR[0]+1;
 
 		endmethod
 
