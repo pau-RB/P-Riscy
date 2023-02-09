@@ -37,13 +37,13 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4 ifc);
 	FIFO#(WideMemReq ) reqQ <- mkFIFO();
 	FIFO#(WideMemResp) resQ <- mkFIFO();
 
-	Vector#(1,FIFO#(DDRRequest )) ddr4_req <- replicateM(mkFIFO());
-	Vector#(1,FIFO#(DDRResponse)) ddr4_res <- replicateM(mkFIFO());
-	Vector#(1,DDR4Client) ddr_clients = zipWith(toClient, ddr4_req, ddr4_res);
+	Vector#(2,FIFO#(DDRRequest )) ddr4_req <- replicateM(mkFIFO());
+	Vector#(2,FIFO#(DDRResponse)) ddr4_res <- replicateM(mkFIFO());
+	Vector#(2,DDR4Client) ddr_clients = zipWith(toClient, ddr4_req, ddr4_res);
 
 	`ifdef SIMULATION
 
-		Vector#(1, DDR4_User_VCU108) ddr4_ctrl_users <- replicateM(mkDDR4Simulator);
+		Vector#(2, DDR4_User_VCU108) ddr4_ctrl_users <- replicateM(mkDDR4Simulator);
 		zipWithM_(mkConnection, ddr_clients, ddr4_ctrl_users);
 
 	`else
@@ -64,7 +64,7 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4 ifc);
 		mkConnection(ddr_cli_300mhz_0, ddr4_ctrl_0.user);
 
 		// DDR4 C2
-		let sys_clk2 = host.tsys_clk2_300mhz;
+		let sys_clk2 = host.tsys_clk1_300mhz;
 		let sys_rst2 <- mkAsyncResetFromCR(20, sys_clk2);
 
 		DDR4_Controller_VCU108 ddr4_ctrl_1 <- mkDDR4Controller_VCU108(defaultValue, clocked_by sys_clk2, reset_by sys_rst2);
