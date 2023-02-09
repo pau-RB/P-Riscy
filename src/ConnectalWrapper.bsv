@@ -28,12 +28,6 @@ function CacheLineNum lineNumOf(Addr addr);
     return num;
 endfunction
 
-interface Top_Pins;
-	`ifndef SIMULATION
-	interface DDR4_Pins_Dual_VCU108 pins_ddr4;
-	`endif
-endinterface
-
 interface ConnectalWrapper;
 	interface FromHost connectProc;
 	interface Top_Pins pins;
@@ -187,13 +181,6 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 	endinterface
 
-	interface Top_Pins pins;      
-		`ifndef SIMULATION
-		interface DDR4_Pins_Dual_VCU108 pins_ddr4;
-			interface pins_c0 = ddr4_ctrl_0.ddr4;
-			interface pins_c1 = ddr4_ctrl_1.ddr4;
-		endinterface      
-		`endif
-	endinterface
+	interface Top_Pins pins = mainDDR4.pins;
 
 endmodule

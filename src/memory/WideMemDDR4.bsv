@@ -21,8 +21,15 @@ import GetPut::*;
 import ClientServerHelper::*;
 import DRAMControllerTypes::*;
 
+interface Top_Pins;
+        `ifndef SIMULATION
+        interface DDR4_Pins_Dual_VCU108 pins_ddr4;
+        `endif
+endinterface
+
 interface WideMemDDR4;
 	interface WideMem portA;
+	interface Top_Pins pins;
 endinterface
 
 module mkWideMemDDR4(HostInterface host, WideMemDDR4 ifc);
@@ -91,5 +98,14 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4 ifc);
 			resQ.deq(); return resQ.first();
 		endmethod
 	endinterface
+
+	interface Top_Pins pins;
+                `ifndef SIMULATION
+                interface DDR4_Pins_Dual_VCU108 pins_ddr4;
+                        interface pins_c0 = ddr4_ctrl_0.ddr4;
+                        interface pins_c1 = ddr4_ctrl_1.ddr4;
+                endinterface
+                `endif
+        endinterface
 
 endmodule

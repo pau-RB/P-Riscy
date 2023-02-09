@@ -72,7 +72,7 @@ CONNECTALFLAGS += --cxxflags="-std=gnu++17                                    \
 							  -I $(PWD)/riscv-isa-sim/riscv/                  \
 
 PIN_TYPE = Top_Pins
-PIN_TYPE_INCLUDE = ConnectalWrapper
+PIN_TYPE_INCLUDE = WideMemDDR4
 AUTOTOP = --interface pins:ConnectalWrapper.pins
 
 include $(CONNECTALDIR)/Makefile.connectal
