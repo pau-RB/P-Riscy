@@ -1,4 +1,5 @@
 import Ifc::*;
+import HostInterface::*;
 import Core::*; 
 import VerifMaster::*;
 import Types::*;
@@ -25,14 +26,21 @@ function CacheLineNum lineNumOf(Addr addr);
     return num;
 endfunction
 
-interface ConnectalWrapper;
-	interface FromHost connectProc;
+interface Top_Pins;
+	`ifndef SIMULATION
+	interface DDR4_Pins_Dual_VCU108 pins_ddr4;
+	`endif
 endinterface
 
-module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
+interface ConnectalWrapper;
+	interface FromHost connectProc;
+	interface Top_Pins pins;
+endinterface
 
-	WideMem                                                                            mainDDR4  <- mkWideMemDDR4();
-	WideMemDelay#(TSub#(RAMLatency,2))                                                 mainMem   <- mkWideMemDelay(mainDDR4);
+module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
+
+	WideMemDDR4                                                                        mainDDR4  <- mkWideMemDDR4(host);
+	WideMemDelay#(TSub#(RAMLatency,2))                                                 mainMem   <- mkWideMemDelay(mainDDR4.portA);
 	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, TMul#(2,FrontWidth)) mainL2    <- mkWideMemCache(mainMem.delayed);
 	WideMemSplit#(2,TMul#(2,FrontWidth))                                               mainSplit <- mkSplitWideMem(mainL2.cache);
 
@@ -175,6 +183,15 @@ module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
 		endmethod
 
+	endinterface
+
+	interface Top_Pins pins;      
+		`ifndef SIMULATION
+		interface DDR4_Pins_Dual_VCU108 pins_ddr4;
+			interface pins_c0 = ddr4_ctrl_0.ddr4;
+			interface pins_c1 = ddr4_ctrl_1.ddr4;
+		endinterface      
+		`endif
 	endinterface
 
 endmodule
