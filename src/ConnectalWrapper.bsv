@@ -11,7 +11,6 @@ import DDR4Controller::*;
 import WideMemDDR4::*;
 import WideMemCache::*;
 import WideMemSplit::*;
-import WideMemDelay::*;
 import FIFOF::*;
 import BRAMFIFO::*;
 import Config::*;
@@ -35,9 +34,8 @@ endinterface
 
 module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
-	WideMemDDR4                                                                        mainDDR4  <- mkWideMemDDR4(host);
-	WideMemDelay#(TSub#(RAMLatency,2))                                                 mainMem   <- mkWideMemDelay(mainDDR4.portA);
-	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, TMul#(2,FrontWidth)) mainL2    <- mkWideMemCache(mainMem.delayed);
+	WideMemDDR4#(RAMLatency)                                                           mainDDR4  <- mkWideMemDDR4(host);
+	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, TMul#(2,FrontWidth)) mainL2    <- mkWideMemCache(mainDDR4.portA);
 	WideMemSplit#(2,TMul#(2,FrontWidth))                                               mainSplit <- mkSplitWideMem(mainL2.cache);
 
 	VerifMaster                          verif        <- mkVerifMaster();
@@ -154,7 +152,7 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 			line[offsetOf(addr)] = word;
 
 			if(offsetOf(addr) == '1) begin
-				mainMem.direct.req(WideMemReq { write: True,
+				mainDDR4.portA.req(WideMemReq { write: True,
 				                                num  : lineNumOf(addr),
 				                                line : line });
 			end
