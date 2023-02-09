@@ -6,6 +6,8 @@ import Types::*;
 import ProcTypes::*;
 import CMRTypes::*;
 import Memory::*;
+import DDR4Common::*;
+import DDR4Controller::*;
 import WideMemDDR4::*;
 import WideMemCache::*;
 import WideMemSplit::*;
