@@ -12,6 +12,10 @@ BSVPATH += /    \
 	src/memory  \
 	src/front   \
 	src/back    \
+	src/DDR4    \
+	src/DDR4/xilinx_ddr4_v2_2 \
+	src/DDR4/sim \
+	src/DDR4/bsvlib \
 	$(CONNECTALDIR)/bsv
 CPPFILES +=                          \
 	main.cpp                         \
@@ -22,7 +26,6 @@ CPPFILES +=                          \
 	testbench/Interpreter.cc
 
 CONNECTALFLAGS += --mainclockperiod=60
-#CONNECTALFLAGS += --verilog=ddr3_v2_0/
 CONNECTALFLAGS += --bscflags="-show-schedule"
 CONNECTALFLAGS += --bscflags="-aggressive-conditions"
 CONNECTALFLAGS += --bscflags="-steps-warn-interval 1000000"

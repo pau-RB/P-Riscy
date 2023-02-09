@@ -5,7 +5,7 @@ import Types::*;
 import ProcTypes::*;
 import CMRTypes::*;
 import Memory::*;
-import WideMemBRAM::*;
+import WideMemDDR4::*;
 import WideMemCache::*;
 import WideMemSplit::*;
 import WideMemDelay::*;
@@ -31,8 +31,8 @@ endinterface
 
 module [Module] mkConnectalWrapper#(ToHost ind)(ConnectalWrapper);
 
-	WideMem                                                                            mainBRAM  <- mkWideMemBRAM();
-	WideMemDelay#(TSub#(RAMLatency,2))                                                 mainMem   <- mkWideMemDelay(mainBRAM);
+	WideMem                                                                            mainDDR4  <- mkWideMemDDR4();
+	WideMemDelay#(TSub#(RAMLatency,2))                                                 mainMem   <- mkWideMemDelay(mainDDR4);
 	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, TMul#(2,FrontWidth)) mainL2    <- mkWideMemCache(mainMem.delayed);
 	WideMemSplit#(2,TMul#(2,FrontWidth))                                               mainSplit <- mkSplitWideMem(mainL2.cache);
 
