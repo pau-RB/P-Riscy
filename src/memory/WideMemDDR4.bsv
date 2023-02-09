@@ -12,6 +12,7 @@ import DDR4Common::*;
 
 `ifdef SIMULATION
 import DDR4Sim::*;
+import WideMemDelay::*;
 `else
 import Clocks:: *;
 import DefaultValue:: *;
@@ -27,12 +28,12 @@ interface Top_Pins;
         `endif
 endinterface
 
-interface WideMemDDR4;
+interface WideMemDDR4#(numeric type simLatency);
 	interface WideMem portA;
 	interface Top_Pins pins;
 endinterface
 
-module mkWideMemDDR4(HostInterface host, WideMemDDR4 ifc);
+module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency) ifc) provisos(Add#(a__, 2, simLatency));
 
 	FIFO#(WideMemReq ) reqQ <- mkFIFO();
 	FIFO#(WideMemResp) resQ <- mkFIFO();
@@ -90,14 +91,21 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4 ifc);
 		resQ.enq(unpack(truncate(res)));
 	endrule
 
-	interface WideMem portA;
-		method Action req(WideMemReq r);
-			reqQ.enq(r);
-		endmethod
-		method ActionValue#(CacheLine) resp;
-			resQ.deq(); return resQ.first();
-		endmethod
-	endinterface
+	WideMem wmifc = (interface WideMem;
+						method Action req(WideMemReq r);
+							reqQ.enq(r);
+						endmethod
+						method ActionValue#(CacheLine) resp;
+							resQ.deq(); return resQ.first();
+						endmethod
+					 endinterface);
+
+	`ifdef SIMULATION
+		WideMemDelay#(TSub#(simLatency,2)) simIfc <- mkWideMemDelay(wmifc);
+		interface WideMem portA = simIfc.delayed;
+	`else
+		interface WideMem portA = wmifc;
+	`endif
 
 	interface Top_Pins pins;
                 `ifndef SIMULATION
