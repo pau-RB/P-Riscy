@@ -46,13 +46,13 @@ CONNECTALFLAGS += \
 prebuild:: $(DDR4_V) $(SYNCFIFO_784_32) $(SYNCFIFO_640_32)
 
 $(DDR4_V): src/DDR4/core-scripts/synth-ddr4.tcl
-	(cd $(BOARD); vivado -mode batch -source src/DDR4/core-scripts/synth-ddr4.tcl)
+	(cd $(BOARD); vivado -mode batch -source $(PWD)/src/DDR4/core-scripts/synth-ddr4.tcl)
 
 $(SYNCFIFO_784_32): src/DDR4/core-scripts/synth_sync_bram_fifo.tcl
-	(cd $(PROJECTDIR); vivado -mode batch -source $^ -tclargs 784 32)
+	(cd $(PROJECTDIR); vivado -mode batch -source $(PWD)/src/DDR4/core-scripts/synth_sync_bram_fifo.tcl -tclargs 784 32)
 
 $(SYNCFIFO_640_32): src/DDR4/core-scripts/synth_sync_bram_fifo.tcl
-	(cd $(PROJECTDIR); vivado -mode batch -source $^ -tclargs 640 32)
+	(cd $(PROJECTDIR); vivado -mode batch -source $(PWD)/src/DDR4/core-scripts/synth_sync_bram_fifo.tcl -tclargs 640 32)
 
 endif
 
