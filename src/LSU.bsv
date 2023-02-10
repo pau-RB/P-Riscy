@@ -291,13 +291,17 @@ module mkAssociativeDataCache (BareDataCache ifc);
 	endmethod
 
 	method ActionValue#(DataCacheResp) resp();
-		DataCacheResp vres = tagged Invalid;
+		Data res = '0;
+		Bool val = False;
+
 		for(Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
-			let res <- lane[fromInteger(i)].resp();
-			if(isValid(res))
-				vres = res;
+			let partial <- lane[fromInteger(i)].resp();
+			res = res|fromMaybe('0,partial);
+			val = val||isValid(partial);
 		end
-		return vres;
+
+		return (val ? tagged Valid res : tagged Invalid);
+
 	endmethod
 
 	method ActionValue#(WideMemReq) getWB();
