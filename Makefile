@@ -57,6 +57,7 @@ $(SYNCFIFO_640_32): src/DDR4/core-scripts/synth_sync_bram_fifo.tcl
 endif
 
 CONNECTALFLAGS += --mainclockperiod=60
+CONNECTALFLAGS += --pcieclockperiod=6
 CONNECTALFLAGS += --bscflags="-show-schedule"
 CONNECTALFLAGS += --bscflags="-aggressive-conditions"
 CONNECTALFLAGS += --bscflags="-steps-warn-interval 1000000"
