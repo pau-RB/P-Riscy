@@ -55,47 +55,38 @@ function Bool isArithInst(ExecToken inst);
 	        inst.inst.iType == Auipc );
 endfunction
 
-
 typedef struct {
-	Vector#(FrontWidth,Bool)             taken;
-	Vector#(BackWidth,Maybe#(ExecToken)) forward; 	
-} InstSelect deriving(Bits);
+	Bool      valid;
+	FrontID   feID;
+	ExecToken inst;
+} ASNinst deriving(Bits);
 
-
-(*noinline*) function InstSelect select(Vector#(FrontWidth,Maybe#(ExecToken)) inst);
-
-	Vector#(BackWidth,Maybe#(ExecToken)) forward  = replicate(tagged Invalid);
-	Vector#(FrontWidth,Bool)             takenM   = replicate(False);
-	Vector#(FrontWidth,Bool)             takenA   = replicate(False);
-	Vector#(FrontWidth,Bool)             taken    = replicate(False);
-
-	// Memory
-	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-		if(isValid(inst[i]) && !isValid(forward[0]) && isMemInst(fromMaybe(?,inst[i]))) begin
-			forward[0] = inst[i];
-			takenM [i] = True;
-		end
+(*noinline*) function Vector#(FrontWidth,ASNinst) evenLayer (Vector#(FrontWidth,ASNinst) in) provisos(Add#(a__,a__,FrontWidth));
+	Vector#(FrontWidth,ASNinst) out;
+	for (Integer i = 0; i+1 < valueOf(FrontWidth); i=i+2) begin
+		out[i  ] = (in[i].valid ? in[i]   : in[i+1]               );
+		out[i+1] = (in[i].valid ? in[i+1] : ASNinst{valid: False, feID: ?, inst: ?} );
 	end
-
-	// Arithmetic
-	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-		for (Integer j = 1; j < valueOf(BackWidth); j=j+1) begin
-			if(isValid(inst[i]) && !takenA[i] && !isValid(forward[j]) && isArithInst(fromMaybe(?,inst[i]))) begin
-				forward[j] = inst[i];
-				takenA [i] = True;
-			end
-		end
-	end
-
-	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1)
-		taken[i] = takenM[i] || takenA[i];
-
-	return InstSelect{ taken: taken, forward: forward};
-
+	return out;
 endfunction
 
+(*noinline*) function Vector#(FrontWidth,ASNinst) oddLayer (Vector#(FrontWidth,ASNinst) in) provisos(Add#(a__,a__,FrontWidth));
+	Vector#(FrontWidth,ASNinst) out;
+	out[0] = in[0]; out[valueOf(FrontWidth)-1] = in[valueOf(FrontWidth)-1];
+	for (Integer i = 1; i+1 < valueOf(FrontWidth); i=i+2) begin
+		out[i  ] = (in[i].valid ? in[i]   : in[i+1]               );
+		out[i+1] = (in[i].valid ? in[i+1] : ASNinst{valid: False, feID: ?, inst: ?} );
+	end
+	return out;
+endfunction
 
-module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc);
+(*noinline*) function Vector#(FrontWidth,ASNinst) arbSortNet (Vector#(FrontWidth,ASNinst) inst) provisos(Add#(a__,a__,FrontWidth));
+	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1)
+		inst = oddLayer(evenLayer(inst));
+	return inst;
+endfunction
+
+module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 
 	// Queues
 	Vector#(FrontWidth, FIFOF#(ExecToken))        inputQueue  <- replicateM(mkPipelineFIFOF());
@@ -114,42 +105,79 @@ module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc);
 
 	rule do_select if(coreStarted);
 
-		Vector#(FrontWidth,Maybe#(ExecToken)) inst = replicate(tagged Invalid);
-		Bool takenAny = False;
+		// Prepare inst
 
-		// Candidate instructions
+		Vector#(FrontWidth,ASNinst) memInst;
+		Vector#(FrontWidth,ASNinst) ariInst;
+
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(inputQueue[i].notEmpty()) begin
-				inst        [i] = tagged Valid inputQueue[i].first();
-			end
+			if(inputQueue[i].notEmpty && isMemInst(inputQueue[i].first))
+				memInst[i] = ASNinst{valid: True, feID: fromInteger(i), inst: inputQueue[i].first};
+			else
+				memInst[i] = ASNinst{valid: False, feID: ?, inst: ?};
 		end
 
-		// Select
-		InstSelect sel = select(inst);
-
-		// Dequeue taken instructions
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(sel.taken[i]) begin
-				takenAny = True;
+			if(inputQueue[i].notEmpty && isArithInst(inputQueue[i].first))
+				ariInst[i] = ASNinst{valid: True, feID: fromInteger(i), inst: inputQueue[i].first};
+			else
+				ariInst[i] = ASNinst{valid: False, feID: ?, inst: ?};
+		end
+
+		// Sort inst according to validity
+
+		memInst = arbSortNet(memInst);
+		ariInst = arbSortNet(ariInst);
+
+		Vector#(BackWidth,Maybe#(ExecToken)) instForward;
+
+		instForward[0] = memInst[0].valid ? tagged Valid memInst[0].inst : tagged Invalid;
+		for(Integer j = 1; j < valueOf(BackWidth); j=j+1)
+			instForward[j] = ariInst[j-1].valid ? tagged Valid ariInst[j-1].inst : tagged Invalid;
+
+		// Dequeue taken inst
+
+		Vector#(FrontWidth, Bool) instTaken = replicate(False);
+
+		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+			instTaken[i] = (memInst[0].valid && memInst[0].feID == fromInteger(i));
+			for(Integer j = 1; j < valueOf(BackWidth); j=j+1)
+				instTaken[i] = instTaken[i] || (ariInst[j-1].valid && ariInst[j-1].feID == fromInteger(i));
+		end
+
+		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1)
+			if(instTaken[i])
 				inputQueue[i].deq();
-			end
-		end
 
-		if(takenAny) begin
-			outputQueue.enq(sel.forward);
-		end
+		// Forward
+
+		if(unpack(|(pack(instTaken))))
+			outputQueue.enq(instForward);
+
 
 		if(perf_DEBUG) begin
-			perf_sel_taken[0] <= sel.taken;
+
+			Vector#(FrontWidth,Maybe#(ExecToken)) inst = replicate(tagged Invalid);
+			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1)
+				if(inputQueue[i].notEmpty)
+					inst[i] = tagged Valid inputQueue[i].first();
+
+			perf_sel_taken[0] <= instTaken;
 			perf_sel_inst [0] <= inst;
+
 		end
 
 		if(mem_ext_DEBUG) begin
 
+			Vector#(FrontWidth,Maybe#(ExecToken)) inst = replicate(tagged Invalid);
+			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1)
+				if(inputQueue[i].notEmpty)
+					inst[i] = tagged Valid inputQueue[i].first();
+
 			Bool isMemOvb   = False;
 			Bool isArithOvb = False;
 			for(Integer i = 0; i < valueOf(FrontWidth); i=i+1)
-				if(isValid(inst[i]) && !sel.taken[i])
+				if(isValid(inst[i]) && !instTaken[i])
 					if(isMemInst(fromMaybe(?,inst[i])))
 						isMemOvb = True;
 					else
