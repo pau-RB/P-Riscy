@@ -65,7 +65,7 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency) ifc) provisos(
 		mkConnection(ddr_cli_300mhz_0, ddr4_ctrl_0.user);
 
 		// DDR4 C2
-		let sys_clk2 = host.tsys_clk1_300mhz;
+		let sys_clk2 = host.tsys_clk1_300mhz_buf;
 		let sys_rst2 <- mkAsyncResetFromCR(20, sys_clk2);
 
 		DDR4_Controller_VCU108 ddr4_ctrl_1 <- mkDDR4Controller_VCU108(defaultValue, clocked_by sys_clk2, reset_by sys_rst2);
