@@ -64,8 +64,14 @@ typedef struct {
 (*noinline*) function Vector#(FrontWidth,ASNinst) evenLayer (Vector#(FrontWidth,ASNinst) in) provisos(Add#(a__,a__,FrontWidth));
 	Vector#(FrontWidth,ASNinst) out;
 	for (Integer i = 0; i+1 < valueOf(FrontWidth); i=i+2) begin
-		out[i  ] = (in[i].valid ? in[i]   : in[i+1]               );
-		out[i+1] = (in[i].valid ? in[i+1] : ASNinst{valid: False, feID: ?, inst: ?} );
+		// LHS chooses
+		out[i].valid = in[i].valid || in[i+1].valid;
+		out[i].feID  = unpack((pack(in[i].feID)&signExtend(pack(in[i].valid)))|(pack(in[i+1].feID)&signExtend(pack(!in[i].valid))));
+		out[i].inst  = unpack((pack(in[i].inst)&signExtend(pack(in[i].valid)))|(pack(in[i+1].inst)&signExtend(pack(!in[i].valid))));
+		// RHS forwards
+		out[i+1].valid = in[i].valid && in[i+1].valid;
+		out[i+1].feID  = in[i+1].feID;
+		out[i+1].inst  = in[i+1].inst;
 	end
 	return out;
 endfunction
@@ -74,8 +80,14 @@ endfunction
 	Vector#(FrontWidth,ASNinst) out;
 	out[0] = in[0]; out[valueOf(FrontWidth)-1] = in[valueOf(FrontWidth)-1];
 	for (Integer i = 1; i+1 < valueOf(FrontWidth); i=i+2) begin
-		out[i  ] = (in[i].valid ? in[i]   : in[i+1]               );
-		out[i+1] = (in[i].valid ? in[i+1] : ASNinst{valid: False, feID: ?, inst: ?} );
+		// LHS chooses
+		out[i].valid = in[i].valid || in[i+1].valid;
+		out[i].feID  = unpack((pack(in[i].feID)&signExtend(pack(in[i].valid)))|(pack(in[i+1].feID)&signExtend(pack(!in[i].valid))));
+		out[i].inst  = unpack((pack(in[i].inst)&signExtend(pack(in[i].valid)))|(pack(in[i+1].inst)&signExtend(pack(!in[i].valid))));
+		// RHS forwards
+		out[i+1].valid = in[i].valid && in[i+1].valid;
+		out[i+1].feID  = in[i+1].feID;
+		out[i+1].inst  = in[i+1].inst;
 	end
 	return out;
 endfunction

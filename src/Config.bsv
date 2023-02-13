@@ -26,7 +26,7 @@ typedef 512 MTQ_LEN;
 typedef 4   CTQ_LEN;
 
 // Core width
-typedef 4 FrontWidth;
+typedef 8 FrontWidth;
 typedef Bit#(TLog#(FrontWidth)) FrontID;
 FrontID lastFrontID = fromInteger(valueOf(FrontWidth)-1);
 
@@ -38,7 +38,7 @@ typedef 32 L1ICacheRows;   // Must be power of 2
 // LSU
 typedef 8 LSUCacheRows;    // Must be power of 2
 typedef 4 LSUCacheColumns; // Must be power of 2
-Bool lsuAssociative = True;
+Bool lsuAssociative = False;
 typedef FrontWidth LSUmshrW;
 typedef FrontWidth LSUmshrD;
 
