@@ -36,7 +36,7 @@ typedef 3 BackWidth;
 typedef 32 L1ICacheRows;   // Must be power of 2
 
 // LSU
-typedef 8 LSUCacheRows;    // Must be power of 2
+typedef 32 LSUCacheRows;   // Must be power of 2
 typedef 4 LSUCacheColumns; // Must be power of 2
 Bool lsuAssociative = False;
 typedef FrontWidth LSUmshrW;
@@ -44,7 +44,7 @@ typedef FrontWidth LSUmshrD;
 
 // L2
 typedef 64 L2CacheRows;       // Must be power of 2
-typedef 1  L2CacheColumns;    // Must be power of 2
+typedef 4  L2CacheColumns;    // Must be power of 2
 typedef 16 L2CacheHashBlocks; // Must be power of 2
 
 // Verification
