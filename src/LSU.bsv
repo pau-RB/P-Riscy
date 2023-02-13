@@ -131,7 +131,7 @@ module mkDirectDataCache (BareDataCache ifc);
 	FIFOF#(DataCacheReq)  reqQ    <- mkBypassFIFOF();
 	FIFOF#(DataCacheReq)  bramReq <- mkPipelineFIFOF();
 	FIFOF#(DataCacheResp) resQ    <- mkBypassFIFOF();
-	FIFOF#(DataCacheWB)   wbQ     <- mkBypassFIFOF();
+	FIFOF#(WideMemReq)    wbQ     <- mkBypassFIFOF();
 
 	Ehr#(3,Maybe#(CacheIndex)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts
 
@@ -195,8 +195,9 @@ module mkDirectDataCache (BareDataCache ifc);
 		if(req.op == PUT) begin
 
 			if(meta.valid && meta.dirty) begin // old line is dirty
-				wbQ.enq(DataCacheWB { num : {tag,index},
-				                      line: data });
+				wbQ.enq(WideMemReq { write: True,
+				                     num  : {tag,index},
+				                     line : data });
 			end
 
 			CacheMeta newMeta = CacheMeta { valid: True,
@@ -254,7 +255,7 @@ module mkDirectDataCache (BareDataCache ifc);
 		return resQ.first();
 	endmethod
 
-	method ActionValue#(DataCacheWB) getWB();
+	method ActionValue#(WideMemReq) getWB();
 		wbQ.deq();
 		return wbQ.first();
 	endmethod
@@ -265,7 +266,7 @@ module mkAssociativeDataCache (BareDataCache ifc);
 
 	Vector#(LSUCacheColumns,BareDataCache) lane <- replicateM(mkDirectDataCache());
 	Reg#(CacheLane) replaceIndex <- mkReg(0);
-	FIFOF#(DataCacheWB) wbFifo <- mkBypassFIFOF();
+	FIFOF#(WideMemReq) wbFifo <- mkBypassFIFOF();
 
 	for (Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
 		rule do_COLLECT_WB;
@@ -290,16 +291,20 @@ module mkAssociativeDataCache (BareDataCache ifc);
 	endmethod
 
 	method ActionValue#(DataCacheResp) resp();
-		DataCacheResp vres = tagged Invalid;
+		Data res = '0;
+		Bool val = False;
+
 		for(Integer i = 0; i < valueOf(LSUCacheColumns); i=i+1) begin
-			let res <- lane[fromInteger(i)].resp();
-			if(isValid(res))
-				vres = res;
+			let partial <- lane[fromInteger(i)].resp();
+			res = res|fromMaybe('0,partial);
+			val = val||isValid(partial);
 		end
-		return vres;
+
+		return (val ? tagged Valid res : tagged Invalid);
+
 	endmethod
 
-	method ActionValue#(DataCacheWB) getWB();
+	method ActionValue#(WideMemReq) getWB();
 		wbFifo.deq();
 		return wbFifo.first();
 	endmethod
@@ -402,9 +407,9 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 				memReqQ.enq(MemReqToken{ addr: req.addr,
 				                         mshr: fromMaybe(?,isEmpty) });
-				mem.req(WideMemReq{ write_en: '0,
-				                    addr    : req.addr,
-				                    data    : ? });
+				mem.req(WideMemReq{ write: False,
+				                    num  : lineNumOf(req.addr),
+				                    line : ? });
 
 			end
 
@@ -471,11 +476,11 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 	rule do_WB;
 
-		let r <- dataCache.getWB();
+		let req <- dataCache.getWB();
 
-		mem.req(WideMemReq{ write_en: '1,
-		                    addr    : {r.num,0},
-		                    data    : r.line });
+		mem.req(WideMemReq{ write: True,
+		                    num  : req.num,
+		                    line : req.line });
 
 	endrule
 

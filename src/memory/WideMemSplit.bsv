@@ -3,19 +3,18 @@ import FIFOF::*;
 import SpecialFIFOs::*;
 import Vector::*;
 
-interface SplitWideMem#(numeric type n, numeric type m);
+interface WideMemSplit#(numeric type n, numeric type m);
     interface Vector#(n, WideMem) port;
 endinterface
 
-module mkSplitWideMem(  Bool initDone, WideMem mem,
-                        SplitWideMem#(n, m) ifc);
+module mkSplitWideMem(  WideMem mem, WideMemSplit#(n, m) ifc );
 
     Vector#(n, FIFOF#(WideMemReq))  reqFifos  <- replicateM(mkFIFOF);
     Vector#(n, FIFOF#(WideMemResp)) respFifos <- replicateM(mkFIFOF);
 
     FIFOF#(Bit#(TLog#(n))) reqSource <- mkSizedFIFOF(valueOf(m));
 
-    rule doWideMemReq(initDone);
+    rule doWideMemReq;
         Maybe#(Bit#(TLog#(n))) req_index = tagged Invalid;
         for( Integer i = 0 ; i < valueOf(n) ; i = i+1 ) begin
             if( !isValid(req_index) && reqFifos[i].notEmpty ) begin
@@ -28,14 +27,14 @@ module mkSplitWideMem(  Bool initDone, WideMem mem,
             reqFifos[ fromMaybe(?,req_index) ].deq();
 
             mem.req(req);
-            if( req.write_en == 0 ) begin
+            if(!req.write) begin
                 // req is a load, so keep track of the source
                 reqSource.enq( fromMaybe(?,req_index) );
             end
         end
     endrule
 
-    rule doWideMemResp(initDone);
+    rule doWideMemResp;
         let resp <- mem.resp;
 
         let source = reqSource.first;

@@ -96,6 +96,7 @@ void Interpreter::print_MSR_dut(const MemStat msr) {
     LSUStat     lsu     = msr.lsu;
     ArbiterStat arbiter = msr.arbiter;
     FetchStat   fetch   = msr.fetch;
+    WMCStat     l2s     = msr.l2s;
 
     std::string phrase;
 
@@ -154,6 +155,20 @@ void Interpreter::print_MSR_dut(const MemStat msr) {
     overwrite(phrase, std::to_string(lsu.dLd  ),  29, 8 );
     overwrite(phrase, std::to_string(lsu.dSt  ),  48, 8 );
     overwrite(phrase, std::to_string(lsu.dJoin),  67, 8 );
+    printf("%s \n", phrase.c_str());
+
+    phrase = "                    |-----------------|------------------|-----------------|";
+    printf("%s \n", phrase.c_str());
+
+    phrase = "            L2S     | tRD:            | hRD:             | mRD:            |";
+    overwrite(phrase, std::to_string(l2s.hRD + l2s.mRD),  29, 8 );
+    overwrite(phrase, std::to_string(l2s.hRD          ),  48, 8 );
+    overwrite(phrase, std::to_string(l2s.mRD          ),  67, 8 );
+    printf("%s \n", phrase.c_str());
+
+    phrase = "                    | tWR:            | tWB:             |                 |";
+    overwrite(phrase, std::to_string(l2s.tWR),  29, 8 );
+    overwrite(phrase, std::to_string(l2s.tWB),  48, 8 );
     printf("%s \n", phrase.c_str());
 
     phrase = "----------------------------------------------------------------------------";

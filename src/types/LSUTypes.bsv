@@ -15,16 +15,11 @@ typedef struct{
 
 typedef Maybe#(Data) DataCacheResp;
 
-typedef struct {
-	CacheLineNum num;
-	CacheLine 	 line;
-} DataCacheWB deriving(Eq, Bits, FShow);
-
 interface BareDataCache;
     method Action invalidate();
 	method Action req(DataCacheReq r);
     method ActionValue#(DataCacheResp) resp();
-    method ActionValue#(DataCacheWB) getWB();
+    method ActionValue#(WideMemReq) getWB();
 endinterface
 
 //////////// LSU ////////////

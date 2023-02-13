@@ -84,7 +84,7 @@ module mkFrontend (WideMem                             mem        ,
 	               Frontend ifc);
 
 	// Data cache
-	L1I#(FrontWidth) l1I <- mkDirectL1I(mem);
+	L1I#(FrontWidth, L1ICacheRows) l1I <- mkDirectL1I(mem);
 
 	// Stages
 	Vector#(FrontWidth, FIFOF#(RFToken)  ) regfetchQ  <- replicateM(mkPipelineFIFOF() );

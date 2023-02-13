@@ -3,12 +3,12 @@ import FIFOF::*;
 import SpecialFIFOs::*;
 import Vector::*;
 
-interface DelayedWideMem#(numeric type delayLatency);
+interface WideMemDelay#(numeric type delayLatency);
     interface WideMem delayed;
     interface WideMem direct;
 endinterface
 
-module mkWideMemDelay(WideMem mem, DelayedWideMem#(delayLatency) ifc);
+module mkWideMemDelay(WideMem mem, WideMemDelay#(delayLatency) ifc);
 
 	Vector#(delayLatency, FIFOF#(WideMemReq)) forward <- replicateM(mkPipelineFIFOF());
 	let inQ = forward[0];

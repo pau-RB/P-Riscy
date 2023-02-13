@@ -16,7 +16,9 @@ typedef 16                                        CacheLineWords;
 typedef TMul#(CacheLineWords, 4)                  CacheLineBytes;
 typedef Bit#( TLog#(CacheLineBytes) )             CacheByteSelect;
 typedef Bit#( TLog#(CacheLineWords) )             CacheWordSelect;
-typedef Bit#(TSub#(AddrSz,TLog#(CacheLineBytes))) CacheLineNum;
+
+typedef TSub#(AddrSz,TLog#(CacheLineBytes))       CacheLineNumSz;
+typedef Bit#(CacheLineNumSz)                      CacheLineNum;
 typedef Vector#(CacheLineWords, Data)             CacheLine;
 
 typedef enum{Ld, St, Join} MemOp deriving(Eq, Bits, FShow);
@@ -24,23 +26,16 @@ typedef enum{SB,SH,SW} StoreFunc deriving(Bits, Eq, FShow);
 typedef enum{LB,LH,LW,LBU,LHU} LoadFunc deriving(Bits, Eq, FShow);
 
 typedef struct{
-    Bit#(CacheLineBytes) write_en;  // Byte write enable
-    Addr                 addr;
-    CacheLine            data;      // Vector#(CacheLineWords, Data)
+    Bool         write;
+    CacheLineNum num;
+    CacheLine    line;
 } WideMemReq deriving(Eq,Bits);
 
-typedef CacheLine WideMemResp;
-typedef Addr      ReadWideMemReq;
-typedef CacheLine ReadWideMemResp;
+typedef CacheLine    WideMemResp;
 
 interface WideMem;
     method Action req(WideMemReq r);
     method ActionValue#(WideMemResp) resp;
-endinterface
-
-interface ReadWideMem;
-    method Action req(ReadWideMemReq r);
-    method ActionValue#(ReadWideMemResp) resp;
 endinterface
 
 //////////// BRAM ////////////
