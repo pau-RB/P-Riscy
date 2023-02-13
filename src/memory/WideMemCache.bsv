@@ -274,17 +274,18 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheH
 
 		WMCReq req = brmQ.first(); brmQ.deq();
 
-		Maybe#(WideMemResp) res = tagged Invalid;
+		WideMemResp res = unpack('0);
+		Bool        val = False;
 
 		for(Integer i = 0; i < valueOf(cacheColumns); i=i+1) begin
 			colResQ[i].deq();
-			if(colResQ[i].first matches tagged Valid .line)
-				res = tagged Valid line;
+			res = unpack(pack(res)|pack(fromMaybe(unpack('0),colResQ[i].first)));
+			val = val||isValid(colResQ[i].first);
 		end
 
-		if(res matches tagged Valid .line) begin // hit
+		if(val) begin // hit
 			resQ.enq(True);
-			hitQ.enq(line);
+			hitQ.enq(res);
 		end else begin // miss
 			resQ.enq(False);
 			memQ.enq(req.num);
@@ -294,7 +295,7 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheH
 		end
 
 		if (mem_ext_DEBUG) begin
-			if (isValid(res)) begin
+			if (val) begin
 				// read hit
 				hRD[0] <= hRD[0]+1;
 			end else begin
