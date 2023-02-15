@@ -115,6 +115,7 @@ typedef struct {
 
 typedef struct {
     IType            iType;
+    MulFunc          mulFunc;
     LoadFunc         ldFunc;
     StoreFunc        stFunc;
     Maybe#(RIndx)    dst;
@@ -123,13 +124,6 @@ typedef struct {
     Bool             mispredict;
     Bool             brTaken;
 } ExecInst deriving(Bits, Eq, FShow);
-
-typedef struct {
-	Data             arg1;
-	Data             arg2;
-	Long             partial;
-	MulFunc          mulFunc;
-} MultInst deriving(Bits, Eq, FShow);
 
 // function code
 // ALU
@@ -206,7 +200,6 @@ typedef struct {
 
 typedef struct {
 	ExecInst    inst;
-	MultInst    mul;
 	Addr        pc;
 	FrontID     feID;
 	Epoch       epoch;

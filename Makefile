@@ -12,6 +12,7 @@ BSVPATH += /    \
 	src/memory  \
 	src/front   \
 	src/back    \
+	src/MulDiv  \
 	src/DDR4    \
 	src/DDR4/xilinx_ddr4_v2_2 \
 	src/DDR4/sim \
@@ -24,6 +25,8 @@ CPPFILES +=                          \
 	testbench/CustomSpike.cc         \
 	testbench/Tandem.cc              \
 	testbench/Interpreter.cc
+
+# Xilinx DDR4
 
 CONNECTALFLAGS += -D IMPORT_HOSTIF -D XILINX_SYS_CLK
 
@@ -56,8 +59,38 @@ $(SYNCFIFO_640_32): src/DDR4/core-scripts/synth_sync_bram_fifo.tcl
 
 endif
 
-CONNECTALFLAGS += --mainclockperiod=60
-CONNECTALFLAGS += --pcieclockperiod=6
+# Xilinx int mul/div
+
+ifeq ($(BOARD), $(filter $(BOARD), vcu108))
+
+INT_MUL_SIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_signed/int_mul_signed.xci
+INT_MUL_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_unsigned/int_mul_unsigned.xci
+INT_MUL_SIGNED_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_signed_unsigned/int_mul_signed_unsigned.xci
+INT_DIV_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_div_unsigned/int_div_unsigned.xci
+
+INT_MUL_LATENCY = 1
+INT_DIV_LATENCY = 1
+
+CONNECTALFLAGS += --xci $(INT_MUL_SIGNED_XCI) \
+				  --xci $(INT_MUL_UNSIGNED_XCI) \
+				  --xci $(INT_MUL_SIGNED_UNSIGNED_XCI) \
+				  --xci $(INT_DIV_UNSIGNED_XCI)
+
+prebuild:: $(INT_MUL_SIGNED_XCI) $(INT_DIV_UNSIGNED_XCI)
+
+$(INT_MUL_SIGNED_XCI): src/MulDiv/core-scripts/synth_int_mul.tcl
+	(cd $(PROJECTDIR); vivado -mode batch -source $^ -tclargs $(INT_MUL_LATENCY))
+
+$(INT_DIV_UNSIGNED_XCI): src/MulDiv/core-scripts/synth_int_div.tcl
+	(cd $(PROJECTDIR); vivado -mode batch -source $^ -tclargs $(INT_DIV_LATENCY))
+
+.PHONY: $(INT_MUL_SIGNED_XCI) $(INT_DIV_UNSIGNED_XCI)
+
+endif
+
+# connectal project
+
+CONNECTALFLAGS += --mainclockperiod=30
 CONNECTALFLAGS += --bscflags="-show-schedule"
 CONNECTALFLAGS += --bscflags="-aggressive-conditions"
 CONNECTALFLAGS += --bscflags="-steps-warn-interval 1000000"

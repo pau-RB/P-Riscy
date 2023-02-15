@@ -16,12 +16,24 @@ import Vector::*;
 import Ehr::*;
 
 // back
+import XilinxIntMul::*;
+import XilinxIntDiv::*;
 import Scoreboard::*;
 import RFile::*;
 import Execution::*;
 import NTTX::*;
-import Mul::*;
 
+(* synthesize *)
+module mkMul(XilinxIntMul#(void));
+	let m <- mkXilinxIntMul;
+	return m;
+endmodule
+
+(* synthesize *)
+module mkDiv(XilinxIntDiv#(void));
+	let m <- mkXilinxIntDiv;
+	return m;
+endmodule
 
 interface Writeback;
 
@@ -80,6 +92,10 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 	Vector#(FrontWidth, Ehr#(3, Maybe#(Epoch   ))) toWBstEpoch     <- replicateM(mkEhr(tagged Invalid));
 	Vector#(FrontWidth, Ehr#(3, Maybe#(Redirect))) toWBstRedirect  <- replicateM(mkEhr(tagged Invalid));
 
+	// MulDiv
+	Vector#(TSub#(FrontWidth,1), XilinxIntMul#(void)) mulArray <- replicateM(mkMul);
+	Vector#(TSub#(FrontWidth,1), XilinxIntDiv#(void)) divArray <- replicateM(mkDiv);
+
 	// Upstream
 	Vector#(FrontWidth, FIFOF#(Redirect))          redirectQ       <- replicateM(mkBypassFIFOF());
 
@@ -110,7 +126,6 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 		if(toExec[0] matches tagged Valid .eToken) begin
 			let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
 			let mToken   = MemToken{ inst   : execInst,
-				                     mul    : ?,
 				                     pc     : eToken.pc,
 				                     feID   : eToken.feID,
 				                     epoch  : eToken.epoch,
@@ -121,14 +136,28 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 		// Arith lanes
 		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
 			if(toExec[i] matches tagged Valid .eToken) begin
-				let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
-				let mulInst  = mulStage1(eToken.arg1, eToken.arg2, eToken.inst.mulFunc);
+
+				ExecInst execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
+
+				if(eToken.inst.iType == Mul) begin
+					case(eToken.inst.mulFunc)
+					Mul   : mulArray[i-1].req(eToken.arg1, eToken.arg2, Signed        , ?);
+					Mulh  : mulArray[i-1].req(eToken.arg1, eToken.arg2, Signed        , ?);
+					Mulhsu: mulArray[i-1].req(eToken.arg1, eToken.arg2, SignedUnsigned, ?);
+					Mulhu : mulArray[i-1].req(eToken.arg1, eToken.arg2, Unsigned      , ?);
+					Div   : divArray[i-1].req(eToken.arg1, eToken.arg2, True          , ?);
+					Divu  : divArray[i-1].req(eToken.arg1, eToken.arg2, False         , ?);
+					Rem   : divArray[i-1].req(eToken.arg1, eToken.arg2, True          , ?);
+					Remu  : divArray[i-1].req(eToken.arg1, eToken.arg2, False         , ?);
+					endcase
+				end
+
 				let mToken   = MemToken{ inst   : execInst,
-				                         mul    : mulInst,
 				                         pc     : eToken.pc,
 				                         feID   : eToken.feID,
 				                         epoch  : eToken.epoch,
 				                         rawInst: eToken.rawInst};
+
 				toMem[i] = tagged Valid mToken;
 			end
 		end
@@ -188,18 +217,29 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 		// Arith lanes
 		for(Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
 			if(toMem[i] matches tagged Valid .mToken) begin
+
 				let wToken = WBToken{ inst   : mToken.inst,
 				                      pc     : mToken.pc,
 				                      feID   : mToken.feID,
 				                      epoch  : mToken.epoch,
 				                      rawInst: mToken.rawInst};
 
-				Data mulDiv = mulStage2(mToken.mul);
-				if(mToken.inst.iType == Mul)
-					wToken.inst.data = mulDiv;
+				if(mToken.inst.iType == Mul) begin
+					case(mToken.inst.mulFunc)
+						Mul   : begin wToken.inst.data = truncate   (mulArray[i-1].product); mulArray[i-1].deqResp(); end
+						Mulh  : begin wToken.inst.data = truncateLSB(mulArray[i-1].product); mulArray[i-1].deqResp(); end
+						Mulhsu: begin wToken.inst.data = truncateLSB(mulArray[i-1].product); mulArray[i-1].deqResp(); end
+						Mulhu : begin wToken.inst.data = truncateLSB(mulArray[i-1].product); mulArray[i-1].deqResp(); end
+						Div   : begin wToken.inst.data = divArray[i-1].quotient;             divArray[i-1].deqResp(); end
+						Divu  : begin wToken.inst.data = divArray[i-1].quotient;             divArray[i-1].deqResp(); end
+						Rem   : begin wToken.inst.data = divArray[i-1].remainder;            divArray[i-1].deqResp(); end
+						Remu  : begin wToken.inst.data = divArray[i-1].remainder;            divArray[i-1].deqResp(); end
+					endcase
+				end
+
 				toCommit[i] = tagged Valid wToken;
 			end
-	    end
+		end
 
 		commitQ.enq(toCommit);
 
