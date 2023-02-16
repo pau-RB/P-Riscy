@@ -18,7 +18,7 @@ interface IntMulImport;
     method Bit#(64) product;
 endinterface
 
-import "BVI" int_mul_signed =
+import "BVI" int_mul_signed_32 =
 module mkIntMulSignedImport(IntMulImport);
     default_clock clk(CLK, (*unused*) unused_gate);
     default_reset no_reset;
@@ -30,7 +30,7 @@ module mkIntMulSignedImport(IntMulImport);
     schedule (product) CF (req, product);
 endmodule
 
-import "BVI" int_mul_unsigned =
+import "BVI" int_mul_unsigned_32 =
 module mkIntMulUnsignedImport(IntMulImport);
     default_clock clk(CLK, (*unused*) unused_gate);
     default_reset no_reset;
@@ -42,7 +42,7 @@ module mkIntMulUnsignedImport(IntMulImport);
     schedule (product) CF (req, product);
 endmodule
 
-import "BVI" int_mul_signed_unsigned =
+import "BVI" int_mul_signed_unsigned_32 =
 module mkIntMulSignedUnsignedImport(IntMulImport);
     default_clock clk(CLK, (*unused*) unused_gate);
     default_reset no_reset;

@@ -27,7 +27,7 @@ interface IntDivUnsignedImport;
     method IntDivUser respUser;
 endinterface
 
-import "BVI" int_div_unsigned =
+import "BVI" int_div_unsigned_32 =
 module mkIntDivUnsignedImport(IntDivUnsignedImport);
     default_clock clk(aclk, (*unused*) unused_gate);
     default_reset no_reset;

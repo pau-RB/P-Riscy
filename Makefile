@@ -63,13 +63,13 @@ endif
 
 ifeq ($(BOARD), $(filter $(BOARD), vcu108))
 
-INT_MUL_SIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_signed/int_mul_signed.xci
-INT_MUL_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_unsigned/int_mul_unsigned.xci
-INT_MUL_SIGNED_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_signed_unsigned/int_mul_signed_unsigned.xci
-INT_DIV_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_div_unsigned/int_div_unsigned.xci
+INT_MUL_SIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_signed_32/int_mul_signed_32.xci
+INT_MUL_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_unsigned_32/int_mul_unsigned_32.xci
+INT_MUL_SIGNED_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_signed_unsigned_32/int_mul_signed_unsigned_32.xci
+INT_DIV_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_div_unsigned_32/int_div_unsigned_32.xci
 
 INT_MUL_LATENCY = 1
-INT_DIV_LATENCY = 1
+INT_DIV_LATENCY = 3
 
 CONNECTALFLAGS += --xci $(INT_MUL_SIGNED_XCI) \
 				  --xci $(INT_MUL_UNSIGNED_XCI) \
