@@ -79,10 +79,10 @@ CONNECTALFLAGS += --xci $(INT_MUL_SIGNED_XCI) \
 prebuild:: $(INT_MUL_SIGNED_XCI) $(INT_DIV_UNSIGNED_XCI)
 
 $(INT_MUL_SIGNED_XCI): src/MulDiv/core-scripts/synth_int_mul.tcl
-	(cd $(PROJECTDIR); vivado -mode batch -source $(PWD)/src/MulDiv/core-scripts/synth_int_mul.tcl -tclargs $(INT_MUL_LATENCY))
+	(cd $(PROJECTDIR); vivado -mode batch -source $(PWD)/src/MulDiv/core-scripts/synth_int_mul.tcl -tclargs $(INT_MUL_LATENCY) 32)
 
 $(INT_DIV_UNSIGNED_XCI): src/MulDiv/core-scripts/synth_int_div.tcl
-	(cd $(PROJECTDIR); vivado -mode batch -source $(PWD)/src/MulDiv/core-scripts/synth_int_div.tcl -tclargs $(INT_DIV_LATENCY))
+	(cd $(PROJECTDIR); vivado -mode batch -source $(PWD)/src/MulDiv/core-scripts/synth_int_div.tcl -tclargs $(INT_DIV_LATENCY) 32)
 
 .PHONY: $(INT_MUL_SIGNED_XCI) $(INT_DIV_UNSIGNED_XCI)
 
