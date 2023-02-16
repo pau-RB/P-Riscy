@@ -1,8 +1,6 @@
 import FIFOF::*;
 import FIFO::*;
 
-//import WaitAutoReset::*;
-
 export XilinxIntDiv(..);
 export mkXilinxIntDiv;
 
@@ -122,11 +120,10 @@ module mkXilinxIntDiv(XilinxIntDiv#(tagT)) provisos (
 `else
     IntDivUnsignedImport divIfc <- mkIntDivUnsignedImport;
 `endif
-    //WaitAutoReset#(4) init <- mkWaitAutoReset;
 
     method Action req(
         Bit#(32) dividend, Bit#(32) divisor, Bool signedDiv, tagT tag
-    ) ; //if(init.isReady);
+    ) ;
         // compute the input ops to div unsigned IP
         Bit#(1) dividend_sign = truncateLSB(dividend);
         Bit#(1) divisor_sign = truncateLSB(divisor);
@@ -157,13 +154,13 @@ module mkXilinxIntDiv(XilinxIntDiv#(tagT)) provisos (
 
     // we also put reset guard on deq port to prevent random signals before
     // reset from dequing or corrupting axi states
-    method Action deqResp; // if(init.isReady);
+    method Action deqResp;
         divIfc.deqResp;
     endmethod
 
-    method respValid = divIfc.respValid; // && init.isReady;
+    method respValid = divIfc.respValid;
     
-    method Bit#(32) quotient; // if(init.isReady);
+    method Bit#(32) quotient;
         let user = divIfc.respUser;
         Bit#(32) q;
         if(user.divByZero) begin
@@ -179,7 +176,7 @@ module mkXilinxIntDiv(XilinxIntDiv#(tagT)) provisos (
         return q;
     endmethod
     
-    method Bit#(32) remainder; // if(init.isReady);
+    method Bit#(32) remainder;
         let user = divIfc.respUser;
         Bit#(32) r;
         if(user.divByZero) begin
@@ -195,7 +192,7 @@ module mkXilinxIntDiv(XilinxIntDiv#(tagT)) provisos (
         return r;
     endmethod 
 
-    method tagT respTag; // if(init.isReady);
+    method tagT respTag;
         return unpack(truncate(divIfc.respUser.tag));
     endmethod
 endmodule

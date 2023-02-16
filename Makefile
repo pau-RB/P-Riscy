@@ -26,6 +26,9 @@ CPPFILES +=                          \
 	testbench/Tandem.cc              \
 	testbench/Interpreter.cc
 
+XILINX_INT_MUL_LATENCY = 2
+XILINX_INT_DIV_LATENCY = 8
+
 # Xilinx DDR4
 
 CONNECTALFLAGS += -D IMPORT_HOSTIF -D XILINX_SYS_CLK
@@ -61,6 +64,8 @@ endif
 
 # Xilinx int mul/div
 
+CONNECTALFLAGS += -D XILINX_INT_MUL_LATENCY=$(XILINX_INT_MUL_LATENCY)
+
 ifeq ($(BOARD), $(filter $(BOARD), vcu108))
 
 INT_MUL_SIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_signed_32/int_mul_signed_32.xci
@@ -68,9 +73,8 @@ INT_MUL_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_unsigned_32/int_mul_
 INT_MUL_SIGNED_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_mul_signed_unsigned_32/int_mul_signed_unsigned_32.xci
 INT_DIV_UNSIGNED_XCI = $(CONNECTALDIR)/out/$(BOARD)/int_div_unsigned_32/int_div_unsigned_32.xci
 
-INT_MUL_LATENCY = 1
-INT_DIV_LATENCY = 3
-
+INT_MUL_LATENCY = $(XILINX_INT_MUL_LATENCY)
+INT_DIV_LATENCY = $(XILINX_INT_DIV_LATENCY)
 CONNECTALFLAGS += --xci $(INT_MUL_SIGNED_XCI) \
 				  --xci $(INT_MUL_UNSIGNED_XCI) \
 				  --xci $(INT_MUL_SIGNED_UNSIGNED_XCI) \

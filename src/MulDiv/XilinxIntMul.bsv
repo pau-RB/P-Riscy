@@ -11,7 +11,7 @@ export mkXilinxIntMul;
 // this, we need to know the pipeline latency from macro
 // XILINX_INT_MUL_LATENCY.
 
-typedef 1 IntMulLatency;
+typedef `XILINX_INT_MUL_LATENCY IntMulLatency;
 
 interface IntMulImport;
     method Action req(Bit#(32) a, Bit#(32) b);

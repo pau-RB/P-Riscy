@@ -63,7 +63,7 @@ typedef struct{
 } MemStat deriving(Eq, Bits, FShow);
 
 // Construct CMR
-function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID childVerifID, WBToken wToken, Data lsuRes);
+function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID childVerifID, WBToken wToken, Data lsuRes, Data mulRes);
 
 	if(wToken.inst.iType == J || wToken.inst.iType == Jr || wToken.inst.iType == Br) begin
 		return CommitReport{cycle  : numCycles,
@@ -114,6 +114,16 @@ function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID child
 		                    wbDst  : '0,
 		                    wbRes  : '0,
 		                    addr   : wToken.inst.addr};
+
+	end else if(wToken.inst.iType == Mul) begin
+		return CommitReport{cycle  : numCycles,
+		                    verifID: verifID,
+		                    pc     : wToken.pc,
+		                    rawInst: wToken.rawInst,
+		                    iType  : wToken.inst.iType,
+		                    wbDst  : fromMaybe('0,wToken.inst.dst),
+		                    wbRes  : mulRes,
+		                    addr   : '0};
 
 	end else begin
 		return CommitReport{cycle  : numCycles,
