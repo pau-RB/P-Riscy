@@ -3,10 +3,9 @@
 
 #define CacheLineWords 16
 #define CacheLineBytes 64
-#define WMBAddrSz 12
-#define MEM_MAX_ADDR (1<<WMBAddrSz)*CacheLineBytes
+#define MEM_MAX_ADDR 0x80000000
 
-#define StartPC 0x1000
+#define StartPC 0x00001000
 
 typedef uint32_t Data;
 typedef uint32_t Addr;

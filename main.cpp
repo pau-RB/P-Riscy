@@ -207,7 +207,7 @@ void initMemOBJ(string path) {
 
     std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(input), {});
 
-    for (uint32_t addr = 0; addr < MEM_MAX_ADDR; addr=addr+4) {
+    for (uint32_t addr = 0; addr < MEM_MAX_ADDR && addr<(uint32_t)buffer.size(); addr=addr+4) {
 
         uint32_t byte0 = (addr+0<(uint32_t)buffer.size()) ? buffer[addr+0] : 0;
         uint32_t byte1 = (addr+1<(uint32_t)buffer.size()) ? buffer[addr+1] : 0;
@@ -216,8 +216,10 @@ void initMemOBJ(string path) {
         Data word = byte3<<24|byte2<<16|byte1<<8|byte0;
 
         connectalProc->setMem(addr, word);
-
     }
+
+    connectalProc->setMem(MEM_MAX_ADDR, 0);
+
 }
 
 int main(int argc, char * const *argv) {
