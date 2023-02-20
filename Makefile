@@ -10,8 +10,8 @@ BSVPATH += /    \
 	src/include \
 	src/types   \
 	src/memory  \
-	src/front   \
-	src/back    \
+	src/frontend\
+	src/backend \
 	src/MulDiv  \
 	src/DDR4    \
 	src/DDR4/xilinx_ddr4_v2_2 \

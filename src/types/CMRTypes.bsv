@@ -1,6 +1,7 @@
 import Types::*;
-import Config::*;
+import Encodings::*;
 import ProcTypes::*;
+import Config::*;
 
 typedef struct {
 	Data    cycle;
