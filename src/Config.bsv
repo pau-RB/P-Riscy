@@ -12,10 +12,10 @@ Bool perf_DEBUG    = False;
 // MSG relay
 typedef	512 MTHQ_LEN;
 typedef	8   CTHQ_LEN;
-Addr	msg_ADDR  = 'h0ffffff0;
-Addr	hex_ADDR  = 'h0ffffff4;
-Addr	msr_ADDR  = 'h0ffffff8;
-Addr	max_ADDR  = 'h80000000;
+Addr	msg_ADDR  = 32'h7ffff000;
+Addr	hex_ADDR  = 32'h7ffff004;
+Addr	msr_ADDR  = 32'h7ffff008;
+Addr	max_ADDR  = 32'h80000000;
 
 // Round Robin
 Bool 	roundRobin = True;
