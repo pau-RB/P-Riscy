@@ -175,10 +175,6 @@ module mkFrontend (WideMem                             mem        ,
 
 				scoreboard[i].insert(rfToken.inst.dst);
 
-				if(rfToken.inst.iType == Br || rfToken.inst.iType == J || rfToken.inst.iType == Jr) begin
-					rfLock[i][1] <= True;
-				end
-
 				arbiterQ[i].enq(eToken);
 
 			end

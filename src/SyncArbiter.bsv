@@ -33,15 +33,6 @@ interface SyncArbiter;
 
 endinterface
 
-
-function Bool isAnyInst(ExecToken inst);
-	return True;
-endfunction
-
-function Bool isNonInst(ExecToken inst);
-	return False;
-endfunction
-
 function Bool isMemInst(ExecToken inst);
 	return (inst.inst.iType == Ld          || inst.inst.iType == St    ||
 	        inst.inst.iType == Fork        || inst.inst.iType == Forkr ||
@@ -55,23 +46,27 @@ function Bool isArithInst(ExecToken inst);
 	        inst.inst.iType == Auipc );
 endfunction
 
+function Bool isSpecInst(ExecToken inst);
+	return (inst.inst.iType == J           || inst.inst.iType == Jr    ||
+	        inst.inst.iType == Br          || inst.inst.iType == Ld    ||
+	        inst.inst.iType == St          || inst.inst.iType == Join  );
+endfunction
+
+typedef Bit#(3) SpecLvl;
+
 typedef struct {
 	Bool      valid;
 	FrontID   feID;
+	SpecLvl   specLvl;
 	ExecToken inst;
 } ASNinst deriving(Bits);
 
 (*noinline*) function Vector#(FrontWidth,ASNinst) evenLayer (Vector#(FrontWidth,ASNinst) in) provisos(Add#(a__,a__,FrontWidth));
 	Vector#(FrontWidth,ASNinst) out;
 	for (Integer i = 0; i+1 < valueOf(FrontWidth); i=i+2) begin
-		// LHS chooses
-		out[i].valid = in[i].valid || in[i+1].valid;
-		out[i].feID  = unpack((pack(in[i].feID)&signExtend(pack(in[i].valid)))|(pack(in[i+1].feID)&signExtend(pack(!in[i].valid))));
-		out[i].inst  = unpack((pack(in[i].inst)&signExtend(pack(in[i].valid)))|(pack(in[i+1].inst)&signExtend(pack(!in[i].valid))));
-		// RHS forwards
-		out[i+1].valid = in[i].valid && in[i+1].valid;
-		out[i+1].feID  = in[i+1].feID;
-		out[i+1].inst  = in[i+1].inst;
+		Bool switch = !in[i].valid || (in[i+1].valid && in[i+1].specLvl < in[i].specLvl);
+		out[i  ] = switch ? in[i+1] : in[i  ];
+		out[i+1] = switch ? in[i  ] : in[i+1];
 	end
 	return out;
 endfunction
@@ -80,14 +75,9 @@ endfunction
 	Vector#(FrontWidth,ASNinst) out;
 	out[0] = in[0]; out[valueOf(FrontWidth)-1] = in[valueOf(FrontWidth)-1];
 	for (Integer i = 1; i+1 < valueOf(FrontWidth); i=i+2) begin
-		// LHS chooses
-		out[i].valid = in[i].valid || in[i+1].valid;
-		out[i].feID  = unpack((pack(in[i].feID)&signExtend(pack(in[i].valid)))|(pack(in[i+1].feID)&signExtend(pack(!in[i].valid))));
-		out[i].inst  = unpack((pack(in[i].inst)&signExtend(pack(in[i].valid)))|(pack(in[i+1].inst)&signExtend(pack(!in[i].valid))));
-		// RHS forwards
-		out[i+1].valid = in[i].valid && in[i+1].valid;
-		out[i+1].feID  = in[i+1].feID;
-		out[i+1].inst  = in[i+1].inst;
+		Bool switch = !in[i].valid || (in[i+1].valid && in[i+1].specLvl < in[i].specLvl);
+		out[i  ] = switch ? in[i+1] : in[i  ];
+		out[i+1] = switch ? in[i  ] : in[i+1];
 	end
 	return out;
 endfunction
@@ -104,9 +94,12 @@ module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWi
 	Vector#(FrontWidth, FIFOF#(ExecToken))        inputQueue  <- replicateM(mkPipelineFIFOF());
 	FIFOF#(Vector#(BackWidth, Maybe#(ExecToken))) outputQueue <- mkPipelineFIFOF();
 
+	// Speculation counter
+	Vector#(FrontWidth,Ehr#(2,SpecLvl))           specLvl <- replicateM(mkEhr('0));
+
 	// Performance debug
-	Ehr#(3,Vector#(FrontWidth,Maybe#(ExecToken)))  perf_sel_inst  <- mkEhr(replicate(tagged Invalid));
-	Ehr#(3,Vector#(FrontWidth,Bool             ))  perf_sel_taken <- mkEhr(replicate(False));
+	Ehr#(3,Vector#(FrontWidth,Maybe#(ExecToken))) perf_sel_inst  <- mkEhr(replicate(tagged Invalid));
+	Ehr#(3,Vector#(FrontWidth,Bool             )) perf_sel_taken <- mkEhr(replicate(False));
 
 	// Stats
 	Reg#(Data) numMemOvb   <- mkReg(0);
@@ -114,6 +107,13 @@ module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWi
 	Reg#(Data) numEmpty    <- mkReg(0);
 
 	//////////// SELECT ////////////
+
+	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+		rule do_specCnt;
+			if(specLvl[i][0] != '0)
+				specLvl[i][0] <= specLvl[i][0]-1;
+		endrule
+	end
 
 	rule do_select if(coreStarted);
 
@@ -124,16 +124,16 @@ module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWi
 
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 			if(inputQueue[i].notEmpty && isMemInst(inputQueue[i].first))
-				memInst[i] = ASNinst{valid: True, feID: fromInteger(i), inst: inputQueue[i].first};
+				memInst[i] = ASNinst{valid: True, feID: fromInteger(i), specLvl: specLvl[i][1], inst: inputQueue[i].first};
 			else
-				memInst[i] = ASNinst{valid: False, feID: ?, inst: ?};
+				memInst[i] = ASNinst{valid: False, feID: ?, specLvl: ?, inst: ?};
 		end
 
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 			if(inputQueue[i].notEmpty && isArithInst(inputQueue[i].first))
-				ariInst[i] = ASNinst{valid: True, feID: fromInteger(i), inst: inputQueue[i].first};
+				ariInst[i] = ASNinst{valid: True, feID: fromInteger(i), specLvl: specLvl[i][1], inst: inputQueue[i].first};
 			else
-				ariInst[i] = ASNinst{valid: False, feID: ?, inst: ?};
+				ariInst[i] = ASNinst{valid: False, feID: ?, specLvl: ?, inst: ?};
 		end
 
 		// Sort inst according to validity
@@ -157,10 +157,15 @@ module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWi
 				instTaken[i] = instTaken[i] || (ariInst[j-1].valid && ariInst[j-1].feID == fromInteger(i));
 		end
 
-		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1)
-			if(instTaken[i])
+		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+			if(instTaken[i]) begin
 				inputQueue[i].deq();
-
+				if(isSpecInst(inputQueue[i].first)) begin
+					specLvl[i][1] <= '1;
+				end
+			end
+		end
+				
 		// Forward
 
 		if(unpack(|(pack(instTaken))))
