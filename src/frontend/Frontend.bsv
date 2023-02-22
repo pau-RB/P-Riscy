@@ -90,7 +90,6 @@ module mkFrontend (WideMem                             mem        ,
 	Vector#(FrontWidth, FIFOF#(RFToken)  ) regfetchQ  <- replicateM(mkPipelineFIFOF() );
 	Vector#(FrontWidth, FIFOF#(ExecToken)) arbiterQ   <- replicateM(mkBypassFIFOF());
 	Vector#(FrontWidth, FIFOF#(Redirect) ) redirectQ  <- replicateM(mkBypassFIFOF());
-	Vector#(FrontWidth, Ehr#(2,Bool)     ) rfLock     <- replicateM(mkEhr(False));
 
 	// Stats
 	Reg#(Data) numEmpty <- mkReg(0);
@@ -150,16 +149,28 @@ module mkFrontend (WideMem                             mem        ,
 
 	//////////// REG FETCH ////////////
 
+	Vector#(FrontWidth, Reg#(Bool)) regfetchLock <- replicateM(mkReg(False));
+
 	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
 
 		rule do_regfetch;
 
-			if (regfetchQ[i].first().epoch != wbEpoch[i][1]) begin
+			if (redirectQ[i].notEmpty) begin
+
+				Redirect red = redirectQ[i].first(); redirectQ[i].deq();
+				regfetchLock[i] <= red.lock;
+				if(red.dry || red.kill || red.redirect) begin
+					regfetchQ [i].deq();
+					scoreboard[i].clear();
+					stream    [i].redirect(red);
+				end
+
+			end else if (regfetchQ[i].first().epoch != wbEpoch[i][1]) begin
 
 				regfetchQ[i].deq();
 
-			end else if(!rfLock[i][1] && !scoreboard[i].search1(regfetchQ[i].first().inst.src1)
-			                          && !scoreboard[i].search2(regfetchQ[i].first().inst.src2)) begin
+			end else if(!regfetchLock[i] && !scoreboard[i].search1(regfetchQ[i].first().inst.src1)
+			                             && !scoreboard[i].search2(regfetchQ[i].first().inst.src2)) begin
 
 				let rfToken = regfetchQ[i].first(); regfetchQ[i].deq();
 
@@ -181,16 +192,6 @@ module mkFrontend (WideMem                             mem        ,
 
 		endrule
 
-	end
-
-	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
-		rule do_rfLock;
-			Redirect r = redirectQ[i].first(); redirectQ[i].deq();
-			rfLock[i][0] <= r.lock;
-			if(r.dry || r.kill || r.redirect) begin
-				stream[i].redirect(r);
-			end
-		endrule
 	end
 
 	//////////// INTERFACE ////////////

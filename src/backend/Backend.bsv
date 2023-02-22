@@ -255,9 +255,9 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 		// Mem lane
 		if(toCommit[0] matches tagged Valid .wToken) begin
 
-			sbRemove[wToken.feID] = tagged Valid(?);
-
 			if(wToken.epoch == wbEpoch[wToken.feID][0])  begin
+
+				sbRemove[wToken.feID] = tagged Valid(?);
 
 				if(wToken.inst.iType == Ghost) begin
 
@@ -390,8 +390,6 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 
 			if(toCommit[i] matches tagged Valid .wToken) begin
 
-				sbRemove[wToken.feID] = tagged Valid(?);
-
 				if(wToken.inst.iType == Mul) begin
 					case(wToken.inst.mulFunc)
 						Mul   : mulArray[i-1].deqResp();
@@ -406,6 +404,8 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 				end
 
 				if (wToken.epoch == wbEpoch[wToken.feID][0])  begin
+
+					sbRemove[wToken.feID] = tagged Valid(?);
 
 					Data mulRes = ?;
 
@@ -549,17 +549,16 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 
 		rule do_wb;
 
-			if(isValid(toWBsbRemove[i][2])) begin
+			if(toWBsbRemove[i][2] matches tagged Valid .rm)
 				scoreboard[i].remove();
-			end
 
 			regFile[i].wr(fromMaybe(RFwb{dst: '0, res: 'hdeadbeef}, toWBrfWriteBack[i][2]));
 
-			wbEpoch[i][0] <= fromMaybe(wbEpoch[i][0], toWBstEpoch[i][2]);
+			if(toWBstEpoch[i][2] matches tagged Valid .epoch)
+				wbEpoch[i][0] <= epoch;
 
-			if(isValid(toWBstRedirect[i][2])) begin
-				redirectQ[i].enq(fromMaybe(?,toWBstRedirect[i][2]));
-			end
+			if(toWBstRedirect[i][2] matches tagged Valid .redirect)
+				redirectQ[i].enq(redirect);
 
 			toWBsbRemove   [i][2] <= tagged Invalid;
 			toWBrfWriteBack[i][2] <= tagged Invalid;

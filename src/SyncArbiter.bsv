@@ -64,7 +64,7 @@ typedef struct {
 (*noinline*) function Vector#(FrontWidth,ASNinst) evenLayer (Vector#(FrontWidth,ASNinst) in) provisos(Add#(a__,a__,FrontWidth));
 	Vector#(FrontWidth,ASNinst) out;
 	for (Integer i = 0; i+1 < valueOf(FrontWidth); i=i+2) begin
-		Bool switch = !in[i].valid || (in[i+1].valid && in[i+1].specLvl < in[i].specLvl);
+		Bool switch = !in[i].valid || (in[i+1].valid && in[i+1].specLvl[2:1] < in[i].specLvl[2:1]);
 		out[i  ] = switch ? in[i+1] : in[i  ];
 		out[i+1] = switch ? in[i  ] : in[i+1];
 	end
@@ -75,7 +75,7 @@ endfunction
 	Vector#(FrontWidth,ASNinst) out;
 	out[0] = in[0]; out[valueOf(FrontWidth)-1] = in[valueOf(FrontWidth)-1];
 	for (Integer i = 1; i+1 < valueOf(FrontWidth); i=i+2) begin
-		Bool switch = !in[i].valid || (in[i+1].valid && in[i+1].specLvl < in[i].specLvl);
+		Bool switch = !in[i].valid || (in[i+1].valid && in[i+1].specLvl[2:1] < in[i].specLvl[2:1]);
 		out[i  ] = switch ? in[i+1] : in[i  ];
 		out[i+1] = switch ? in[i  ] : in[i+1];
 	end
@@ -88,14 +88,14 @@ endfunction
 	return inst;
 endfunction
 
-module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
+module mkSyncArbiter(Vector#(FrontWidth, Ehr#(2,Epoch)) wbEpoch, Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 
 	// Queues
 	Vector#(FrontWidth, FIFOF#(ExecToken))        inputQueue  <- replicateM(mkPipelineFIFOF());
 	FIFOF#(Vector#(BackWidth, Maybe#(ExecToken))) outputQueue <- mkPipelineFIFOF();
 
 	// Speculation counter
-	Vector#(FrontWidth,Ehr#(2,SpecLvl))           specLvl <- replicateM(mkEhr('0));
+	Vector#(FrontWidth,Reg#(SpecLvl))             specLvl <- replicateM(mkReg('0));
 
 	// Performance debug
 	Ehr#(3,Vector#(FrontWidth,Maybe#(ExecToken))) perf_sel_inst  <- mkEhr(replicate(tagged Invalid));
@@ -108,13 +108,6 @@ module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWi
 
 	//////////// SELECT ////////////
 
-	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-		rule do_specCnt;
-			if(specLvl[i][0] != '0)
-				specLvl[i][0] <= specLvl[i][0]-1;
-		endrule
-	end
-
 	rule do_select if(coreStarted);
 
 		// Prepare inst
@@ -123,15 +116,15 @@ module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWi
 		Vector#(FrontWidth,ASNinst) ariInst;
 
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(inputQueue[i].notEmpty && isMemInst(inputQueue[i].first))
-				memInst[i] = ASNinst{valid: True, feID: fromInteger(i), specLvl: specLvl[i][1], inst: inputQueue[i].first};
+			if(inputQueue[i].notEmpty && inputQueue[i].first.epoch ==  wbEpoch[i][1] && isMemInst(inputQueue[i].first))
+				memInst[i] = ASNinst{valid: True, feID: fromInteger(i), specLvl: specLvl[i], inst: inputQueue[i].first};
 			else
 				memInst[i] = ASNinst{valid: False, feID: ?, specLvl: ?, inst: ?};
 		end
 
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(inputQueue[i].notEmpty && isArithInst(inputQueue[i].first))
-				ariInst[i] = ASNinst{valid: True, feID: fromInteger(i), specLvl: specLvl[i][1], inst: inputQueue[i].first};
+			if(inputQueue[i].notEmpty && inputQueue[i].first.epoch ==  wbEpoch[i][1] && isArithInst(inputQueue[i].first))
+				ariInst[i] = ASNinst{valid: True, feID: fromInteger(i), specLvl: specLvl[i], inst: inputQueue[i].first};
 			else
 				ariInst[i] = ASNinst{valid: False, feID: ?, specLvl: ?, inst: ?};
 		end
@@ -158,12 +151,12 @@ module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWi
 		end
 
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(instTaken[i]) begin
+			if(inputQueue[i].notEmpty && (instTaken[i] || inputQueue[i].first.epoch !=  wbEpoch[i][1]))
 				inputQueue[i].deq();
-				if(isSpecInst(inputQueue[i].first)) begin
-					specLvl[i][1] <= '1;
-				end
-			end
+			if(inputQueue[i].notEmpty && instTaken[i] && isSpecInst(inputQueue[i].first))
+				specLvl[i] <= '1;
+			else if(specLvl[i] != '0)
+				specLvl[i] <= specLvl[i]-1;
 		end
 				
 		// Forward
