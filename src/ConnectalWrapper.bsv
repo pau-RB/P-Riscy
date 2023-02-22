@@ -153,7 +153,6 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 			lineSend <= line;
 
 			if(addr == max_ADDR) begin
-				$display("MAX ADDR reached");
 				memInit <= True;
 			end else if(offsetOf(addr) == '1) begin
 				mainDDR4.portA.req(WideMemReq { write: True,
