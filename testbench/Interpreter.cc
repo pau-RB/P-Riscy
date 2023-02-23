@@ -198,7 +198,7 @@ void Interpreter::print_stats(const std::map<VerifID, uint32_t> commit_thread) {
     }
 
     std::string phrase = "\n      total commits:            \n";
-	overwrite(phrase, std::to_string(total), 21, 11 );
+	overwrite(phrase, std::to_string(total), 22, 11 );
 	printf("%s\n", phrase.c_str());
 
 	printf("-----------------------------\n\n");

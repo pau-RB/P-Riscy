@@ -24,6 +24,7 @@
 
 
 #define PRINT_COMMIT true
+#define ERROR_THRESHOLD  4
 
 using namespace std;
 
@@ -31,7 +32,7 @@ isa_parser_t*isa;
 CustomSpike *spike;
 Interpreter *inter;
 
-Bool error_detected = false;
+uint32_t error_detected = 0;
 
 class ToHost: public ToHostWrapper {
 
@@ -43,9 +44,8 @@ class ToHost: public ToHostWrapper {
                                 const uint32_t rawInst, const uint8_t  iType,   const uint8_t  wbDst,
                                 const uint32_t wbRes,   const uint32_t addr) {
 
-            if(error_detected) {
+            if(error_detected >= ERROR_THRESHOLD)
                 return;
-            }
 
             // Get DUT commit
             CommitReport cmrDut;
@@ -62,7 +62,7 @@ class ToHost: public ToHostWrapper {
             // Check if thread is active
             if(spike->dead(verifID)) {
                 tandem_report("Unexpected commit from verifID: "+to_string(verifID));
-                error_detected = true;
+                ++error_detected;
                 return;
             }
 
@@ -78,7 +78,7 @@ class ToHost: public ToHostWrapper {
             // Check
             tandem_mm mm = tandem_compare(cmrSpike, cmrDut);
             if(mm != tandem_mm::correct) {
-                error_detected = true;
+                ++error_detected;
             }
 
             if(iType == iTypeFork || iType == iTypeForkr) {
@@ -97,8 +97,9 @@ class ToHost: public ToHostWrapper {
             }
 
             // Status
-            if(error_detected) {
+            if(error_detected >= ERROR_THRESHOLD) {
                 inter->print_stats(spike->get_stats());
+                delete spike;
             }
 
         }
@@ -106,9 +107,8 @@ class ToHost: public ToHostWrapper {
         virtual void reportMSG ( const uint32_t verifID, const uint32_t cycle,
                                  const uint32_t commit,  const uint32_t data ){
 
-            if(error_detected) {
+            if(error_detected >= ERROR_THRESHOLD)
                 return;
-            }
 
             Message msg;
             msg.verifID = verifID;
@@ -123,9 +123,8 @@ class ToHost: public ToHostWrapper {
         virtual void reportHEX ( const uint32_t verifID, const uint32_t cycle,
                                  const uint32_t commit,  const uint32_t data ){
 
-            if(error_detected) {
+            if(error_detected >= ERROR_THRESHOLD)
                 return;
-            }
 
             Message msg;
             msg.verifID = verifID;
@@ -146,9 +145,8 @@ class ToHost: public ToHostWrapper {
                                  const uint32_t dLd,     const uint32_t dSt,       const uint32_t dJoin,
                                  const uint32_t l2tWR,   const uint32_t l2tWB,     const uint32_t l2hRD,   const uint32_t l2mRD){
 
-            if(error_detected) {
+            if(error_detected >= ERROR_THRESHOLD)
                 return;
-            }
 
             FetchStat   fetch  ;
             ArbiterStat arbiter;
@@ -252,9 +250,8 @@ int main(int argc, char * const *argv) {
     uint32_t sim_time = std::stoi(all_args[2]);
     usleep(sim_time*1000000);
 
-    if(!error_detected) {
+    if(error_detected == 0)
         inter->print_stats(spike->get_stats());
-    }
 
     return 0;
     
