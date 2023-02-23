@@ -10,7 +10,7 @@ Interpreter::~Interpreter() {
 
 void Interpreter::print_CMR_spk(const CommitReport cmr) {
 
-    std::string phrase = " [id:     ] cycle:          | pc: 0x          | iType:       | res: 0x        ";
+    std::string phrase = " [id:     ] cycle:             | pc: 0x          | iType:       | res: 0x        ";
     std::string res;
 
     if (cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
@@ -18,11 +18,11 @@ void Interpreter::print_CMR_spk(const CommitReport cmr) {
     else
     	res = uint_to_hex(cmr.wbRes);
 
-    overwrite(phrase, std::to_string(cmr.verifID ),  6, 3 );
-    overwrite(phrase, std::to_string(cmr.cycle   ), 19, 8 );
-    overwrite(phrase,    uint_to_hex(cmr.pc      ), 36, 8 );
-    overwrite(phrase,    print_itype(cmr.iType   ), 54, 8 );
-    overwrite(phrase,                res          , 70, 8 );
+    overwrite(phrase, std::to_string(cmr.verifID ),  6,  3 );
+    overwrite(phrase, std::to_string(cmr.cycle   ), 19, 12 );
+    overwrite(phrase,    uint_to_hex(cmr.pc      ), 40,  8 );
+    overwrite(phrase,    print_itype(cmr.iType   ), 58,  8 );
+    overwrite(phrase,                res          , 74,  8 );
 
     printf("\033[1;33m");
     printf("%s | %s\n", phrase.c_str(), print_disasm(cmr.rawInst).c_str());
