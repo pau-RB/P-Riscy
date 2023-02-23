@@ -57,19 +57,17 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
 	Vector#(FrontWidth, RFile         ) regFile    <- replicateM(mkBypassRFile);
 	Vector#(FrontWidth, Scoreboard#(8)) scoreboard <- replicateM(mkPipelineScoreboard);
-	Vector#(FrontWidth, Ehr#(2,Epoch) ) wbEpoch    <- replicateM(mkEhr('0));
 
 	//////////// FRONTEND ////////////
 
 	Frontend frontend <- mkFrontend(instMem     ,
 	                                regFile     ,
 	                                scoreboard  ,
-	                                wbEpoch     ,
 	                                coreStarted );
 
 	//////////// ARBITER ////////////
 
-	SyncArbiter arbiter <- mkSyncArbiter(wbEpoch, coreStarted);
+	SyncArbiter arbiter <- mkSyncArbiter(coreStarted);
 
 	//////////// BACKEND ////////////
 
@@ -81,7 +79,6 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 	                                    nttx        ,
 	                                    regFile     ,
 	                                    scoreboard  ,
-	                                    wbEpoch     ,
 	                                    coreStarted ,
 	                                    numCycles[0]);
 
@@ -100,8 +97,12 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 	endrule
 
 	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-		rule do_forward_redirect;
+		rule do_forward_redirect_bta;
 			let redirect <- backend.hart[i].getRedirect();
+			arbiter.enqRedirect[i].enq(redirect);
+		endrule
+		rule do_forward_redirect_atf;
+			let redirect = arbiter.deqRedirect[i].first(); arbiter.deqRedirect[i].deq();
 			frontend.hart[i].redirect(redirect);
 		endrule
 	end

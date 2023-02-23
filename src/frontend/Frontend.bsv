@@ -79,7 +79,6 @@ endinterface
 module mkFrontend (WideMem                             mem        ,
 	               Vector#(FrontWidth, RFile)          regFile    ,
 	               Vector#(FrontWidth, Scoreboard#(8)) scoreboard ,
-	               Vector#(FrontWidth, Ehr#(2,Epoch))  wbEpoch    ,
 	               Bool                                coreStarted,
 	               Frontend ifc);
 
@@ -149,7 +148,8 @@ module mkFrontend (WideMem                             mem        ,
 
 	//////////// REG FETCH ////////////
 
-	Vector#(FrontWidth, Reg#(Bool)) regfetchLock <- replicateM(mkReg(False));
+	Vector#(FrontWidth, Reg#(Epoch)) regfetchEpoch <- replicateM(mkReg('0));
+	Vector#(FrontWidth, Reg#(Bool )) regfetchLock  <- replicateM(mkReg(False));
 
 	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
 
@@ -158,19 +158,20 @@ module mkFrontend (WideMem                             mem        ,
 			if (redirectQ[i].notEmpty) begin
 
 				Redirect red = redirectQ[i].first(); redirectQ[i].deq();
-				regfetchLock[i] <= red.lock;
-				if(red.dry || red.kill || red.redirect) begin
-					regfetchQ [i].deq();
-					scoreboard[i].clear();
-					stream    [i].redirect(red);
+				if(red.kill || red.redirect) begin
+					regfetchEpoch[i] <= red.epoch;
+					scoreboard   [i].clear();
 				end
+				regfetchLock[i] <= red.lock;
+				if(red.dry || red.kill || red.redirect)
+					stream[i].redirect(red);
 
-			end else if (regfetchQ[i].first().epoch != wbEpoch[i][1]) begin
+			end else if (regfetchQ[i].first.epoch != regfetchEpoch[i]) begin
 
 				regfetchQ[i].deq();
 
-			end else if(!regfetchLock[i] && !scoreboard[i].search1(regfetchQ[i].first().inst.src1)
-			                             && !scoreboard[i].search2(regfetchQ[i].first().inst.src2)) begin
+			end else if(!regfetchLock[i] && !scoreboard[i].search1(regfetchQ[i].first.inst.src1)
+			                             && !scoreboard[i].search2(regfetchQ[i].first.inst.src2)) begin
 
 				let rfToken = regfetchQ[i].first(); regfetchQ[i].deq();
 

@@ -77,10 +77,12 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 	              NTTX                                nttx       ,
 	              Vector#(FrontWidth, RFile)          regFile    ,
 	              Vector#(FrontWidth, Scoreboard#(8)) scoreboard ,
-	              Vector#(FrontWidth, Ehr#(2,Epoch))  wbEpoch    ,
 	              Bool                                coreStarted,
 	              Data                                numCycles  ,
 	              Backend ifc);
+
+	// Epoch
+	Vector#(FrontWidth, Ehr#(2,Epoch) ) commitEpoch <- replicateM(mkEhr('0));
 
 	// Stages
 	FIFOF#(Vector#(BackWidth,Maybe#(ExecToken)))    executeQ        <- mkBypassFIFOF();
@@ -188,7 +190,7 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 			toCommit[0] = tagged Valid wToken;
 
 			// Send LSU req, if the instruction is valid
-			if (mToken.epoch == wbEpoch[mToken.feID][1]) begin
+			if (mToken.epoch == commitEpoch[mToken.feID][1]) begin
 				if (mToken.inst.iType == Ld) begin
 					lsu.req(LSUReq{ op     : Ld,
 					                ldFunc : mToken.inst.ldFunc,
@@ -255,7 +257,7 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 		// Mem lane
 		if(toCommit[0] matches tagged Valid .wToken) begin
 
-			if(wToken.epoch == wbEpoch[wToken.feID][0])  begin
+			if(wToken.epoch == commitEpoch[wToken.feID][0])  begin
 
 				sbRemove[wToken.feID] = tagged Valid(?);
 
@@ -278,12 +280,12 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 						if(cmr_ext_DEBUG == True)
 							commitReportQ.port[0].enq(generateCMR(numCycles, verif.getVerifID(wToken.feID), ?, wToken, res.data, ?));
 					end else begin
-						stEpoch   [wToken.feID] = tagged Valid (wbEpoch[wToken.feID][0]+1);
+						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
 						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
 						                                                 kill    : False,
 						                                                 redirect: True,
-						                                                 epoch   : wbEpoch[wToken.feID][0]+1,
+						                                                 epoch   : commitEpoch[wToken.feID][0]+1,
 						                                                 nextPc  : wToken.pc+4 };
 						if(perf_DEBUG == True)
 							commit_miss [0] = True;
@@ -297,12 +299,12 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 						if(cmr_ext_DEBUG == True)
 							commitReportQ.port[0].enq(generateCMR(numCycles, verif.getVerifID(wToken.feID), ?, wToken, ?, ?));
 					end else begin
-						stEpoch   [wToken.feID] = tagged Valid (wbEpoch[wToken.feID][0]+1);
+						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
 						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
 						                                                 kill    : False,
 						                                                 redirect: True,
-						                                                 epoch   : wbEpoch[wToken.feID][0]+1,
+						                                                 epoch   : commitEpoch[wToken.feID][0]+1,
 						                                                 nextPc  : wToken.pc+4 };
 						if(perf_DEBUG == True)
 							commit_miss [0] = True;
@@ -313,24 +315,24 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 					let res <- lsu.resp();
 					if(res.valid) begin
 						if(res.data == '0) begin
-							stEpoch   [wToken.feID] = tagged Valid (wbEpoch[wToken.feID][0]+1);
+							stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
 							stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : False,
 							                                                 dry     : False,
 							                                                 kill    : True,
 							                                                 redirect: False,
-							                                                 epoch   : wbEpoch[wToken.feID][0]+1,
+							                                                 epoch   : commitEpoch[wToken.feID][0]+1,
 							                                                 nextPc  : ? };
 						end
 						numWB = numWB+1;
 						if (cmr_ext_DEBUG == True)
 								commitReportQ.port[0].enq(generateCMR(numCycles, verif.getVerifID(wToken.feID), ?, wToken, res.data, ?));
 					end else begin
-						stEpoch   [wToken.feID] = tagged Valid (wbEpoch[wToken.feID][0]+1);
+						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
 						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
 						                                                 kill    : False,
 						                                                 redirect: True,
-						                                                 epoch   : wbEpoch[wToken.feID][0]+1,
+						                                                 epoch   : commitEpoch[wToken.feID][0]+1,
 						                                                 nextPc  : wToken.pc+4 };
 						if(perf_DEBUG == True)
 							commit_miss [0] = True;
@@ -403,7 +405,7 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 					endcase
 				end
 
-				if (wToken.epoch == wbEpoch[wToken.feID][0])  begin
+				if (wToken.epoch == commitEpoch[wToken.feID][0])  begin
 
 					sbRemove[wToken.feID] = tagged Valid(?);
 
@@ -425,12 +427,12 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 						rfWriteBack[wToken.feID] = tagged Valid RFwb{dst: fromMaybe('0, wToken.inst.dst), res: wToken.inst.data};
 
 					if(wToken.inst.brTaken || wToken.inst.iType == J || wToken.inst.iType == Jr) begin
-						stEpoch   [wToken.feID] = tagged Valid (wbEpoch[wToken.feID][0]+1);
+						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
 						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : False,
 						                                                 dry     : False,
 						                                                 kill    : False,
 						                                                 redirect: True,
-						                                                 epoch   : wbEpoch[wToken.feID][0]+1,
+						                                                 epoch   : commitEpoch[wToken.feID][0]+1,
 						                                                 nextPc  : wToken.inst.addr };
 					end else if (wToken.inst.iType == Br) begin
 						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : False,
@@ -513,12 +515,12 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 
 			loadRes = resp.data;
 			if(resp.data == '0) begin
-				toWBstEpoch   [feID][1] <= tagged Valid (wbEpoch[feID][0]+1);
+				toWBstEpoch   [feID][1] <= tagged Valid (commitEpoch[feID][0]+1);
 				toWBstRedirect[feID][1] <= tagged Valid Redirect{ lock    : False,
 				                                                  dry     : False,
 				                                                  kill    : True,
 				                                                  redirect: False,
-				                                                  epoch   : wbEpoch[feID][0]+1,
+				                                                  epoch   : commitEpoch[feID][0]+1,
 				                                                  nextPc  : ? };
 			end else begin
 				toWBstRedirect[feID][1] <= tagged Valid Redirect{ lock    : False,
@@ -555,7 +557,7 @@ module mkBackend (LSU#(WBToken)                       lsu        ,
 			regFile[i].wr(fromMaybe(RFwb{dst: '0, res: 'hdeadbeef}, toWBrfWriteBack[i][2]));
 
 			if(toWBstEpoch[i][2] matches tagged Valid .epoch)
-				wbEpoch[i][0] <= epoch;
+				commitEpoch[i][0] <= epoch;
 
 			if(toWBstRedirect[i][2] matches tagged Valid .redirect)
 				redirectQ[i].enq(redirect);

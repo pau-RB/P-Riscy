@@ -24,6 +24,11 @@ interface SyncArbiter;
 	interface Vector#(FrontWidth,FifoEnq#(ExecToken)) eport;
 	interface FifoDeq#(Vector#(BackWidth,Maybe#(ExecToken))) dport;
 
+	// Redirect
+
+	interface Vector#(FrontWidth,FifoEnq#(Redirect)) enqRedirect;
+	interface Vector#(FrontWidth,FifoDeq#(Redirect)) deqRedirect;
+
 	// Performance debug
 	method Vector#(FrontWidth,Maybe#(ExecToken)) perf_get_inst;
 	method Vector#(FrontWidth,Bool) perf_get_taken;
@@ -88,11 +93,16 @@ endfunction
 	return inst;
 endfunction
 
-module mkSyncArbiter(Vector#(FrontWidth, Ehr#(2,Epoch)) wbEpoch, Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
+module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 
 	// Queues
 	Vector#(FrontWidth, FIFOF#(ExecToken))        inputQueue  <- replicateM(mkPipelineFIFOF());
 	FIFOF#(Vector#(BackWidth, Maybe#(ExecToken))) outputQueue <- mkPipelineFIFOF();
+
+	// Redirect
+	Vector#(FrontWidth, Reg#(Epoch)) arbiterEpoch <- replicateM(mkReg('0));
+	Vector#(FrontWidth, FIFOF#(Redirect)) redInpQ <- replicateM(mkBypassFIFOF());
+	Vector#(FrontWidth, FIFOF#(Redirect)) redOutQ <- replicateM(mkBypassFIFOF());
 
 	// Speculation counter
 	Vector#(FrontWidth,Reg#(SpecLvl))             specLvl <- replicateM(mkReg('0));
@@ -116,14 +126,14 @@ module mkSyncArbiter(Vector#(FrontWidth, Ehr#(2,Epoch)) wbEpoch, Bool coreStarte
 		Vector#(FrontWidth,ASNinst) ariInst;
 
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(inputQueue[i].notEmpty && inputQueue[i].first.epoch ==  wbEpoch[i][1] && isMemInst(inputQueue[i].first))
+			if(inputQueue[i].notEmpty && inputQueue[i].first.epoch ==  arbiterEpoch[i] && isMemInst(inputQueue[i].first))
 				memInst[i] = ASNinst{valid: True, feID: fromInteger(i), specLvl: specLvl[i], inst: inputQueue[i].first};
 			else
 				memInst[i] = ASNinst{valid: False, feID: ?, specLvl: ?, inst: ?};
 		end
 
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(inputQueue[i].notEmpty && inputQueue[i].first.epoch ==  wbEpoch[i][1] && isArithInst(inputQueue[i].first))
+			if(inputQueue[i].notEmpty && inputQueue[i].first.epoch ==  arbiterEpoch[i] && isArithInst(inputQueue[i].first))
 				ariInst[i] = ASNinst{valid: True, feID: fromInteger(i), specLvl: specLvl[i], inst: inputQueue[i].first};
 			else
 				ariInst[i] = ASNinst{valid: False, feID: ?, specLvl: ?, inst: ?};
@@ -151,7 +161,7 @@ module mkSyncArbiter(Vector#(FrontWidth, Ehr#(2,Epoch)) wbEpoch, Bool coreStarte
 		end
 
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(inputQueue[i].notEmpty && (instTaken[i] || inputQueue[i].first.epoch !=  wbEpoch[i][1]))
+			if(inputQueue[i].notEmpty && (instTaken[i] || inputQueue[i].first.epoch !=  arbiterEpoch[i]))
 				inputQueue[i].deq();
 			if(inputQueue[i].notEmpty && instTaken[i] && isSpecInst(inputQueue[i].first))
 				specLvl[i] <= '1;
@@ -208,6 +218,14 @@ module mkSyncArbiter(Vector#(FrontWidth, Ehr#(2,Epoch)) wbEpoch, Bool coreStarte
 
 	endrule
 
+	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
+		rule do_redirect;
+			Redirect red = redInpQ[i].first(); redInpQ[i].deq(); redOutQ[i].enq(red);
+			if(red.kill || red.redirect)
+				arbiterEpoch[i] <= red.epoch;
+		endrule
+	end
+
 	rule do_reset if(perf_DEBUG);
 
 		perf_sel_inst [2] <= replicate(tagged Invalid);
@@ -234,8 +252,30 @@ module mkSyncArbiter(Vector#(FrontWidth, Ehr#(2,Epoch)) wbEpoch, Bool coreStarte
 			method first    = outputQueue.first;
 		endinterface);
 
-	interface eport = enqIfc;
-	interface dport = deqIfc;
+	// Redirect
+	Vector#(FrontWidth, FifoEnq#(Redirect)) enqRedirectIfc = newVector;
+ 	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+		enqRedirectIfc[i] =
+			(interface FifoEnq#(Redirect);
+				method notFull = redInpQ[i].notFull;
+				method enq(Redirect x) = redInpQ[i].enq(x);
+			endinterface);
+	end
+
+	Vector#(FrontWidth, FifoDeq#(Redirect)) deqRedirectIfc = newVector;
+ 	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+		deqRedirectIfc[i] =
+			(interface FifoDeq#(Redirect);
+				method notEmpty = redOutQ[i].notEmpty;
+				method deq      = redOutQ[i].deq;
+				method first    = redOutQ[i].first;
+			endinterface);
+	end
+
+	interface eport       = enqIfc;
+	interface dport       = deqIfc;
+	interface enqRedirect = enqRedirectIfc;
+	interface deqRedirect = deqRedirectIfc;
 
 	// Performance debug
 	method Vector#(FrontWidth,Maybe#(ExecToken)) perf_get_inst();
