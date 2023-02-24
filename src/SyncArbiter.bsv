@@ -53,8 +53,7 @@ endfunction
 
 function Bool isSpecInst(ExecToken inst);
 	return (inst.inst.iType == J           || inst.inst.iType == Jr    ||
-	        inst.inst.iType == Br          || inst.inst.iType == Ld    ||
-	        inst.inst.iType == St          || inst.inst.iType == Join  );
+	        inst.inst.iType == Br);
 endfunction
 
 typedef Bit#(3) SpecLvl;
@@ -165,6 +164,8 @@ module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWi
 				inputQueue[i].deq();
 			if(inputQueue[i].notEmpty && instTaken[i] && isSpecInst(inputQueue[i].first))
 				specLvl[i] <= '1;
+			else if(inputQueue[i].notEmpty && instTaken[i] && isMemInst(inputQueue[i].first))
+				specLvl[i][1:0] <= '1;
 			else if(specLvl[i] != '0)
 				specLvl[i] <= specLvl[i]-1;
 		end

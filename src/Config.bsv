@@ -33,19 +33,19 @@ FrontID lastFrontID = fromInteger(valueOf(FrontWidth)-1);
 typedef 3 BackWidth;
 
 // L1I
-typedef 32 L1ICacheRows;   // Must be power of 2
+typedef 64 L1ICacheRows;   // Must be power of 2
 
 // LSU
 typedef 32 LSUCacheRows;   // Must be power of 2
-typedef 4 LSUCacheColumns; // Must be power of 2
-Bool lsuAssociative = False;
+typedef 2 LSUCacheColumns; // Must be power of 2
+Bool lsuAssociative = True;
 typedef FrontWidth LSUmshrW;
 typedef FrontWidth LSUmshrD;
 
 // L2
-typedef 64 L2CacheRows;       // Must be power of 2
-typedef 4  L2CacheColumns;    // Must be power of 2
-typedef 16 L2CacheHashBlocks; // Must be power of 2
+typedef 128 L2CacheRows;       // Must be power of 2
+typedef 4   L2CacheColumns;    // Must be power of 2
+typedef 16  L2CacheHashBlocks; // Must be power of 2
 
 // Verification
 typedef Bit#(32) VerifID;
