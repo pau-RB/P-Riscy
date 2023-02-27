@@ -38,24 +38,6 @@ interface SyncArbiter;
 
 endinterface
 
-function Bool isMemInst(ExecToken inst);
-	return (inst.inst.iType == Ld          || inst.inst.iType == St    ||
-	        inst.inst.iType == Fork        || inst.inst.iType == Forkr ||
-	        inst.inst.iType == Join        || inst.inst.iType == Ghost );
-endfunction
-
-function Bool isArithInst(ExecToken inst);
-	return (inst.inst.iType == Unsupported || inst.inst.iType == Alu   ||
-	        inst.inst.iType == Mul         || inst.inst.iType == J     ||
-	        inst.inst.iType == Jr          || inst.inst.iType == Br    ||
-	        inst.inst.iType == Auipc );
-endfunction
-
-function Bool isSpecInst(ExecToken inst);
-	return (inst.inst.iType == J           || inst.inst.iType == Jr    ||
-	        inst.inst.iType == Br);
-endfunction
-
 typedef Bit#(3) SpecLvl;
 
 typedef struct {
@@ -162,9 +144,9 @@ module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWi
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 			if(inputQueue[i].notEmpty && (instTaken[i] || inputQueue[i].first.epoch !=  arbiterEpoch[i]))
 				inputQueue[i].deq();
-			if(inputQueue[i].notEmpty && instTaken[i] && isSpecInst(inputQueue[i].first))
+			if(inputQueue[i].notEmpty && instTaken[i] && isFlowInst(inputQueue[i].first))
 				specLvl[i] <= '1;
-			else if(inputQueue[i].notEmpty && instTaken[i] && isMemInst(inputQueue[i].first))
+			else if(inputQueue[i].notEmpty && instTaken[i] && isSpecInst(inputQueue[i].first))
 				specLvl[i][1:0] <= '1;
 			else if(specLvl[i] != '0)
 				specLvl[i] <= specLvl[i]-1;

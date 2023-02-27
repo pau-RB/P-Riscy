@@ -150,3 +150,28 @@ typedef struct {
 	CacheLine rfL;
 	CacheLine rfH;
 } ContToken deriving(Bits, Eq);
+
+function Bool isMemInst(ExecToken inst);
+	return (inst.inst.iType == Ld          || inst.inst.iType == St    ||
+	        inst.inst.iType == Fork        || inst.inst.iType == Forkr ||
+	        inst.inst.iType == Join        || inst.inst.iType == Ghost );
+endfunction
+
+function Bool isArithInst(ExecToken inst);
+	return (inst.inst.iType == Unsupported || inst.inst.iType == Alu   ||
+	        inst.inst.iType == Mul         || inst.inst.iType == J     ||
+	        inst.inst.iType == Jr          || inst.inst.iType == Br    ||
+	        inst.inst.iType == Auipc );
+endfunction
+
+function Bool isSpecInst(ExecToken inst);
+	return (inst.inst.iType == J           || inst.inst.iType == Jr    ||
+	        inst.inst.iType == Br          || inst.inst.iType == Ld    ||
+	        inst.inst.iType == St          || inst.inst.iType == Join  );
+endfunction
+
+function Bool isFlowInst(ExecToken inst);
+	return (inst.inst.iType == J           || inst.inst.iType == Jr    ||
+	        inst.inst.iType == Br);
+endfunction
+
