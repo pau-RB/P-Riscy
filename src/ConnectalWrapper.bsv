@@ -3,6 +3,9 @@ import HostInterface::*;
 import Core::*; 
 import VerifMaster::*;
 import Types::*;
+import WideMemTypes::*;
+import ClientServer::*;
+import GetPut::*;
 import ProcTypes::*;
 import CMRTypes::*;
 import Memory::*;
@@ -155,9 +158,9 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 			if(addr == max_ADDR) begin
 				memInit <= True;
 			end else if(offsetOf(addr) == '1) begin
-				mainDDR4.portA.req(WideMemReq { write: True,
-				                                num  : lineNumOf(addr),
-				                                line : line });
+				mainDDR4.portA.request.put(WideMemReq { write: True,
+				                                        num  : lineNumOf(addr),
+				                                        line : line });
 			end
 
 		endmethod

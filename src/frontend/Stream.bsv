@@ -1,4 +1,7 @@
 import Types::*;
+import WideMemTypes::*;
+import ClientServer::*;
+import GetPut::*;
 import ProcTypes::*;
 import FIFOF::*;
 import SpecialFIFOs::*;
@@ -131,7 +134,7 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	rule do_l1Iresp;
 
-		CacheLine data <- l1I.resp();
+		CacheLine data <- l1I.response.get();
 		l1Ireq.deq();
 
 		if(l1Ireq.first() == nextpcline) begin
@@ -146,10 +149,10 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	rule do_l1Ireq if (state[3] == Full && !nextl0Ihit);
 
-    	l1I.req(WideMemReq { write: False,
-    	                     num  : nextpcline,
-    	                     line : ? } );
-    	l1Ireq.enq(nextpcline);
+		l1I.request.put(WideMemReq { write: False,
+		                             num  : nextpcline,
+		                             line : ? } );
+		l1Ireq.enq(nextpcline);
 
 	endrule
 

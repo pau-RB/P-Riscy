@@ -25,19 +25,6 @@ typedef enum{Ld, St, Join} MemOp deriving(Eq, Bits, FShow);
 typedef enum{SB,SH,SW} StoreFunc deriving(Bits, Eq, FShow);
 typedef enum{LB,LH,LW,LBU,LHU} LoadFunc deriving(Bits, Eq, FShow);
 
-typedef struct{
-    Bool         write;
-    CacheLineNum num;
-    CacheLine    line;
-} WideMemReq deriving(Eq,Bits);
-
-typedef CacheLine    WideMemResp;
-
-interface WideMem;
-    method Action req(WideMemReq r);
-    method ActionValue#(WideMemResp) resp;
-endinterface
-
 //////////// BRAM ////////////
 
 typedef 12 WMBAddrSz;

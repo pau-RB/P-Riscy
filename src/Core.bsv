@@ -4,6 +4,7 @@ import VerifMaster::*;
 
 // types
 import Types::*;
+import WideMemTypes::*;
 import ProcTypes::*;
 import LSUTypes::*;
 import CMRTypes::*;

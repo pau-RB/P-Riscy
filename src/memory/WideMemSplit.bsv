@@ -1,4 +1,7 @@
 import Types::*;
+import WideMemTypes::*;
+import ClientServer::*;
+import GetPut::*;
 import FIFOF::*;
 import SpecialFIFOs::*;
 import Vector::*;
@@ -26,7 +29,7 @@ module mkSplitWideMem(  WideMem mem, WideMemSplit#(n, m) ifc );
             let req = reqFifos[ fromMaybe(?,req_index) ].first;
             reqFifos[ fromMaybe(?,req_index) ].deq();
 
-            mem.req(req);
+            mem.request.put(req);
             if(!req.write) begin
                 // req is a load, so keep track of the source
                 reqSource.enq( fromMaybe(?,req_index) );
@@ -35,7 +38,7 @@ module mkSplitWideMem(  WideMem mem, WideMemSplit#(n, m) ifc );
     endrule
 
     rule doWideMemResp;
-        let resp <- mem.resp;
+        let resp <- mem.response.get();
 
         let source = reqSource.first;
         reqSource.deq;
@@ -47,14 +50,18 @@ module mkSplitWideMem(  WideMem mem, WideMemSplit#(n, m) ifc );
     for( Integer i = 0 ; i < valueOf(n) ; i = i+1 ) begin
         wideMemIfcs[i] =
             (interface WideMem;
-                method Action req( WideMemReq x );
-                    reqFifos[i].enq(x);
-                endmethod
-                method ActionValue#(WideMemResp) resp;
-                    let x = respFifos[i].first;
-                    respFifos[i].deq;
-                    return x;
-                endmethod
+                interface request = (interface Put#(WideMemReq);
+                    method Action put(WideMemReq r);
+                        reqFifos[i].enq(r);
+                    endmethod
+                endinterface);
+                interface response = (interface Get#(WidememResp);
+                    method ActionValue#(CacheLine) get();
+                        let r = respFifos[i].first;
+                        respFifos[i].deq;
+                        return r;
+                    endmethod
+                endinterface);
             endinterface);
     end
 

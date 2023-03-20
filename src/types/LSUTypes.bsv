@@ -1,4 +1,5 @@
 import Types::*;
+import WideMemTypes::*;
 import CMRTypes::*;
 import Vector::*;
 

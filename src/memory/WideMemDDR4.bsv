@@ -1,4 +1,6 @@
 import Types::*;
+import WideMemTypes::*;
+import ClientServer::*;
 import BRAM::*;
 
 import FIFO::*;
@@ -92,13 +94,17 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency) ifc) provisos(
 	endrule
 
 	WideMem wmifc = (interface WideMem;
-						method Action req(WideMemReq r);
-							reqQ.enq(r);
-						endmethod
-						method ActionValue#(CacheLine) resp;
-							resQ.deq(); return resQ.first();
-						endmethod
-					 endinterface);
+				interface request = (interface Put#(WideMemReq);
+					method Action put(WideMemReq r);
+						reqQ.enq(r);
+					endmethod
+				endinterface);
+				interface response = (interface Get#(WidememResp);
+					method ActionValue#(CacheLine) get();
+						resQ.deq(); return resQ.first();
+					endmethod
+				endinterface);
+			 endinterface);
 
 	`ifdef SIMULATION
 		WideMemDelay#(TSub#(simLatency,2)) simIfc <- mkWideMemDelay(wmifc);

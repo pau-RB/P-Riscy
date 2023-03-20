@@ -1,5 +1,6 @@
 import Config::*;
 import Types::*;
+import WideMemTypes::*;
 import CMRTypes::*;
 import LSUTypes::*;
 import CFFifo::*;
@@ -407,9 +408,9 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 				memReqQ.enq(MemReqToken{ addr: req.addr,
 				                         mshr: fromMaybe(?,isEmpty) });
-				mem.req(WideMemReq{ write: False,
-				                    num  : lineNumOf(req.addr),
-				                    line : ? });
+				mem.request.put(WideMemReq{ write: False,
+				                            num  : lineNumOf(req.addr),
+				                            line : ? });
 
 			end
 
@@ -443,7 +444,7 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 	rule do_MEMRESP if(!isValid(retryMSHR[0]));
 
-		let line <- mem.resp(); memReqQ.deq();
+		let line <- mem.response.get(); memReqQ.deq();
 		dataCache.req(DataCacheReq{ op  : PUT,
 		                            addr: memReqQ.first().addr,
 		                            data: ?,
@@ -478,9 +479,9 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 		let req <- dataCache.getWB();
 
-		mem.req(WideMemReq{ write: True,
-		                    num  : req.num,
-		                    line : req.line });
+		mem.request.put(WideMemReq{ write: True,
+		                            num  : req.num,
+		                            line : req.line });
 
 	endrule
 

@@ -1,4 +1,6 @@
 import Types::*;
+import WideMemTypes::*;
+import ClientServer::*;
 import Config::*;
 import CMRTypes::*;
 import BRAM::*;
@@ -262,7 +264,7 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheH
 		rule do_WB;
 
 			WideMemReq req = colWBQ[i].first(); colWBQ[i].deq();
-			mem.req(req);
+			mem.request.put(req);
 
 		endrule
 
@@ -289,9 +291,9 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheH
 		end else begin // miss
 			resQ.enq(False);
 			memQ.enq(req.num);
-			mem.req( WideMemReq { write: False,
-			                      num  : req.num,
-			                      line : req.line } );
+			mem.request.put( WideMemReq { write: False,
+			                              num  : req.num,
+			                              line : req.line } );
 		end
 
 		if (mem_ext_DEBUG) begin
@@ -308,7 +310,7 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheH
 
 	rule do_MEMRESP;
 
-		WideMemResp  line <- mem.resp();
+		WideMemResp  line <- mem.response.get();
 		CacheLineNum num  = memQ.first(); memQ.deq();
 
 		reqQ.enq( WMCReq { inv  : False,
@@ -325,31 +327,30 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheH
 
 	interface WideMem cache;
 
-		method Action req(WideMemReq r);
+		interface request = (interface Put#(WideMemReq);
+			method Action put(WideMemReq r);
+				reqQ.enq( WMCReq { inv  : False,
+				                   write: r.write,
+				                   dirty: r.write,
+				                   num  : r.num,
+				                   line : r.line } );
 
-			reqQ.enq( WMCReq { inv  : False,
-			                   write: r.write,
-			                   dirty: r.write,
-			                   num  : r.num,
-			                   line : r.line } );
-
-			if (mem_ext_DEBUG)
-				if (r.write)
-					tWR[0] <= tWR[0]+1;
-
-		endmethod
-
-		method ActionValue#(WideMemResp) resp;
-
-			if(resQ.first) begin // hit
-				WideMemResp res = hitQ.first(); hitQ.deq(); resQ.deq();
-				return res;
-			end else begin // miss
-				WideMemResp res = misQ.first(); misQ.deq(); resQ.deq();
-				return res;
-			end
-
-		endmethod
+				if (mem_ext_DEBUG)
+					if (r.write)
+						tWR[0] <= tWR[0]+1;
+			endmethod
+		endinterface);
+		interface response = (interface Get#(WidememResp);
+			method ActionValue#(CacheLine) get();
+				if(resQ.first) begin // hit
+					WideMemResp res = hitQ.first(); hitQ.deq(); resQ.deq();
+					return res;
+				end else begin // miss
+					WideMemResp res = misQ.first(); misQ.deq(); resQ.deq();
+					return res;
+				end
+			endmethod
+		endinterface);
 
 	endinterface
 

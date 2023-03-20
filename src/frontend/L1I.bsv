@@ -1,7 +1,9 @@
 import Config::*;
 import Types::*;
+import WideMemTypes::*;
 import FIFOF::*;
 import SpecialFIFOs::*;
+import GetPut::*;
 import BRAM::*;
 import Vector::*;
 
@@ -124,9 +126,9 @@ module mkDirectL1I(WideMem mem, L1I#(numHart, cacheRows) ifc) provisos(Add#(a__,
 
         end else begin // read miss
 
-            mem.req(WideMemReq{ write: False,
-                                num  : req.num,
-                                line : ? });
+            mem.request.put(WideMemReq{ write: False,
+                                        num  : req.num,
+                                        line : ? });
             memQ.enq(req);
 
         end
@@ -146,7 +148,7 @@ module mkDirectL1I(WideMem mem, L1I#(numHart, cacheRows) ifc) provisos(Add#(a__,
         bramReq req = memQ.first(); memQ.deq();
 
         cacheIdx  index = indexOf(req.num);
-        CacheLine line <- mem.resp();
+        CacheLine line <- mem.response.get();
 
         resQ[req.transID].enq(line);
 
@@ -169,17 +171,18 @@ module mkDirectL1I(WideMem mem, L1I#(numHart, cacheRows) ifc) provisos(Add#(a__,
     for( Integer i = 0; i < valueOf(numHart); i = i+1 ) begin
         wideMemIfcs[i] =
             (interface WideMem;
-
-                method Action req(WideMemReq r);
-                    reqQ.enq(BramReq{ transID: fromInteger(i),
-                                      num    : r.num });
-                endmethod
-
-                method ActionValue#(WideMemResp) resp;
-                    resQ[fromInteger(i)].deq();
-                    return resQ[fromInteger(i)].first();
-                endmethod
-
+                interface request = (interface Put#(WideMemReq);
+                    method Action put(WideMemReq r);
+                        reqQ.enq(BramReq{ transID: fromInteger(i),
+                                          num    : r.num });
+                    endmethod
+                endinterface);
+                interface response = (interface Get#(WidememResp);
+                    method ActionValue#(CacheLine) get();
+                        resQ[fromInteger(i)].deq();
+                        return resQ[fromInteger(i)].first();
+                    endmethod
+                endinterface);
             endinterface);
     end
 
