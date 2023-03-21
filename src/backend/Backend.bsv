@@ -59,6 +59,7 @@ interface Backend;
 	method Data getNumCommit();
 
 	// CMR
+	method Action startCore();
 	method ActionValue#(CommitReport) getCMR();
 	method ActionValue#(Message)      getMSG();
 	method ActionValue#(Message)      getHEX();
@@ -81,8 +82,6 @@ module mkBackend (VerifMaster                         verif      ,
 	              NTTX                                nttx       ,
 	              Vector#(FrontWidth, RFile)          regFile    ,
 	              Vector#(FrontWidth, Scoreboard#(8)) scoreboard ,
-	              Bool                                coreStarted,
-	              Data                                numCycles  ,
 	              Backend ifc);
 
 	// LSU
@@ -127,6 +126,15 @@ module mkBackend (VerifMaster                         verif      ,
 
 	// Stats
 	Ehr#(3,Data)                                   numCommit       <- mkEhr(0);
+
+	//////////// COUNTERS ////////////
+
+	Reg#(Bool) coreStarted <- mkReg(False);
+	Reg#(Data) numCycles   <- mkReg('0);
+
+	rule do_cnt_cycles if(coreStarted);
+		numCycles <= numCycles+1;
+	endrule
 
 	//////////// EXECUTE ////////////
 
@@ -632,6 +640,10 @@ module mkBackend (VerifMaster                         verif      ,
 	endmethod
 
 	// CMR
+	method Action startCore();
+		coreStarted <= True;
+	endmethod
+
 	method ActionValue#(CommitReport) getCMR();
 		let latest = commitReportQ.first(); commitReportQ.deq();
 		return latest;

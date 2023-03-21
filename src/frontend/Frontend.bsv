@@ -77,13 +77,13 @@ interface Frontend;
 	interface Vector#(FrontWidth, RegFetchDebug) regfetch;
 
 	// Stats
+	method Action startCore();
 	method FetchStat getStat();
 
 endinterface
 
 module mkFrontend (Vector#(FrontWidth, RFile)          regFile    ,
 	               Vector#(FrontWidth, Scoreboard#(8)) scoreboard ,
-	               Bool                                coreStarted,
 	               Frontend ifc);
 
 	// Data cache
@@ -96,6 +96,15 @@ module mkFrontend (Vector#(FrontWidth, RFile)          regFile    ,
 
 	// Stats
 	Reg#(Data) numEmpty <- mkReg(0);
+
+	//////////// COUNTERS ////////////
+
+	Reg#(Bool) coreStarted <- mkReg(False);
+	Reg#(Data) numCycles   <- mkReg('0);
+
+	rule do_cnt_cycles if(coreStarted);
+		numCycles <= numCycles+1;
+	endrule
 
 	//////////// FETCH ////////////
 
@@ -265,10 +274,14 @@ module mkFrontend (Vector#(FrontWidth, RFile)          regFile    ,
 	interface decode   = decodeIfc;
 	interface regfetch = regfetchIfc;
 
+	method Action startCore();
+		coreStarted <= True;
+	endmethod
+
 	method FetchStat getStat();
 		return FetchStat { hit:   l1I.getNumHit(),
-                           miss:  l1I.getNumMiss(),
-                           empty: numEmpty };
+		                   miss:  l1I.getNumMiss(),
+		                   empty: numEmpty };
 	endmethod
 
 endmodule

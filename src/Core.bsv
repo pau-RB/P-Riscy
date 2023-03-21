@@ -66,23 +66,20 @@ module mkCore7SS(VerifMaster verif, Core ifc);
 
 	//////////// FRONTEND ////////////
 
-	Frontend frontend <- mkFrontend(regFile     ,
-	                                scoreboard  ,
-	                                coreStarted );
+	Frontend    frontend <- mkFrontend(regFile     ,
+	                                   scoreboard  );
 
 	//////////// ARBITER ////////////
 
-	SyncArbiter arbiter <- mkSyncArbiter(coreStarted);
+	SyncArbiter arbiter  <- mkSyncArbiter();
 
 	//////////// BACKEND ////////////
 
-	NTTX          nttx    <- mkNTTX(regFile, verif);
-	Backend       backend <- mkBackend (verif       ,
-	                                    nttx        ,
-	                                    regFile     ,
-	                                    scoreboard  ,
-	                                    coreStarted ,
-	                                    numCycles[0]);
+	NTTX        nttx     <- mkNTTX(regFile, verif);
+	Backend     backend  <- mkBackend(verif       ,
+	                                  nttx        ,
+	                                  regFile     ,
+	                                  scoreboard );
 
 	//////////// FORWARD QUEUES ////////////
 
@@ -234,6 +231,10 @@ module mkCore7SS(VerifMaster verif, Core ifc);
 		regFile      [feID].setH (token.rfH);
 
 		verif.setVerifID(feID, token.verifID);
+
+		frontend.startCore();
+		arbiter.startCore();
+		backend.startCore();
 
 		coreStarted <= True;
 	endmethod

@@ -34,6 +34,7 @@ interface SyncArbiter;
 	method Vector#(FrontWidth,Bool) perf_get_taken;
 
 	// Stats
+	method Action startCore();
 	method ArbiterStat getStat();
 
 endinterface
@@ -74,7 +75,7 @@ endfunction
 	return inst;
 endfunction
 
-module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
+module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 
 	// Queues
 	Vector#(FrontWidth, FIFOF#(ExecToken))        inputQueue  <- replicateM(mkPipelineFIFOF());
@@ -96,6 +97,15 @@ module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWi
 	Reg#(Data) numMemOvb   <- mkReg(0);
 	Reg#(Data) numArithOvb <- mkReg(0);
 	Reg#(Data) numEmpty    <- mkReg(0);
+
+	//////////// COUNTERS ////////////
+
+	Reg#(Bool) coreStarted <- mkReg(False);
+	Reg#(Data) numCycles   <- mkReg('0);
+
+	rule do_cnt_cycles if(coreStarted);
+		numCycles <= numCycles+1;
+	endrule
 
 	//////////// SELECT ////////////
 
@@ -270,6 +280,10 @@ module mkSyncArbiter(Bool coreStarted, SyncArbiter ifc) provisos(Add#(a__,BackWi
 	endmethod
 
 	// Stats
+	method Action startCore();
+		coreStarted <= True;
+	endmethod
+
 	method ArbiterStat getStat();
 		return ArbiterStat{ memOvb   : numMemOvb,
 		                    arithOvb : numArithOvb,
