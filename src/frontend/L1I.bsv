@@ -22,17 +22,18 @@ typedef struct{
 } BramReq#(type transIdType) deriving(Eq, Bits, FShow);
 
 interface L1I#(numeric type numHart, numeric type cacheRows);
-    interface Vector#(numHart, WideMem) port;
+    interface WideMemClient mem;
+    interface Vector#(numHart, WideMemServer) port;
     method Data getNumHit();
     method Data getNumMiss();
 endinterface
 
-module mkDirectL1I(WideMem mem, L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheRows), CacheLineNumSz),
-                                                                       Alias#(cacheTag, CacheTag#(cacheRows)),
-                                                                       Alias#(cacheIdx, CacheIndex#(cacheRows)),
-                                                                       Alias#(cacheEnt, CacheEntry#(cacheRows)),
-                                                                       Alias#(hartId  , Bit#(TLog#(numHart))),
-                                                                       Alias#(bramReq , BramReq#(hartId))  );
+module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheRows), CacheLineNumSz),
+                                                          Alias#(cacheTag, CacheTag#(cacheRows)),
+                                                          Alias#(cacheIdx, CacheIndex#(cacheRows)),
+                                                          Alias#(cacheEnt, CacheEntry#(cacheRows)),
+                                                          Alias#(hartId  , Bit#(TLog#(numHart))),
+                                                          Alias#(bramReq , BramReq#(hartId))  );
 
     //////////// UTILITIES ////////////
 
@@ -58,9 +59,11 @@ module mkDirectL1I(WideMem mem, L1I#(numHart, cacheRows) ifc) provisos(Add#(a__,
 
     //////////// QUEUES ////////////
 
-    FIFOF#(bramReq) reqQ <- mkBypassFIFOF();
-    FIFOF#(bramReq) brmQ <- mkFIFOF();
-    FIFOF#(bramReq) memQ <- mkSizedFIFOF(valueOf(TAdd#(numHart,1)));
+    FIFOF#(bramReq    ) reqQ   <- mkBypassFIFOF();
+    FIFOF#(bramReq    ) brmQ   <- mkFIFOF();
+    FIFOF#(bramReq    ) memQ   <- mkSizedFIFOF(valueOf(TAdd#(numHart,1)));
+    FIFOF#(WideMemReq ) memreq <- mkBypassFIFOF();
+    FIFOF#(WideMemResp) memres <- mkBypassFIFOF();
 
     Vector#(numHart, FIFOF#(WideMemResp)) resQ <- replicateM(mkPipelineFIFOF());
 
@@ -126,9 +129,9 @@ module mkDirectL1I(WideMem mem, L1I#(numHart, cacheRows) ifc) provisos(Add#(a__,
 
         end else begin // read miss
 
-            mem.request.put(WideMemReq{ write: False,
-                                        num  : req.num,
-                                        line : ? });
+            memreq.enq(WideMemReq{ write: False,
+                                   num  : req.num,
+                                   line : ? });
             memQ.enq(req);
 
         end
@@ -148,7 +151,7 @@ module mkDirectL1I(WideMem mem, L1I#(numHart, cacheRows) ifc) provisos(Add#(a__,
         bramReq req = memQ.first(); memQ.deq();
 
         cacheIdx  index = indexOf(req.num);
-        CacheLine line <- mem.response.get();
+        CacheLine line = memres.first(); memres.deq();
 
         resQ[req.transID].enq(line);
 
@@ -167,10 +170,11 @@ module mkDirectL1I(WideMem mem, L1I#(numHart, cacheRows) ifc) provisos(Add#(a__,
 
     endrule
 
-    Vector#(numHart, WideMem) wideMemIfcs = newVector;
+    // IPORTS
+    Vector#(numHart, WideMemServer) wideMemIfcs = newVector;
     for( Integer i = 0; i < valueOf(numHart); i = i+1 ) begin
         wideMemIfcs[i] =
-            (interface WideMem;
+            (interface WideMemServer;
                 interface request = (interface Put#(WideMemReq);
                     method Action put(WideMemReq r);
                         reqQ.enq(BramReq{ transID: fromInteger(i),
@@ -185,6 +189,21 @@ module mkDirectL1I(WideMem mem, L1I#(numHart, cacheRows) ifc) provisos(Add#(a__,
                 endinterface);
             endinterface);
     end
+
+    // IMEM
+    interface WideMemClient mem;
+        interface request = (interface Get#(WideMemReq);
+            method ActionValue#(WideMemReq) get();
+                memreq.deq();
+                return memreq.first();
+            endmethod
+        endinterface);
+        interface response = (interface Put#(WidememResp);
+            method Action put(WideMemResp r);
+                memres.enq(r);
+            endmethod
+        endinterface);
+    endinterface
 
     interface port = wideMemIfcs;
 

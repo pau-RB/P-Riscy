@@ -31,7 +31,7 @@ interface Top_Pins;
 endinterface
 
 interface WideMemDDR4#(numeric type simLatency);
-	interface WideMem portA;
+	interface WideMemServer portA;
 	interface Top_Pins pins;
 endinterface
 
@@ -93,7 +93,7 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency) ifc) provisos(
 		resQ.enq(unpack(truncate(res)));
 	endrule
 
-	WideMem wmifc = (interface WideMem;
+	WideMemServer wmifc = (interface WideMemServer;
 				interface request = (interface Put#(WideMemReq);
 					method Action put(WideMemReq r);
 						reqQ.enq(r);
@@ -107,19 +107,20 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency) ifc) provisos(
 			 endinterface);
 
 	`ifdef SIMULATION
-		WideMemDelay#(TSub#(simLatency,2)) simIfc <- mkWideMemDelay(wmifc);
-		interface WideMem portA = simIfc.delayed;
+		WideMemDelay#(TSub#(simLatency,2)) simIfc <- mkWideMemDelay();
+		mkConnection(simIfc.mem,wmifc);
+		interface WideMemServer portA = simIfc.portA;
 	`else
-		interface WideMem portA = wmifc;
+		interface WideMemServer portA = wmifc;
 	`endif
 
 	interface Top_Pins pins;
-                `ifndef SIMULATION
-                interface DDR4_Pins_Dual_VCU108 pins_ddr4;
-                        interface pins_c0 = ddr4_ctrl_0.ddr4;
-                        interface pins_c1 = ddr4_ctrl_1.ddr4;
-                endinterface
-                `endif
-        endinterface
+		`ifndef SIMULATION
+			interface DDR4_Pins_Dual_VCU108 pins_ddr4;
+				interface pins_c0 = ddr4_ctrl_0.ddr4;
+				interface pins_c1 = ddr4_ctrl_1.ddr4;
+			endinterface
+		`endif
+	endinterface
 
 endmodule

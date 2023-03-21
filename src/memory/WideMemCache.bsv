@@ -28,20 +28,21 @@ typedef struct{
 } WMCReq deriving(Eq, Bits, FShow);
 
 interface WideMemCache#(numeric type cacheRows, numeric type cacheColumns, numeric type cacheHash, numeric type numReq);
-	interface WideMem cache;
+	interface WideMemClient mem;
+	interface WideMemServer portA;
 	method WMCStat getStat();
 endinterface
 
-module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) ifc) provisos(Log#(cacheRows, b__),
-                                                                                                           Add#(c__, TLog#(cacheRows), CacheLineNumSz),
-                                                                                                           Log#(cacheColumns, d__),
-                                                                                                           Log#(cacheHash, e__),
-                                                                                                           Add#(f__, TLog#(cacheHash), TLog#(cacheRows)),
-                                                                                                           Add#(g__, TLog#(cacheHash), CacheLineNumSz),
-                                                                                                           Alias#(cacheTag ,    CacheTag#(cacheRows)),
-                                                                                                           Alias#(cacheRowIdx,  CacheRowIndex#(cacheRows)),
-                                                                                                           Alias#(cacheRowHash, CacheRowHash#(cacheHash)),
-                                                                                                           Alias#(cacheColIdx,  CacheColIndex#(cacheColumns)));
+module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) ifc) provisos(Log#(cacheRows, b__),
+                                                                                              Add#(c__, TLog#(cacheRows), CacheLineNumSz),
+                                                                                              Log#(cacheColumns, d__),
+                                                                                              Log#(cacheHash, e__),
+                                                                                              Add#(f__, TLog#(cacheHash), TLog#(cacheRows)),
+                                                                                              Add#(g__, TLog#(cacheHash), CacheLineNumSz),
+                                                                                              Alias#(cacheTag ,    CacheTag#(cacheRows)),
+                                                                                              Alias#(cacheRowIdx,  CacheRowIndex#(cacheRows)),
+                                                                                              Alias#(cacheRowHash, CacheRowHash#(cacheHash)),
+                                                                                              Alias#(cacheColIdx,  CacheColIndex#(cacheColumns)));
 
 	//////////// UTILITIES ////////////
 
@@ -80,9 +81,11 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheH
 	Vector#(cacheColumns, FIFOF#(Maybe#(WideMemResp))) colResQ <- replicateM(mkPipelineFIFOF());
 	Vector#(cacheColumns, FIFOF#(WideMemReq         )) colWBQ  <- replicateM(mkPipelineFIFOF());
 
-	FIFOF#(WMCReq)       reqQ <- mkSizedFIFOF(valueOf(numReq));
-	FIFOF#(WMCReq)       brmQ <- mkSizedFIFOF(5);
-	FIFOF#(CacheLineNum) memQ <- mkSizedFIFOF(valueOf(numReq));
+	FIFOF#(WMCReq)       reqQ   <- mkSizedFIFOF(valueOf(numReq));
+	FIFOF#(WMCReq)       brmQ   <- mkSizedFIFOF(5);
+	FIFOF#(CacheLineNum) memQ   <- mkSizedFIFOF(valueOf(numReq));
+	FIFOF#(WideMemReq )  memreq <- mkBypassFIFOF();
+	FIFOF#(WideMemResp)  memres <- mkBypassFIFOF();
 
 	FIFOF#(Bool)         resQ <- mkFIFOF();
 	FIFOF#(WideMemResp)  hitQ <- mkFIFOF();
@@ -264,7 +267,7 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheH
 		rule do_WB;
 
 			WideMemReq req = colWBQ[i].first(); colWBQ[i].deq();
-			mem.request.put(req);
+			memreq.enq(req);
 
 		endrule
 
@@ -291,9 +294,9 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheH
 		end else begin // miss
 			resQ.enq(False);
 			memQ.enq(req.num);
-			mem.request.put( WideMemReq { write: False,
-			                              num  : req.num,
-			                              line : req.line } );
+			memreq.enq( WideMemReq { write: False,
+			                         num  : req.num,
+			                         line : req.line } );
 		end
 
 		if (mem_ext_DEBUG) begin
@@ -310,7 +313,7 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheH
 
 	rule do_MEMRESP;
 
-		WideMemResp  line <- mem.response.get();
+		WideMemResp  line = memres.first(); memres.deq();
 		CacheLineNum num  = memQ.first(); memQ.deq();
 
 		reqQ.enq( WMCReq { inv  : False,
@@ -325,8 +328,21 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheH
 
 	//////////// INTERFACE ////////////
 
-	interface WideMem cache;
+	interface WideMemClient mem;
+        interface request = (interface Get#(WideMemReq);
+            method ActionValue#(WideMemReq) get();
+                memreq.deq();
+                return memreq.first();
+            endmethod
+        endinterface);
+        interface response = (interface Put#(WidememResp);
+            method Action put(WideMemResp r);
+                memres.enq(r);
+            endmethod
+        endinterface);
+    endinterface
 
+	interface WideMemServer portA;
 		interface request = (interface Put#(WideMemReq);
 			method Action put(WideMemReq r);
 				reqQ.enq( WMCReq { inv  : False,
@@ -351,7 +367,6 @@ module mkWideMemCache(WideMem mem, WideMemCache#(cacheRows, cacheColumns, cacheH
 				end
 			endmethod
 		endinterface);
-
 	endinterface
 
 	method WMCStat getStat();

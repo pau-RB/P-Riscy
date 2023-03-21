@@ -4,6 +4,7 @@ import Config::*;
 // types
 import Types::*;
 import WideMemTypes::*;
+import Connectable::*;
 import ProcTypes::*;
 import CMRTypes::*;
 
@@ -64,6 +65,9 @@ endinterface
 
 interface Frontend;
 
+	// IMEM
+	interface WideMemClient mem;
+
 	// Function
 	interface Vector#(FrontWidth, Hart) hart;
 
@@ -77,44 +81,42 @@ interface Frontend;
 
 endinterface
 
-module mkFrontend (WideMem                             mem        ,
-	               Vector#(FrontWidth, RFile)          regFile    ,
+module mkFrontend (Vector#(FrontWidth, RFile)          regFile    ,
 	               Vector#(FrontWidth, Scoreboard#(8)) scoreboard ,
 	               Bool                                coreStarted,
 	               Frontend ifc);
 
 	// Data cache
-	L1I#(FrontWidth, L1ICacheRows) l1I <- mkDirectL1I(mem);
+	L1I#(FrontWidth, L1ICacheRows) l1I <- mkDirectL1I();
 
 	// Stages
-	Vector#(FrontWidth, FIFOF#(RFToken)  ) regfetchQ  <- replicateM(mkPipelineFIFOF() );
-	Vector#(FrontWidth, FIFOF#(ExecToken)) arbiterQ   <- replicateM(mkBypassFIFOF());
-	Vector#(FrontWidth, FIFOF#(Redirect) ) redirectQ  <- replicateM(mkBypassFIFOF());
+	Vector#(FrontWidth, FIFOF#(RFToken)  ) regfetchQ  <- replicateM(mkPipelineFIFOF());
+	Vector#(FrontWidth, FIFOF#(ExecToken)) arbiterQ   <- replicateM(mkBypassFIFOF  ());
+	Vector#(FrontWidth, FIFOF#(Redirect) ) redirectQ  <- replicateM(mkBypassFIFOF  ());
 
 	// Stats
 	Reg#(Data) numEmpty <- mkReg(0);
 
 	//////////// FETCH ////////////
 
-    Vector#(FrontWidth, Stream) stream;
+	Vector#(FrontWidth, Stream) stream <- replicateM(mkStream);
 
-    for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
-        stream[i] <- mkStream(l1I.port[i]);
-    end
+	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1)
+		mkConnection(stream[i].mem,l1I.port[i]);
 
-    rule do_EMPTYCNT if(mem_ext_DEBUG == True && coreStarted);
+	rule do_EMPTYCNT if(mem_ext_DEBUG == True && coreStarted);
 
-        Bool empty = True;
-        for (Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
-            if(stream[i].currentState() != Empty && stream[i].isl0Ihit()) begin
-                empty = False;
-            end
-        end
-        if (empty) begin
-            numEmpty <= numEmpty+1;
-        end
+		Bool empty = True;
+		for (Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
+			if(stream[i].currentState() != Empty && stream[i].isl0Ihit()) begin
+				empty = False;
+			end
+		end
+		if (empty) begin
+			numEmpty <= numEmpty+1;
+		end
 
-    endrule
+	endrule
 
 	//////////// DECODE ////////////
 
@@ -257,6 +259,7 @@ module mkFrontend (WideMem                             mem        ,
 			endinterface);
 	end
 
+	interface mem      = l1I.mem;
 	interface hart     = hartIfc;
 	interface fetch    = fetchIfc;
 	interface decode   = decodeIfc;

@@ -21,6 +21,7 @@ import XilinxIntMul::*;
 import XilinxIntDiv::*;
 import Scoreboard::*;
 import RFile::*;
+import LSU::*;
 import Execution::*;
 import NTTX::*;
 
@@ -44,6 +45,9 @@ interface Writeback;
 endinterface
 
 interface Backend;
+
+	// DMEM
+	interface WideMemClient mem;
 
 	// Execute
 	method Action enq(Vector#(BackWidth, Maybe#(ExecToken)) inst);
@@ -73,14 +77,17 @@ interface Backend;
 
 endinterface
 
-module mkBackend (LSU#(FrontID)                       lsu        ,
-	              VerifMaster                         verif      ,
+module mkBackend (VerifMaster                         verif      ,
 	              NTTX                                nttx       ,
 	              Vector#(FrontWidth, RFile)          regFile    ,
 	              Vector#(FrontWidth, Scoreboard#(8)) scoreboard ,
 	              Bool                                coreStarted,
 	              Data                                numCycles  ,
 	              Backend ifc);
+
+	// LSU
+	BareDataCache l1d <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
+	LSU#(FrontID) lsu <- mkLSU(l1d);
 
 	// Epoch
 	Vector#(FrontWidth, Ehr#(2,Epoch) ) commitEpoch <- replicateM(mkEhr('0));
@@ -607,6 +614,9 @@ module mkBackend (LSU#(FrontID)                       lsu        ,
 
 			endinterface);
 	end
+
+	// DMEM
+	interface mem = lsu.mem;
 
 	// Execute
 	method Action enq(Vector#(BackWidth, Maybe#(ExecToken)) inst);

@@ -324,7 +324,7 @@ typedef struct{
 	LSUmshrId   mshr;
 } MemReqToken deriving(Eq, Bits, FShow);
 
-module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provisos(Bits#(transIdType,transIdTypeSz),FShow#(transIdType));
+module mkLSU (BareDataCache dataCache, LSU#(transIdType) ifc) provisos(Bits#(transIdType,transIdTypeSz),FShow#(transIdType));
 
 	Vector#(LSUmshrW, Fifo#(LSUmshrD,LSUReq#(transIdType))) mshr      <- replicateM(mkCFFifo());
 	Ehr#(2,Maybe#(LSUmshrId))                               retryMSHR <- mkEhr(tagged Invalid);
@@ -332,6 +332,8 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 	FIFOF#(LSUReq#(transIdType))         inReqQ   <- mkBypassFIFOF();
 	FIFOF#(DataCacheToken#(transIdType)) dcReqQ   <- mkPipelineFIFOF();
 	FIFOF#(MemReqToken)                  memReqQ  <- mkSizedFIFOF(valueOf(LSUmshrW));
+	FIFOF#(WideMemReq )                  memreq   <- mkBypassFIFOF();
+	FIFOF#(WideMemResp)                  memres   <- mkBypassFIFOF();
 	FIFOF#(LSUResp#(transIdType))        respQ    <- mkBypassFIFOF();
 	FIFOF#(LSUResp#(transIdType))        oldRespQ <- mkBypassFIFOF();
 
@@ -408,9 +410,9 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 				memReqQ.enq(MemReqToken{ addr: req.addr,
 				                         mshr: fromMaybe(?,isEmpty) });
-				mem.request.put(WideMemReq{ write: False,
-				                            num  : lineNumOf(req.addr),
-				                            line : ? });
+				memreq.enq(WideMemReq{ write: False,
+				                       num  : lineNumOf(req.addr),
+				                       line : ? });
 
 			end
 
@@ -444,9 +446,9 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 	rule do_MEMRESP if(!isValid(retryMSHR[0]));
 
-		let line <- mem.response.get(); memReqQ.deq();
+		let line = memres.first(); memres.deq(); memReqQ.deq();
 		dataCache.req(DataCacheReq{ op  : PUT,
-		                            addr: memReqQ.first().addr,
+		                            addr: memReqQ.first.addr,
 		                            data: ?,
 		                            line: line });
 		retryMSHR[0] <= tagged Valid memReqQ.first().mshr;
@@ -479,11 +481,27 @@ module mkLSU (WideMem mem, BareDataCache dataCache, LSU#(transIdType) ifc) provi
 
 		let req <- dataCache.getWB();
 
-		mem.request.put(WideMemReq{ write: True,
-		                            num  : req.num,
-		                            line : req.line });
+		memreq.enq(WideMemReq{ write: True,
+		                       num  : req.num,
+		                       line : req.line });
 
 	endrule
+
+	//////////// INTERFACE ////////////
+
+	interface WideMemClient mem;
+        interface request = (interface Get#(WideMemReq);
+            method ActionValue#(WideMemReq) get();
+                memreq.deq();
+                return memreq.first();
+            endmethod
+        endinterface);
+        interface response = (interface Put#(WidememResp);
+            method Action put(WideMemResp r);
+                memres.enq(r);
+            endmethod
+        endinterface);
+    endinterface
 
 	method Action req(LSUReq#(transIdType) r);
 		inReqQ.enq(r);

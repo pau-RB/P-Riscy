@@ -4,7 +4,7 @@ import ClientServer::*;
 import GetPut::*;
 import BRAM::*;
 
-module mkWideMemBRAM(WideMem);
+module mkWideMemBRAM(WideMemServer);
 
 	BRAM_Configure cfg = BRAM_Configure { memorySize              : 0,
 	                                      latency                 : 2,
@@ -22,10 +22,12 @@ module mkWideMemBRAM(WideMem);
 			                                      datain         : r.line  } );
 		endmethod
 	endinterface);
+
 	interface response = (interface Get#(WidememResp);
 		method ActionValue#(CacheLine) get();
 			CacheLine line <- bram.portA.response.get;
-		endrule
+			return line;
+		endmethod
 	endinterface);
 
 endmodule

@@ -9,4 +9,6 @@ typedef struct{
 
 typedef CacheLine    WideMemResp;
 
-typedef Server#(WideMemReq, WideMemResp) WideMem;
+typedef Server#(WideMemReq, WideMemResp) WideMemServer;
+
+typedef Client#(WideMemReq, WideMemResp) WideMemClient;

@@ -41,6 +41,7 @@ typedef struct{
 } LSUResp#(type transIdType) deriving(Eq, Bits, FShow);
 
 interface LSU#(type transIdType);
+    interface WideMemClient mem;
     method Action req(LSUReq#(transIdType) r);
     method ActionValue#(LSUResp#(transIdType)) resp();
     method ActionValue#(LSUResp#(transIdType)) oldResp();

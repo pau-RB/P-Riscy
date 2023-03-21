@@ -9,6 +9,9 @@ import Ehr::*;
 
 interface Stream;
 
+	// Acces to IMEM
+	interface WideMemClient mem;
+
 	// Flow control
 	method ActionValue#(DecToken) fetch();
 	method Action                 redirect(Redirect r);
@@ -37,7 +40,9 @@ endinterface
 //
 // l1Iresp  C l1Ireq
 //
-module mkStream (WideMem l1I, Stream ifc);
+module mkStream (Stream ifc);
+
+	//////////// SEQ ////////////
 
 	Ehr#(4,StreamStatus)    state     <- mkEhr(Empty);
 	Ehr#(2,Addr)            pc        <- mkEhr('0);
@@ -50,6 +55,8 @@ module mkStream (WideMem l1I, Stream ifc);
 	Ehr  #(2, CacheLineNum) l0Iline   <- mkEhr(?);
 	Ehr  #(2, Bool)         l0Ival    <- mkEhr(False);
 	FIFOF#(CacheLineNum)    l1Ireq    <- mkPipelineFIFOF();
+	FIFOF#(WideMemReq  )    memreq    <- mkBypassFIFOF();
+	FIFOF#(WideMemResp )    memres    <- mkBypassFIFOF();
 
 	// Note: After pc+4 we might request a new line. Then, we might receive
 	// a redirect request and generate a new L1I request. When getting the
@@ -59,6 +66,8 @@ module mkStream (WideMem l1I, Stream ifc);
 	CacheLineNum nextpcline = truncateLSB(pc[1]);
 	Bool l0Ihit     = (pcline==l0Iline[0])&&l0Ival[0];
 	Bool nextl0Ihit = (nextpcline==l0Iline[1])&&l0Ival[1];
+
+	//////////// FETCH RULES ////////////
 
 	// 1 - Consider redirect
 
@@ -134,7 +143,7 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	rule do_l1Iresp;
 
-		CacheLine data <- l1I.response.get();
+		CacheLine data = memres.first(); memres.deq();
 		l1Ireq.deq();
 
 		if(l1Ireq.first() == nextpcline) begin
@@ -149,14 +158,30 @@ module mkStream (WideMem l1I, Stream ifc);
 
 	rule do_l1Ireq if (state[3] == Full && !nextl0Ihit);
 
-		l1I.request.put(WideMemReq { write: False,
-		                             num  : nextpcline,
-		                             line : ? } );
+		memreq.enq(WideMemReq { write: False,
+		                        num  : nextpcline,
+		                        line : ? } );
 		l1Ireq.enq(nextpcline);
 
 	endrule
 
-	// 5 - Consider external requests
+	//////////// INTERFACE ////////////
+
+	// IMEM
+	interface WideMemClient mem;
+		interface request = (interface Get#(WideMemReq);
+			method ActionValue#(WideMemReq) get();
+				memreq.deq();
+				return memreq.first();
+			endmethod
+		endinterface);
+		interface response = (interface Put#(WidememResp);
+			method Action put(WideMemResp r);
+				memres.enq(r);
+			endmethod
+		endinterface);
+	endinterface
+
 	// Flow control
 	method ActionValue#(DecToken) fetch();
 		DecToken i = instQ.first(); instQ.deq();

@@ -12,6 +12,7 @@ import CMRTypes::*;
 // include
 import Vector::*;
 import Ehr::*;
+import Connectable::*;
 
 // state
 import Scoreboard::*;
@@ -25,6 +26,10 @@ import LSU::*;
 import NTTX::*;
 
 interface Core;
+
+	// IMEM and DMEM
+	interface WideMemClient instMem;
+	interface WideMemClient dataMem;
 
 	// Thread control
 	method Action start (FrontID feID, ContToken token);
@@ -43,7 +48,7 @@ interface Core;
 
 endinterface
 
-module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
+module mkCore7SS(VerifMaster verif, Core ifc);
 
 	//////////// COUNTERS ////////////
 
@@ -61,8 +66,7 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
 	//////////// FRONTEND ////////////
 
-	Frontend frontend <- mkFrontend(instMem     ,
-	                                regFile     ,
+	Frontend frontend <- mkFrontend(regFile     ,
 	                                scoreboard  ,
 	                                coreStarted );
 
@@ -72,11 +76,8 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 
 	//////////// BACKEND ////////////
 
-	BareDataCache l1d     <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
-	LSU#(FrontID) lsu     <- mkLSU(dataMem, l1d);
 	NTTX          nttx    <- mkNTTX(regFile, verif);
-	Backend       backend <- mkBackend (lsu         ,
-	                                    verif       ,
+	Backend       backend <- mkBackend (verif       ,
 	                                    nttx        ,
 	                                    regFile     ,
 	                                    scoreboard  ,
@@ -221,6 +222,10 @@ module mkCore7SS(WideMem instMem, WideMem dataMem, VerifMaster verif, Core ifc);
 	endrule
 
 	//////////// INTERFACE ////////////
+
+	//IMEM and DMEM
+	interface WideMemClient instMem = frontend.mem;
+	interface WideMemClient dataMem = backend .mem;
 
 	// Thread control
 	method Action start (FrontID feID, ContToken token);

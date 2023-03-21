@@ -5,6 +5,7 @@ import VerifMaster::*;
 import Types::*;
 import WideMemTypes::*;
 import ClientServer::*;
+import Connectable::*;
 import GetPut::*;
 import ProcTypes::*;
 import CMRTypes::*;
@@ -12,6 +13,7 @@ import Memory::*;
 import DDR4Common::*;
 import DDR4Controller::*;
 import WideMemDDR4::*;
+import WideMemBRAM::*;
 import WideMemCache::*;
 import WideMemSplit::*;
 import FIFOF::*;
@@ -37,12 +39,17 @@ endinterface
 
 module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
-	WideMemDDR4#(RAMLatency)                                                           mainDDR4  <- mkWideMemDDR4(host);
-	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, TMul#(2,FrontWidth)) mainL2    <- mkWideMemCache(mainDDR4.portA);
-	WideMemSplit#(2,TMul#(2,FrontWidth))                                               mainSplit <- mkSplitWideMem(mainL2.cache);
+	WideMemDDR4#(RAMLatency)                                                           mainDDR4 <- mkWideMemDDR4(host);
+	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, TMul#(2,FrontWidth)) mainL2SC <- mkWideMemCache();
+	WideMemSplit#(2,TMul#(2,FrontWidth))                                               mainL2SB <- mkSplitWideMem();
 
 	VerifMaster                          verif        <- mkVerifMaster();
-	Core                                 dut          <- mkCore7SS(mainSplit.port[0], mainSplit.port[1], verif);
+	Core                                 core         <- mkCore7SS(verif);
+
+	mkConnection(mainL2SC.mem, mainDDR4.portA  );
+	mkConnection(mainL2SB.mem, mainL2SC.portA  );
+	mkConnection(core.instMem, mainL2SB.port[0]);
+	mkConnection(core.dataMem, mainL2SB.port[1]);
 
 	Reg#(Bool)                           memInit      <- mkReg(False);
 	FIFOF#(ContToken)                    mainTokenQ   <- mkSizedBRAMFIFOF(valueOf(MTQ_LEN));
@@ -57,23 +64,23 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	//////////// RELAY REPORTS ////////////
 
 	rule getCMR if(cmr_ext_DEBUG);
-		let latest <- dut.getCMR();
+		let latest <- core.getCMR();
 		mainCMRQ.enq(latest);
 	endrule
 
 	rule getMSG if(msg_ext_DEBUG);
-		let latest <- dut.getMSG();
+		let latest <- core.getMSG();
 		mainMSGQ.enq(latest);
 	endrule
 
 	rule getHEX if(hex_ext_DEBUG);
-		let latest <- dut.getHEX();
+		let latest <- core.getHEX();
 		mainHEXQ.enq(latest);
 	endrule
 
 	rule getMSR if(mem_ext_DEBUG);
-		let latest <- dut.getMSR();
-		latest.l2s = mainL2.getStat();
+		let latest <- core.getMSR();
+		latest.l2s = mainL2SC.getStat();
 		mainMSRQ.enq(latest);
 	endrule
 
@@ -108,10 +115,10 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 	//////////// HANDLE THREADS ////////////
 
-	rule doEvict if(roundRobin && dut.getNumCommit() == commitTarget);
+	rule doEvict if(roundRobin && core.getNumCommit() == commitTarget);
 
 		if(mainTokenQ.notEmpty) begin
-		   dut.evict(evictTarget);
+		   core.evict(evictTarget);
 		   evictTarget  <=  (evictTarget == lastFrontID) ? '0 : evictTarget+1;
 		end
 
@@ -121,7 +128,7 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 	rule getContToken;
 
-		let t <- dut.getContToken();
+		let t <- core.getContToken();
 		mainTokenQ.enq(t);
 
 	endrule
@@ -132,14 +139,14 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 		if(valueOf(FrontWidth) != 1) begin
 			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-				if(!dut.available(hart)) begin
+				if(!core.available(hart)) begin
 					hart = (hart == lastFrontID) ? '0 : hart+1;
 				end
 			end
 		end
 
 		let t = mainTokenQ.first(); mainTokenQ.deq();
-		dut.start(hart,t);
+		core.start(hart,t);
 
 	endrule
 

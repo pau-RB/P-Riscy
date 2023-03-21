@@ -7,11 +7,14 @@ import SpecialFIFOs::*;
 import Vector::*;
 
 interface WideMemSplit#(numeric type n, numeric type m);
-    interface Vector#(n, WideMem) port;
+    interface WideMemClient mem;
+    interface Vector#(n, WideMemServer) port;
 endinterface
 
-module mkSplitWideMem(  WideMem mem, WideMemSplit#(n, m) ifc );
+module mkSplitWideMem(WideMemSplit#(n, m) ifc);
 
+    FIFOF#(WideMemReq )             memreq    <- mkBypassFIFOF();
+    FIFOF#(WideMemResp)             memres    <- mkBypassFIFOF();
     Vector#(n, FIFOF#(WideMemReq))  reqFifos  <- replicateM(mkFIFOF);
     Vector#(n, FIFOF#(WideMemResp)) respFifos <- replicateM(mkFIFOF);
 
@@ -29,7 +32,7 @@ module mkSplitWideMem(  WideMem mem, WideMemSplit#(n, m) ifc );
             let req = reqFifos[ fromMaybe(?,req_index) ].first;
             reqFifos[ fromMaybe(?,req_index) ].deq();
 
-            mem.request.put(req);
+            memreq.enq(req);
             if(!req.write) begin
                 // req is a load, so keep track of the source
                 reqSource.enq( fromMaybe(?,req_index) );
@@ -38,7 +41,7 @@ module mkSplitWideMem(  WideMem mem, WideMemSplit#(n, m) ifc );
     endrule
 
     rule doWideMemResp;
-        let resp <- mem.response.get();
+        let resp = memres.first(); memres.deq();
 
         let source = reqSource.first;
         reqSource.deq;
@@ -46,10 +49,10 @@ module mkSplitWideMem(  WideMem mem, WideMemSplit#(n, m) ifc );
         respFifos[source].enq( resp );
     endrule
 
-    Vector#(n, WideMem) wideMemIfcs = newVector;
+    Vector#(n, WideMemServer) wideMemIfcs = newVector;
     for( Integer i = 0 ; i < valueOf(n) ; i = i+1 ) begin
         wideMemIfcs[i] =
-            (interface WideMem;
+            (interface WideMemServer;
                 interface request = (interface Put#(WideMemReq);
                     method Action put(WideMemReq r);
                         reqFifos[i].enq(r);
@@ -64,6 +67,20 @@ module mkSplitWideMem(  WideMem mem, WideMemSplit#(n, m) ifc );
                 endinterface);
             endinterface);
     end
+
+    interface WideMemClient mem;
+        interface request = (interface Get#(WideMemReq);
+            method ActionValue#(WideMemReq) get();
+                memreq.deq();
+                return memreq.first();
+            endmethod
+        endinterface);
+        interface response = (interface Put#(WidememResp);
+            method Action put(WideMemResp r);
+                memres.enq(r);
+            endmethod
+        endinterface);
+    endinterface
 
     interface port = wideMemIfcs;
 
