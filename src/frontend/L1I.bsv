@@ -37,7 +37,7 @@ interface BareInstCache;
     method ActionValue#(InstCacheRes) resp();
 endinterface
 
-//////////// LSU TYPES ////////////
+//////////// L1I TYPES ////////////
 
 interface L1I#(numeric type numHart, numeric type cacheRows);
     interface WideMemClient mem;
@@ -148,6 +148,43 @@ module mkDirectInstCache (BareInstCache ifc);
 
 endmodule
 
+typedef Bit#(TLog#(L1ICacheColumns)) CacheLane;
+
+module mkAssociativeInstCache (BareInstCache ifc);
+
+    Vector#(L1ICacheColumns,BareInstCache) lane <- replicateM(mkDirectInstCache());
+    Reg#(CacheLane) replaceIndex <- mkReg(0);
+
+    //////////// INTERFACE ////////////
+
+    method Action invalidate();
+        for (Integer i = 0; i < valueOf(L1ICacheColumns); i=i+1)
+            lane[i].invalidate();
+    endmethod
+
+    method Action req(InstCacheReq r);
+        if(r.write) begin
+            lane[replaceIndex].req(r);
+            replaceIndex <= replaceIndex+1;
+        end else begin
+            for(Integer i = 0; i < valueOf(L1ICacheColumns); i=i+1)
+                lane[fromInteger(i)].req(r);
+        end
+    endmethod
+
+    method ActionValue#(InstCacheRes) resp();
+        CacheLine res = unpack('0);
+        Bool val = False;
+        for(Integer i = 0; i < valueOf(L1ICacheColumns); i=i+1) begin
+            let partial <- lane[fromInteger(i)].resp();
+            res = unpack(pack(res)|pack(fromMaybe(unpack('0),partial)));
+            val = val||isValid(partial);
+        end
+        return (val ? tagged Valid res : tagged Invalid);
+    endmethod
+
+endmodule
+
 //////////// L1I ////////////
 
 typedef struct{
@@ -159,7 +196,7 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
                                                           Alias#(hartId  , Bit#(TLog#(numHart))),
                                                           Alias#(bramReq , BramReq#(hartId))  );
 
-    BareInstCache instCache <- mkDirectInstCache();
+    BareInstCache instCache <- (l1IAssociative?mkAssociativeInstCache():mkDirectInstCache());
 
     FIFOF#(bramReq    ) reqQ   <- mkBypassFIFOF();
     FIFOF#(bramReq    ) brmQ   <- mkFIFOF();
