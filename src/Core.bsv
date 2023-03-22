@@ -6,7 +6,6 @@ import VerifMaster::*;
 import Types::*;
 import WideMemTypes::*;
 import ProcTypes::*;
-import LSUTypes::*;
 import CMRTypes::*;
 
 // include
@@ -22,7 +21,6 @@ import RFile::*;
 import Frontend::*;
 import SyncArbiter::*;
 import Backend::*;
-import LSU::*;
 import NTTX::*;
 
 interface Core;

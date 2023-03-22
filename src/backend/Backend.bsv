@@ -6,7 +6,6 @@ import Config::*;
 import Types::*;
 import WideMemTypes::*;
 import ProcTypes::*;
-import LSUTypes::*;
 import CMRTypes::*;
 
 // include
