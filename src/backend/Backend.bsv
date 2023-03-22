@@ -85,8 +85,7 @@ module mkBackend (VerifMaster                         verif      ,
 	              Backend ifc);
 
 	// LSU
-	BareDataCache l1d <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
-	LSU#(FrontID) lsu <- mkLSU(l1d);
+	LSU#(FrontID) lsu <- mkLSU();
 
 	// Epoch
 	Vector#(FrontWidth, Ehr#(2,Epoch) ) commitEpoch <- replicateM(mkEhr('0));

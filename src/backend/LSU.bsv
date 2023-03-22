@@ -324,8 +324,9 @@ typedef struct{
 	LSUmshrId   mshr;
 } MemReqToken deriving(Eq, Bits, FShow);
 
-module mkLSU (BareDataCache dataCache, LSU#(transIdType) ifc) provisos(Bits#(transIdType,transIdTypeSz),FShow#(transIdType));
+module mkLSU (LSU#(transIdType) ifc) provisos(Bits#(transIdType,transIdTypeSz),FShow#(transIdType));
 
+	BareDataCache                                           dataCache <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
 	Vector#(LSUmshrW, Fifo#(LSUmshrD,LSUReq#(transIdType))) mshr      <- replicateM(mkCFFifo());
 	Ehr#(2,Maybe#(LSUmshrId))                               retryMSHR <- mkEhr(tagged Invalid);
 
