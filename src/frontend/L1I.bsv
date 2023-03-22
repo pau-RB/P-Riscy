@@ -167,7 +167,7 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
     FIFOF#(WideMemReq ) memreq <- mkBypassFIFOF();
     FIFOF#(WideMemResp) memres <- mkBypassFIFOF();
 
-    Vector#(numHart, FIFOF#(WideMemResp)) resQ <- replicateM(mkPipelineFIFOF());
+    Vector#(numHart, FIFOF#(WideMemResp)) resQ <- replicateM(mkFIFOF());
 
     //////////// STATS ////////////
 
@@ -188,7 +188,7 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
 
     endrule
 
-    rule do_BRAMRESP;
+    rule do_BRAMRES;
 
         bramReq      req =  brmQ.first(); brmQ.deq();
         InstCacheRes res <- instCache.resp();
