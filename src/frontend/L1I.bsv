@@ -7,19 +7,37 @@ import GetPut::*;
 import BRAM::*;
 import Vector::*;
 
-typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(cacheRows))) CacheTag  #(numeric type cacheRows);
-typedef Bit#(TLog#(cacheRows))                                              CacheIndex#(numeric type cacheRows);
-typedef Bit#(TLog#(CacheLineWords))                                         CacheOffset;
+typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(L1ICacheRows))) CacheTag   ;
+typedef Bit#(TLog#(L1ICacheRows))                                              CacheIndex ;
+typedef Bit#(TLog#(CacheLineWords))                                            CacheOffset;
+
+//////////// UTILITIES ////////////
+
+function CacheTag tagOf(CacheLineNum num);
+    return truncateLSB(num);
+endfunction
+
+function CacheIndex indexOf(CacheLineNum num);
+    return truncate(num);
+endfunction
+
+//////////// BARE DATA CACHE TYPES ////////////
 
 typedef struct{
-    CacheTag#(cacheRows) tag;
-    CacheLine            line;
-} CacheEntry#(numeric type cacheRows) deriving(Eq, Bits, FShow);
-
-typedef struct{
-    transIdType  transID;
+    Bool         write;
     CacheLineNum num;
-} BramReq#(type transIdType) deriving(Eq, Bits, FShow);
+    CacheLine    line;
+} InstCacheReq deriving(Eq, Bits, FShow);
+
+typedef Maybe#(CacheLine) InstCacheRes;
+
+interface BareInstCache;
+    method Action invalidate();
+    method Action req(InstCacheReq r);
+    method ActionValue#(InstCacheRes) resp();
+endinterface
+
+//////////// LSU TYPES ////////////
 
 interface L1I#(numeric type numHart, numeric type cacheRows);
     interface WideMemClient mem;
@@ -28,22 +46,14 @@ interface L1I#(numeric type numHart, numeric type cacheRows);
     method Data getNumMiss();
 endinterface
 
-module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheRows), CacheLineNumSz),
-                                                          Alias#(cacheTag, CacheTag#(cacheRows)),
-                                                          Alias#(cacheIdx, CacheIndex#(cacheRows)),
-                                                          Alias#(cacheEnt, CacheEntry#(cacheRows)),
-                                                          Alias#(hartId  , Bit#(TLog#(numHart))),
-                                                          Alias#(bramReq , BramReq#(hartId))  );
+//////////// BARE INST CACHE ////////////
 
-    //////////// UTILITIES ////////////
+typedef struct{
+    CacheTag  tag;
+    CacheLine line;
+} CacheEntry deriving(Eq, Bits, FShow);
 
-    function cacheTag tagOf(CacheLineNum num);
-        return truncateLSB(num);
-    endfunction
-
-    function cacheIdx indexOf(CacheLineNum num);
-        return truncate(num);
-    endfunction
+module mkDirectInstCache (BareInstCache ifc);
 
     //////////// BRAM ////////////
 
@@ -53,26 +63,17 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
                                           loadFormat              : None,
                                           allowWriteResponseBypass: False };
 
-    BRAM1Port#(cacheIdx, CacheLine) dataArray <- mkBRAM1Server(cfg);
-    BRAM1Port#(cacheIdx, cacheTag ) tagsArray <- mkBRAM1Server(cfg);
-    BRAM1Port#(cacheIdx, Bool     ) metaArray <- mkBRAM1Server(cfg);
+    BRAM1Port#(CacheIndex, CacheLine) dataArray <- mkBRAM1Server(cfg);
+    BRAM1Port#(CacheIndex, CacheTag ) tagsArray <- mkBRAM1Server(cfg);
+    BRAM1Port#(CacheIndex, Bool     ) metaArray <- mkBRAM1Server(cfg);
 
     //////////// QUEUES ////////////
 
-    FIFOF#(bramReq    ) reqQ   <- mkBypassFIFOF();
-    FIFOF#(bramReq    ) brmQ   <- mkFIFOF();
-    FIFOF#(bramReq    ) memQ   <- mkSizedFIFOF(valueOf(TAdd#(numHart,1)));
-    FIFOF#(WideMemReq ) memreq <- mkBypassFIFOF();
-    FIFOF#(WideMemResp) memres <- mkBypassFIFOF();
+    FIFOF#(InstCacheReq) reqQ <- mkBypassFIFOF();
+    FIFOF#(InstCacheReq) brmQ <- mkFIFOF();
+    FIFOF#(InstCacheRes) resQ <- mkBypassFIFOF();
 
-    Vector#(numHart, FIFOF#(WideMemResp)) resQ <- replicateM(mkPipelineFIFOF());
-
-    Reg#(Maybe#(cacheIdx))   invIndex <- mkReg(tagged Valid 0); // Invalidate entries
-
-    //////////// STATS ////////////
-
-    Reg#(Data) numHit  <- mkReg(0);
-    Reg#(Data) numMiss <- mkReg(0);
+    Reg#(Maybe#(CacheIndex)) invIndex <- mkReg(tagged Valid 0); // Invalidate entries
 
     //////////// RULES ////////////
 
@@ -83,7 +84,7 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
                                                     address        : index,
                                                     datain         : False } );
 
-        if(index < fromInteger(valueOf(TSub#(cacheRows,1)))) begin
+        if(index < fromInteger(valueOf(TSub#(L1ICacheRows,1)))) begin
             invIndex <= tagged Valid (index+1);
         end else begin
             invIndex <= tagged Invalid;
@@ -93,51 +94,116 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
 
     rule do_REQ if (!isValid(invIndex));
 
+        InstCacheReq req   = reqQ.first(); reqQ.deq();
+
+        if(!req.write)
+            brmQ.enq(req);
+
+        dataArray.portA.request.put( BRAMRequest{ write          : req.write,
+                                                  responseOnWrite: False,
+                                                  address        : indexOf(req.num),
+                                                  datain         : req.line } );
+        tagsArray.portA.request.put( BRAMRequest{ write          : req.write,
+                                                  responseOnWrite: False,
+                                                  address        : indexOf(req.num),
+                                                  datain         : tagOf(req.num) } );
+        metaArray.portA.request.put( BRAMRequest{ write          : req.write,
+                                                  responseOnWrite: False,
+                                                  address        : indexOf(req.num),
+                                                  datain         : True } );
+
+    endrule
+
+    rule do_RES;
+
+        InstCacheReq req = brmQ.first(); brmQ.deq();
+
+        CacheLine line <- dataArray.portA.response.get;
+        CacheTag  tag  <- tagsArray.portA.response.get;
+        Bool      meta <- metaArray.portA.response.get;
+
+        if (meta && (tag == tagOf(req.num)))
+            // read hit
+            resQ.enq(tagged Valid line);
+        else
+            // read miss
+            resQ.enq(tagged Invalid);
+
+    endrule
+
+    //////////// INTERFACE ////////////
+
+    method Action invalidate();
+        invIndex <= tagged Valid 0;
+    endmethod
+
+    method Action req(InstCacheReq r);
+        reqQ.enq(r);
+    endmethod
+
+    method ActionValue#(InstCacheRes) resp();
+        resQ.deq();
+        return resQ.first();
+    endmethod
+
+endmodule
+
+//////////// L1I ////////////
+
+typedef struct{
+    transIdType  transID;
+    CacheLineNum num;
+} BramReq#(type transIdType) deriving(Eq, Bits, FShow);
+
+module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheRows), CacheLineNumSz),
+                                                          Alias#(hartId  , Bit#(TLog#(numHart))),
+                                                          Alias#(bramReq , BramReq#(hartId))  );
+
+    BareInstCache instCache <- mkDirectInstCache();
+
+    FIFOF#(bramReq    ) reqQ   <- mkBypassFIFOF();
+    FIFOF#(bramReq    ) brmQ   <- mkFIFOF();
+    FIFOF#(bramReq    ) memQ   <- mkSizedFIFOF(valueOf(TAdd#(numHart,1)));
+    FIFOF#(WideMemReq ) memreq <- mkBypassFIFOF();
+    FIFOF#(WideMemResp) memres <- mkBypassFIFOF();
+
+    Vector#(numHart, FIFOF#(WideMemResp)) resQ <- replicateM(mkPipelineFIFOF());
+
+    //////////// STATS ////////////
+
+    Reg#(Data) numHit  <- mkReg(0);
+    Reg#(Data) numMiss <- mkReg(0);
+
+    //////////// RULES ////////////
+
+    rule do_REQ;
+
         bramReq req = reqQ.first(); reqQ.deq();
-        cacheIdx index = indexOf(req.num);
+
+        instCache.req(InstCacheReq{ write: False  ,
+                                    num  : req.num,
+                                    line : ?      });
 
         brmQ.enq(req);
-
-        dataArray.portA.request.put( BRAMRequest{ write          : False,
-                                                  responseOnWrite: False,
-                                                  address        : index,
-                                                  datain         : ? } );
-        tagsArray.portA.request.put( BRAMRequest{ write          : False,
-                                                  responseOnWrite: False,
-                                                  address        : index,
-                                                  datain         : ? } );
-        metaArray.portA.request.put( BRAMRequest{ write          : False,
-                                                  responseOnWrite: False,
-                                                  address        : index,
-                                                  datain         : ? } );
 
     endrule
 
     rule do_BRAMRESP;
 
-        bramReq req = brmQ.first(); brmQ.deq();
+        bramReq      req =  brmQ.first(); brmQ.deq();
+        InstCacheRes res <- instCache.resp();
 
-        CacheLine line <- dataArray.portA.response.get;
-        cacheTag  tag  <- tagsArray.portA.response.get;
-        Bool      meta <- metaArray.portA.response.get;
-
-        cacheIdx index = indexOf(req.num);
-
-        if (meta && (tag == tagOf(req.num))) begin // read hit
-
+        if(res matches tagged Valid .line) // read hit
             resQ[req.transID].enq(line);
-
-        end else begin // read miss
-
+        else begin // read miss
             memreq.enq(WideMemReq{ write: False,
                                    num  : req.num,
                                    line : ? });
             memQ.enq(req);
-
         end
 
         if (mem_ext_DEBUG) begin
-            if (meta && (tag == tagOf(req.num))) begin // read hit
+            if (res matches tagged Valid .line) begin // read hit
                 numHit <= numHit+1;
             end else begin // read miss
                 numMiss <= numMiss+1;
@@ -148,27 +214,18 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
 
     rule do_MEMRESP;
 
-        bramReq req = memQ.first(); memQ.deq();
-
-        cacheIdx  index = indexOf(req.num);
+        bramReq   req  = memQ.first(); memQ.deq();
         CacheLine line = memres.first(); memres.deq();
 
         resQ[req.transID].enq(line);
 
-        dataArray.portA.request.put( BRAMRequest{ write          : True,
-                                                  responseOnWrite: False,
-                                                  address        : index,
-                                                  datain         : line } );
-        tagsArray.portA.request.put( BRAMRequest{ write          : True,
-                                                  responseOnWrite: False,
-                                                  address        : index,
-                                                  datain         : tagOf(req.num) } );
-        metaArray.portA.request.put( BRAMRequest{ write          : True,
-                                                  responseOnWrite: False,
-                                                  address        : index,
-                                                  datain         : True } );
+        instCache.req(InstCacheReq{ write: True   ,
+                                    num  : req.num,
+                                    line : line   });
 
     endrule
+
+    //////////// INTERFACE ////////////
 
     // IPORTS
     Vector#(numHart, WideMemServer) wideMemIfcs = newVector;
