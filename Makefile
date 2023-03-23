@@ -94,7 +94,7 @@ endif
 
 # connectal project
 
-CONNECTALFLAGS += --mainclockperiod=25
+CONNECTALFLAGS += --mainclockperiod=24
 CONNECTALFLAGS += --bscflags="-show-schedule"
 CONNECTALFLAGS += --bscflags="-aggressive-conditions"
 CONNECTALFLAGS += --bscflags="-steps-warn-interval 1000000"
