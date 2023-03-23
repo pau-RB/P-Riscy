@@ -107,7 +107,7 @@ module mkBackend (VerifMaster                         verif      ,
 	Vector#(TSub#(FrontWidth,1), XilinxIntDiv#(void)) divArray <- replicateM(mkDiv);
 
 	// Upstream
-	Vector#(FrontWidth, FIFOF#(Redirect))          redirectQ       <- replicateM(mkBypassFIFOF());
+	Vector#(FrontWidth, FIFOF#(Redirect))          redirectQ       <- replicateM(mkFIFOF());
 
 	// CMR
 	MFifo#(CTHQ_LEN,BackWidth,CommitReport)        commitReportQ   <- mkPipelineMFifo();

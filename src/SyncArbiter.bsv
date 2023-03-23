@@ -157,7 +157,7 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 			if(inputQueue[i].notEmpty && instTaken[i] && isFlowInst(inputQueue[i].first))
 				specLvl[i] <= '1;
 			else if(inputQueue[i].notEmpty && instTaken[i] && isSpecInst(inputQueue[i].first))
-				specLvl[i][1:0] <= '1;
+				specLvl[i][2] <= '1;
 			else if(specLvl[i] != '0)
 				specLvl[i] <= specLvl[i]-1;
 		end

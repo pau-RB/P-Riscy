@@ -33,7 +33,7 @@ FrontID lastFrontID = fromInteger(valueOf(FrontWidth)-1);
 typedef 3 BackWidth;
 
 // L1I
-typedef 32 L1ICacheRows;   // Must be power of 2
+typedef 64 L1ICacheRows;   // Must be power of 2
 typedef 2 L1ICacheColumns; // Must be power of 2
 Bool l1IAssociative = False;
 
