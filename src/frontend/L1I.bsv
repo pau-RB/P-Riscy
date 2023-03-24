@@ -7,9 +7,9 @@ import GetPut::*;
 import BRAM::*;
 import Vector::*;
 
-typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(L1ICacheRows))) CacheTag   ;
-typedef Bit#(TLog#(L1ICacheRows))                                              CacheIndex ;
-typedef Bit#(TLog#(CacheLineWords))                                            CacheOffset;
+typedef CacheLineNum                CacheTag   ;
+typedef Bit#(TLog#(L1ICacheRows))   CacheIndex ;
+typedef Bit#(TLog#(CacheLineWords)) CacheOffset;
 
 //////////// UTILITIES ////////////
 
@@ -17,8 +17,13 @@ function CacheTag tagOf(CacheLineNum num);
     return truncateLSB(num);
 endfunction
 
-function CacheIndex indexOf(CacheLineNum num);
-    return truncate(num);
+function CacheIndex indexOf(Addr addr);
+    CacheIndex   idx = '0;
+    CacheLineNum num = truncateLSB(addr);
+    for (Integer i = 0; i < valueOf(TLog#(L1ICacheRows)); i=i+1)
+        for (Integer j = i; j < valueOf(CacheLineNumSz); j=j+valueOf(TLog#(L1ICacheRows)))
+            idx[i] = idx[i]^num[j];
+    return idx;
 endfunction
 
 //////////// BARE DATA CACHE TYPES ////////////

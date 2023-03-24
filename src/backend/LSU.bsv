@@ -9,11 +9,11 @@ import Ehr::*;
 import Vector::*;
 import BRAM::*;
 
-typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(LSUCacheRows))) CacheTag;
-typedef Bit#(TLog#(LSUCacheRows))                                              CacheIndex;
-typedef Bit#(TLog#(CacheLineWords))                                            CacheOffset;
+typedef CacheLineNum                CacheTag;
+typedef Bit#(TLog#(LSUCacheRows))   CacheIndex;
+typedef Bit#(TLog#(CacheLineWords)) CacheOffset;
 
-typedef Bit#(TLog#(LSUCacheColumns))                                           CacheLane;
+typedef Bit#(TLog#(LSUCacheColumns)) CacheLane;
 
 //////////// UTILITIES ////////////
 
@@ -41,7 +41,12 @@ function CacheTag tagOf(Addr addr);
 endfunction
 
 function CacheIndex indexOf(Addr addr);
-	return truncate(addr >> valueOf(TLog#(CacheLineBytes)));
+	CacheIndex   idx = '0;
+	CacheLineNum num = truncateLSB(addr);
+	for (Integer i = 0; i < valueOf(TLog#(LSUCacheRows)); i=i+1)
+		for (Integer j = i; j < valueOf(CacheLineNumSz); j=j+valueOf(TLog#(LSUCacheRows)))
+			idx[i] = idx[i]^num[j];
+	return idx;
 endfunction
 
 function CacheOffset offsetOf(Addr addr);
@@ -242,7 +247,7 @@ module mkDirectDataCache (BareDataCache ifc);
 
 			if(meta.valid && meta.dirty) begin // old line is dirty
 				wbQ.enq(WideMemReq { write: True,
-				                     num  : {tag,index},
+				                     num  : tag, //{tag,index},
 				                     line : data });
 			end
 

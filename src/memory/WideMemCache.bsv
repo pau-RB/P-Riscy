@@ -9,10 +9,10 @@ import SpecialFIFOs::*;
 import Vector::*;
 import Ehr::*;
 
-typedef Bit#(TSub#(TSub#(AddrSz, TLog#(CacheLineBytes)), TLog#(cacheRows))) CacheTag     #(numeric type cacheRows   );
-typedef Bit#(TLog#(cacheRows))                                              CacheRowIndex#(numeric type cacheRows   );
-typedef Bit#(TLog#(cacheHash))                                              CacheRowHash #(numeric type cacheHash   );
-typedef Bit#(TLog#(cacheColumns))                                           CacheColIndex#(numeric type cacheColumns);
+typedef CacheLineNum              CacheTag     #(numeric type cacheRows   );
+typedef Bit#(TLog#(cacheRows))    CacheRowIndex#(numeric type cacheRows   );
+typedef Bit#(TLog#(cacheHash))    CacheRowHash #(numeric type cacheHash   );
+typedef Bit#(TLog#(cacheColumns)) CacheColIndex#(numeric type cacheColumns);
 
 typedef struct{
 	Bool valid;
@@ -51,11 +51,15 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) 
 	endfunction
 
 	function cacheRowIdx indexOf(CacheLineNum num);
-		return truncate(num);
+		cacheRowIdx idx = '0;
+		for (Integer i = 0; i < valueOf(TLog#(cacheRows)); i=i+1)
+			for (Integer j = i; j < valueOf(CacheLineNumSz); j=j+valueOf(TLog#(cacheRows)))
+				idx[i] = idx[i]^num[j];
+		return idx;
 	endfunction
 
 	function cacheRowHash hashOf(CacheLineNum num);
-		return truncate(num);
+		return truncate(indexOf(num));
 	endfunction
 
 	//////////// BRAM ////////////
@@ -218,7 +222,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) 
 
 				if(meta.valid && meta.dirty) begin // old line is dirty
 					colWBQ[i].enq(WideMemReq { write: True,
-					                           num  : {tag,index},
+					                           num  : tag,
 					                           line : line });
 				end
 
