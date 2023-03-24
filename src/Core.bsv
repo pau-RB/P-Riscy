@@ -73,13 +73,14 @@ module mkCore7SS(VerifMaster verif, Core ifc);
 
 	//////////// BACKEND ////////////
 
-	NTTX        nttx     <- mkNTTX(regFile, verif);
 	Backend     backend  <- mkBackend(verif       ,
-	                                  nttx        ,
 	                                  regFile     ,
 	                                  scoreboard );
+	//////////// NTTX ////////////
 
-	//////////// FORWARD QUEUES ////////////
+	NTTX        nttx     <- mkNTTX();
+
+	//////////// SWITCH ////////////
 
 	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 		rule do_forward_frontend;
@@ -93,10 +94,25 @@ module mkCore7SS(VerifMaster verif, Core ifc);
 		backend.enq(inst);
 	endrule
 
+	rule do_forward_btn;
+		let fr <- backend.getFork();
+		nttx.putFork(fr);
+	endrule
+
+	rule do_forward_btf;
+		FrontID feID <- nttx.getReadRF();
+		nttx.putLineRF(regFile[feID].getL, regFile[feID].getH);
+	endrule
+
 	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 		rule do_forward_redirect_bta;
-			let redirect <- backend.hart[i].getRedirect();
-			arbiter.enqRedirect[i].enq(redirect);
+			if(backend.deqRedirect[i].notEmpty()) begin
+				let redirect = backend.deqRedirect[i].first(); backend.deqRedirect[i].deq();
+				arbiter.enqRedirect[i].enq(redirect);
+			end else begin
+				let redirect = nttx.deqRedirect[i].first(); nttx.deqRedirect[i].deq();
+				arbiter.enqRedirect[i].enq(redirect);
+			end
 		endrule
 		rule do_forward_redirect_atf;
 			let redirect = arbiter.deqRedirect[i].first(); arbiter.deqRedirect[i].deq();

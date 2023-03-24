@@ -36,11 +36,10 @@ module mkDiv(XilinxIntDiv#(void));
 	return m;
 endmodule
 
-interface Writeback;
-
-	// To upstream
-	method ActionValue#(Redirect)     getRedirect();
-
+interface FifoDeq#(type t);
+	method Bool notEmpty;
+	method Action deq;
+	method t first;
 endinterface
 
 interface Backend;
@@ -52,7 +51,10 @@ interface Backend;
 	method Action enq(Vector#(BackWidth, Maybe#(ExecToken)) inst);
 
 	// To upstream
-	interface Vector#(FrontWidth, Writeback) hart;
+	interface Vector#(FrontWidth,FifoDeq#(Redirect)) deqRedirect;
+
+	// To NTTX
+	method ActionValue#(NTTXreq) getFork();
 
 	// To sched
 	method Data getNumCommit();
@@ -78,7 +80,6 @@ interface Backend;
 endinterface
 
 module mkBackend (VerifMaster                         verif      ,
-	              NTTX                                nttx       ,
 	              Vector#(FrontWidth, RFile)          regFile    ,
 	              Vector#(FrontWidth, Scoreboard#(8)) scoreboard ,
 	              Backend ifc);
@@ -98,6 +99,9 @@ module mkBackend (VerifMaster                         verif      ,
 	Vector#(FrontWidth, Ehr#(3, Maybe#(RFwb    ))) toWBrfWriteBack <- replicateM(mkEhr(tagged Invalid));
 	Vector#(FrontWidth, Ehr#(3, Maybe#(Epoch   ))) toWBstEpoch     <- replicateM(mkEhr(tagged Invalid));
 	Vector#(FrontWidth, Ehr#(3, Maybe#(Redirect))) toWBstRedirect  <- replicateM(mkEhr(tagged Invalid));
+
+	// To NTTX
+	FIFOF#(NTTXreq)                                eforkQ          <- mkFIFOF();
 
 	// Missed access table
 	Vector#(FrontWidth, Reg#(WBToken))             miata           <- replicateM(mkReg(?));
@@ -280,13 +284,10 @@ module mkBackend (VerifMaster                         verif      ,
 
 				if(wToken.inst.iType == Ghost) begin
 
-					nttx.evict(wToken.feID, wToken.pc);
-					stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : False,
-					                                                 dry     : True,
-					                                                 kill    : False,
-					                                                 redirect: False,
-					                                                 epoch   : ?,
-					                                                 nextPc  : ?};
+					eforkQ.enq(NTTXreq { frontID: wToken.feID,
+					                     verifID: verif.getVerifID(wToken.feID),
+					                     nextpc : wToken.pc,
+					                     evict  : True });
 
 				end else if(wToken.inst.iType == Ld) begin
 
@@ -360,7 +361,21 @@ module mkBackend (VerifMaster                         verif      ,
 
 				end else if(wToken.inst.iType == Fork || wToken.inst.iType == Forkr) begin
 
-					VerifID childVerifID <- nttx.efork(wToken.feID, wToken.inst.addr);
+					VerifID childVerifID <- verif.newVerifID();
+
+					eforkQ.enq(NTTXreq { frontID: wToken.feID,
+					                     verifID: childVerifID,
+					                     nextpc : wToken.inst.addr,
+					                     evict  : False });
+
+					stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
+					stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
+					                                                 dry     : False,
+					                                                 kill    : False,
+					                                                 redirect: True,
+					                                                 epoch   : commitEpoch[wToken.feID][0]+1,
+					                                                 nextPc  : wToken.pc+4 };
+
 					numWB = numWB+1;
 					if (cmr_ext_DEBUG == True)
 						commitReportQ.port[0].enq(generateCMR(numCycles, verif.getVerifID(wToken.feID), childVerifID, wToken, ?, ?));
@@ -608,16 +623,13 @@ module mkBackend (VerifMaster                         verif      ,
 
 	//////////// INTERFACE ////////////
 
-	Vector#(FrontWidth, Writeback) wbIfc = newVector;
- 	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-		wbIfc[i] =
-			(interface Writeback;
-
-				method ActionValue#(Redirect) getRedirect();
-					let latest = redirectQ[i].first(); redirectQ[i].deq();
-					return latest;
-				endmethod
-
+	Vector#(FrontWidth, FifoDeq#(Redirect)) deqRedirectIfc = newVector;
+	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+		deqRedirectIfc[i] =
+			(interface FifoDeq#(Redirect);
+				method notEmpty = redirectQ[i].notEmpty;
+				method deq      = redirectQ[i].deq;
+				method first    = redirectQ[i].first;
 			endinterface);
 	end
 
@@ -630,7 +642,12 @@ module mkBackend (VerifMaster                         verif      ,
 	endmethod
 
 	// To upstream
-	interface hart = wbIfc;
+	interface deqRedirect = deqRedirectIfc;
+
+	// To NTTX
+	method ActionValue#(NTTXreq) getFork();
+		eforkQ.deq(); return eforkQ.first();
+	endmethod
 
 	// To sched
 	method Data getNumCommit();

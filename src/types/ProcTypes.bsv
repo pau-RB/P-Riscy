@@ -166,6 +166,7 @@ endfunction
 
 function Bool isSpecInst(ExecToken inst);
 	return (inst.inst.iType == J           || inst.inst.iType == Jr    ||
+	        inst.inst.iType == Fork        || inst.inst.iType == Forkr ||
 	        inst.inst.iType == Br          || inst.inst.iType == Ld    ||
 	        inst.inst.iType == St          || inst.inst.iType == Join  );
 endfunction
