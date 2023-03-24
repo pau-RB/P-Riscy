@@ -124,7 +124,7 @@ slow:
 	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-mxm-ikj-f 1 2000 --color=always | less -r
 
 fast:
-	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-mxm-ikj-f 1 600
+	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-c-matmul 1 600
 
 vcu:
 	./vcu108/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-mxm-ikj-f 1 600

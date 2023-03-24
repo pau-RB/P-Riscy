@@ -17,9 +17,8 @@ function CacheTag tagOf(CacheLineNum num);
     return truncateLSB(num);
 endfunction
 
-function CacheIndex indexOf(Addr addr);
+function CacheIndex indexOf(CacheLineNum num);
     CacheIndex   idx = '0;
-    CacheLineNum num = truncateLSB(addr);
     for (Integer i = 0; i < valueOf(TLog#(L1ICacheRows)); i=i+1)
         for (Integer j = i; j < valueOf(CacheLineNumSz); j=j+valueOf(TLog#(L1ICacheRows)))
             idx[i] = idx[i]^num[j];
