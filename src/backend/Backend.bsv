@@ -51,6 +51,8 @@ interface Backend;
 	method Action enq(Vector#(BackWidth, Maybe#(ExecToken)) inst);
 
 	// To upstream
+	interface Vector#(FrontWidth,FifoDeq#(void    )) deqSBremove;
+	interface Vector#(FrontWidth,FifoDeq#(RFwb    )) deqRFwriteBack;
 	interface Vector#(FrontWidth,FifoDeq#(Redirect)) deqRedirect;
 
 	// To NTTX
@@ -79,10 +81,7 @@ interface Backend;
 
 endinterface
 
-module mkBackend (VerifMaster                         verif      ,
-	              Vector#(FrontWidth, RFile)          regFile    ,
-	              Vector#(FrontWidth, Scoreboard#(8)) scoreboard ,
-	              Backend ifc);
+module mkBackend (VerifMaster verif, Backend ifc);
 
 	// LSU
 	LSU#(FrontID) lsu <- mkLSU();
@@ -111,6 +110,8 @@ module mkBackend (VerifMaster                         verif      ,
 	Vector#(TSub#(BackWidth,1), XilinxIntDiv#(void)) divArray <- replicateM(mkDiv);
 
 	// Upstream
+	Vector#(FrontWidth, FIFOF#(void))              sbRemoveQ       <- replicateM(mkFIFOF());
+	Vector#(FrontWidth, FIFOF#(RFwb))              rfWriteBackQ    <- replicateM(mkFIFOF());
 	Vector#(FrontWidth, FIFOF#(Redirect))          redirectQ       <- replicateM(mkFIFOF());
 
 	// CMR
@@ -587,9 +588,9 @@ module mkBackend (VerifMaster                         verif      ,
 		rule do_wb;
 
 			if(toWBsbRemove[i][2] matches tagged Valid .rm)
-				scoreboard[i].remove();
+				sbRemoveQ[i].enq(?);
 
-			regFile[i].wr(fromMaybe(RFwb{dst: '0, res: 'hdeadbeef}, toWBrfWriteBack[i][2]));
+			rfWriteBackQ[i].enq(fromMaybe(RFwb{dst: '0, res: 'hdeadbeef}, toWBrfWriteBack[i][2]));
 
 			if(toWBstEpoch[i][2] matches tagged Valid .epoch)
 				commitEpoch[i][0] <= epoch;
@@ -623,6 +624,26 @@ module mkBackend (VerifMaster                         verif      ,
 
 	//////////// INTERFACE ////////////
 
+	Vector#(FrontWidth, FifoDeq#(void)) deqSBremoveIfc = newVector;
+	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+		deqSBremoveIfc[i] =
+			(interface FifoDeq#(Redirect);
+				method notEmpty = sbRemoveQ[i].notEmpty;
+				method deq      = sbRemoveQ[i].deq;
+				method first    = sbRemoveQ[i].first;
+			endinterface);
+	end
+
+	Vector#(FrontWidth, FifoDeq#(RFwb)) deqRFwriteBackIfc = newVector;
+	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+		deqRFwriteBackIfc[i] =
+			(interface FifoDeq#(Redirect);
+				method notEmpty = rfWriteBackQ[i].notEmpty;
+				method deq      = rfWriteBackQ[i].deq;
+				method first    = rfWriteBackQ[i].first;
+			endinterface);
+	end
+
 	Vector#(FrontWidth, FifoDeq#(Redirect)) deqRedirectIfc = newVector;
 	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 		deqRedirectIfc[i] =
@@ -642,7 +663,9 @@ module mkBackend (VerifMaster                         verif      ,
 	endmethod
 
 	// To upstream
-	interface deqRedirect = deqRedirectIfc;
+	interface deqSBremove    = deqSBremoveIfc;
+	interface deqRFwriteBack = deqRFwriteBackIfc;
+	interface deqRedirect    = deqRedirectIfc;
 
 	// To NTTX
 	method ActionValue#(NTTXreq) getFork();
