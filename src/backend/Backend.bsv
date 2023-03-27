@@ -107,8 +107,8 @@ module mkBackend (VerifMaster                         verif      ,
 	Vector#(FrontWidth, Reg#(WBToken))             miata           <- replicateM(mkReg(?));
 
 	// MulDiv
-	Vector#(TSub#(FrontWidth,1), XilinxIntMul#(void)) mulArray <- replicateM(mkMul);
-	Vector#(TSub#(FrontWidth,1), XilinxIntDiv#(void)) divArray <- replicateM(mkDiv);
+	Vector#(TSub#(BackWidth,1), XilinxIntMul#(void)) mulArray <- replicateM(mkMul);
+	Vector#(TSub#(BackWidth,1), XilinxIntDiv#(void)) divArray <- replicateM(mkDiv);
 
 	// Upstream
 	Vector#(FrontWidth, FIFOF#(Redirect))          redirectQ       <- replicateM(mkFIFOF());
