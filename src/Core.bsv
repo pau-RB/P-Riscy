@@ -57,25 +57,11 @@ module mkCore7SS(VerifMaster verif, Core ifc);
 		numCycles[0] <= numCycles[0]+1;
 	endrule
 
-	//////////// INT STATE ////////////
+	//////////// TOP-LEVEL MODULES ////////////
 
-	Vector#(FrontWidth, RFile         ) regFile    <- replicateM(mkBypassRFile);
-	Vector#(FrontWidth, Scoreboard#(8)) scoreboard <- replicateM(mkPipelineScoreboard);
-
-	//////////// FRONTEND ////////////
-
-	Frontend    frontend <- mkFrontend(regFile     ,
-	                                   scoreboard  );
-
-	//////////// ARBITER ////////////
-
+	Frontend    frontend <- mkFrontend();
 	SyncArbiter arbiter  <- mkSyncArbiter();
-
-	//////////// BACKEND ////////////
-
 	Backend     backend  <- mkBackend(verif);
-	//////////// NTTX ////////////
-
 	NTTX        nttx     <- mkNTTX();
 
 	//////////// SWITCH ////////////
@@ -99,17 +85,17 @@ module mkCore7SS(VerifMaster verif, Core ifc);
 
 	rule do_forward_btf;
 		FrontID feID <- nttx.getReadRF();
-		nttx.putLineRF(regFile[feID].getL, regFile[feID].getH);
+		nttx.putLineRF(frontend.regFile[feID].getL, frontend.regFile[feID].getH);
 	endrule
 
 	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 		rule do_forward_sb_remove;
 			let sbremove = backend.deqSBremove[i].first(); backend.deqSBremove[i].deq();
-			scoreboard[i].remove();
+			frontend.scoreboard[i].remove();
 		endrule
 		rule do_forward_rf_writeback;
 			let rfwriteback = backend.deqRFwriteBack[i].first(); backend.deqRFwriteBack[i].deq();
-			regFile[i].wr(rfwriteback);
+			frontend.regFile[i].wr(rfwriteback);
 		endrule
 		rule do_forward_redirect_bta;
 			if(backend.deqRedirect[i].notEmpty()) begin
@@ -246,9 +232,9 @@ module mkCore7SS(VerifMaster verif, Core ifc);
 
 	// Thread control
 	method Action start (FrontID feID, ContToken token);
-		frontend.hart[feID].start(token.pc );
-		regFile      [feID].setL (token.rfL);
-		regFile      [feID].setH (token.rfH);
+		frontend.hart   [feID].start(token.pc );
+		frontend.regFile[feID].setL (token.rfL);
+		frontend.regFile[feID].setH (token.rfH);
 
 		verif.setVerifID(feID, token.verifID);
 

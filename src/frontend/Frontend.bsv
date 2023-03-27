@@ -71,6 +71,10 @@ interface Frontend;
 	// Function
 	interface Vector#(FrontWidth, Hart) hart;
 
+	// SB and RF
+	interface Vector#(FrontWidth, Scoreboard#(8)) scoreboard;
+	interface Vector#(FrontWidth, RFile         ) regFile;
+
 	// Debug
 	interface Vector#(FrontWidth, FetchDebug)    fetch;
 	interface Vector#(FrontWidth, DecodeDebug)   decode;
@@ -82,9 +86,7 @@ interface Frontend;
 
 endinterface
 
-module mkFrontend (Vector#(FrontWidth, RFile)          regFile    ,
-	               Vector#(FrontWidth, Scoreboard#(8)) scoreboard ,
-	               Frontend ifc);
+module mkFrontend (Frontend ifc);
 
 	// Data cache
 	L1I#(FrontWidth, L1ICacheRows) l1I <- mkDirectL1I();
@@ -93,6 +95,10 @@ module mkFrontend (Vector#(FrontWidth, RFile)          regFile    ,
 	Vector#(FrontWidth, FIFOF#(RFToken)  ) regfetchQ  <- replicateM(mkPipelineFIFOF());
 	Vector#(FrontWidth, FIFOF#(ExecToken)) arbiterQ   <- replicateM(mkBypassFIFOF  ());
 	Vector#(FrontWidth, FIFOF#(Redirect) ) redirectQ  <- replicateM(mkBypassFIFOF  ());
+
+	// SB and RF
+	Vector#(FrontWidth, Scoreboard#(8)) scoreboardArray <- replicateM(mkPipelineScoreboard);
+	Vector#(FrontWidth, RFile         ) regFileArray    <- replicateM(mkBypassRFile);
 
 	// Stats
 	Reg#(Data) numEmpty <- mkReg(0);
@@ -172,7 +178,7 @@ module mkFrontend (Vector#(FrontWidth, RFile)          regFile    ,
 				Redirect red = redirectQ[i].first(); redirectQ[i].deq();
 				if(red.kill || red.redirect) begin
 					regfetchEpoch[i] <= red.epoch;
-					scoreboard   [i].clear();
+					scoreboardArray   [i].clear();
 				end
 				regfetchLock[i] <= red.lock;
 				if(red.dry || red.kill || red.redirect)
@@ -182,13 +188,13 @@ module mkFrontend (Vector#(FrontWidth, RFile)          regFile    ,
 
 				regfetchQ[i].deq();
 
-			end else if(!regfetchLock[i] && !scoreboard[i].search1(regfetchQ[i].first.inst.src1)
-			                             && !scoreboard[i].search2(regfetchQ[i].first.inst.src2)) begin
+			end else if(!regfetchLock[i] && !scoreboardArray[i].search1(regfetchQ[i].first.inst.src1)
+			                             && !scoreboardArray[i].search2(regfetchQ[i].first.inst.src2)) begin
 
 				let rfToken = regfetchQ[i].first(); regfetchQ[i].deq();
 
-				let arg1    = regFile[i].rd1(fromMaybe(?, rfToken.inst.src1));
-				let arg2    = regFile[i].rd2(fromMaybe(?, rfToken.inst.src2));
+				let arg1    = regFileArray[i].rd1(fromMaybe(?, rfToken.inst.src1));
+				let arg2    = regFileArray[i].rd2(fromMaybe(?, rfToken.inst.src2));
 				let eToken  = ExecToken{ inst   : rfToken.inst,
 				                         arg1   : arg1,
 				                         arg2   : arg2,
@@ -197,7 +203,7 @@ module mkFrontend (Vector#(FrontWidth, RFile)          regFile    ,
 				                         epoch  : rfToken.epoch,
 				                         rawInst: rfToken.rawInst};
 
-				scoreboard[i].insert(rfToken.inst.dst);
+				scoreboardArray[i].insert(rfToken.inst.dst);
 
 				arbiterQ[i].enq(eToken);
 
@@ -268,19 +274,21 @@ module mkFrontend (Vector#(FrontWidth, RFile)          regFile    ,
 			endinterface);
 	end
 
-	interface mem      = l1I.mem;
-	interface hart     = hartIfc;
-	interface fetch    = fetchIfc;
-	interface decode   = decodeIfc;
-	interface regfetch = regfetchIfc;
+	interface mem        = l1I.mem;
+	interface hart       = hartIfc;
+	interface scoreboard = scoreboardArray;
+	interface regFile    = regFileArray;
+	interface fetch      = fetchIfc;
+	interface decode     = decodeIfc;
+	interface regfetch   = regfetchIfc;
 
 	method Action startCore();
 		coreStarted <= True;
 	endmethod
 
 	method FetchStat getStat();
-		return FetchStat { hit:   l1I.getNumHit(),
-		                   miss:  l1I.getNumMiss(),
+		return FetchStat { hit  : l1I.getNumHit(),
+		                   miss : l1I.getNumMiss(),
 		                   empty: numEmpty };
 	endmethod
 
