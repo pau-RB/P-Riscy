@@ -1,5 +1,4 @@
 import FShow::*;
-import VerifMaster::*;
 import Config::*;
 
 // types
@@ -63,6 +62,8 @@ interface Backend;
 
 	// CMR
 	method Action startCore();
+	method Action setVerifID(FrontID feID, VerifID verifID);
+	method VerifID getVerifID(FrontID feID);
 	method ActionValue#(CommitReport) getCMR();
 	method ActionValue#(Message)      getMSG();
 	method ActionValue#(Message)      getHEX();
@@ -81,10 +82,13 @@ interface Backend;
 
 endinterface
 
-module mkBackend (VerifMaster verif, Backend ifc);
+module mkBackend (Backend ifc);
 
 	// LSU
 	LSU#(FrontID) lsu <- mkLSU();
+
+	// Missed access table
+	Vector#(FrontWidth, Reg#(WBToken)) miata <- replicateM(mkReg(?));
 
 	// Epoch
 	Vector#(FrontWidth, Ehr#(2,Epoch) ) commitEpoch <- replicateM(mkEhr('0));
@@ -102,9 +106,6 @@ module mkBackend (VerifMaster verif, Backend ifc);
 	// To NTTX
 	FIFOF#(NTTXreq)                                eforkQ          <- mkFIFOF();
 
-	// Missed access table
-	Vector#(FrontWidth, Reg#(WBToken))             miata           <- replicateM(mkReg(?));
-
 	// MulDiv
 	Vector#(TSub#(BackWidth,1), XilinxIntMul#(void)) mulArray <- replicateM(mkMul);
 	Vector#(TSub#(BackWidth,1), XilinxIntDiv#(void)) divArray <- replicateM(mkDiv);
@@ -115,6 +116,9 @@ module mkBackend (VerifMaster verif, Backend ifc);
 	Vector#(FrontWidth, FIFOF#(Redirect))          redirectQ       <- replicateM(mkFIFOF());
 
 	// CMR
+	Vector#(FrontWidth, Reg#(VerifID))             mapID           <- replicateM(mkRegU());
+	Reg#(VerifID)                                  nextID          <- mkReg('d1);
+
 	MFifo#(CTHQ_LEN,BackWidth,CommitReport)        commitReportQ   <- mkPipelineMFifo();
 	FIFOF#(Message)                                messageReportQ  <- mkSizedFIFOF(valueOf(CTHQ_LEN));
 	FIFOF#(Message)                                hexReportQ      <- mkSizedFIFOF(valueOf(CTHQ_LEN));
@@ -286,7 +290,7 @@ module mkBackend (VerifMaster verif, Backend ifc);
 				if(wToken.inst.iType == Ghost) begin
 
 					eforkQ.enq(NTTXreq { frontID: wToken.feID,
-					                     verifID: verif.getVerifID(wToken.feID),
+					                     verifID: mapID[wToken.feID],
 					                     nextpc : wToken.pc,
 					                     evict  : True });
 
@@ -297,7 +301,7 @@ module mkBackend (VerifMaster verif, Backend ifc);
 						rfWriteBack[wToken.feID] = tagged Valid RFwb{dst: fromMaybe(?, wToken.inst.dst), res: res.data};
 						numWB = numWB+1;
 						if(cmr_ext_DEBUG == True)
-							commitReportQ.port[0].enq(generateCMR(numCycles, verif.getVerifID(wToken.feID), ?, wToken, res.data, ?));
+							commitReportQ.port[0].enq(generateCMR(numCycles, mapID[wToken.feID], ?, wToken, res.data, ?));
 					end else begin
 						miata     [wToken.feID] <= wToken;
 						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
@@ -317,7 +321,7 @@ module mkBackend (VerifMaster verif, Backend ifc);
 					if(res.valid) begin
 						numWB = numWB+1;
 						if(cmr_ext_DEBUG == True)
-							commitReportQ.port[0].enq(generateCMR(numCycles, verif.getVerifID(wToken.feID), ?, wToken, ?, ?));
+							commitReportQ.port[0].enq(generateCMR(numCycles, mapID[wToken.feID], ?, wToken, ?, ?));
 					end else begin
 						miata     [wToken.feID] <= wToken;
 						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
@@ -346,7 +350,7 @@ module mkBackend (VerifMaster verif, Backend ifc);
 						end
 						numWB = numWB+1;
 						if (cmr_ext_DEBUG == True)
-								commitReportQ.port[0].enq(generateCMR(numCycles, verif.getVerifID(wToken.feID), ?, wToken, res.data, ?));
+								commitReportQ.port[0].enq(generateCMR(numCycles, mapID[wToken.feID], ?, wToken, res.data, ?));
 					end else begin
 						miata     [wToken.feID] <= wToken;
 						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
@@ -362,10 +366,10 @@ module mkBackend (VerifMaster verif, Backend ifc);
 
 				end else if(wToken.inst.iType == Fork || wToken.inst.iType == Forkr) begin
 
-					VerifID childVerifID <- verif.newVerifID();
+					nextID <= nextID+1;
 
 					eforkQ.enq(NTTXreq { frontID: wToken.feID,
-					                     verifID: childVerifID,
+					                     verifID: nextID,
 					                     nextpc : wToken.inst.addr,
 					                     evict  : False });
 
@@ -379,32 +383,32 @@ module mkBackend (VerifMaster verif, Backend ifc);
 
 					numWB = numWB+1;
 					if (cmr_ext_DEBUG == True)
-						commitReportQ.port[0].enq(generateCMR(numCycles, verif.getVerifID(wToken.feID), childVerifID, wToken, ?, ?));
+						commitReportQ.port[0].enq(generateCMR(numCycles, mapID[wToken.feID], nextID, wToken, ?, ?));
 
 				end
 
 				if (msg_ext_DEBUG == True) begin
 					if(wToken.inst.iType == St && wToken.inst.addr == msg_ADDR) begin
-						messageReportQ.enq(Message { verifID: verif.getVerifID(wToken.feID),
-						                             cycle:   numCycles,
-						                             commit:  numCommit[0],
-						                             data:    wToken.inst.data });
+						messageReportQ.enq(Message { verifID: mapID[wToken.feID],
+						                             cycle  : numCycles,
+						                             commit : numCommit[0],
+						                             data   : wToken.inst.data });
 					end
 				end
 
 				if (hex_ext_DEBUG == True) begin
 					if(wToken.inst.iType == St && wToken.inst.addr == hex_ADDR) begin
-						hexReportQ.enq(Message { verifID: verif.getVerifID(wToken.feID),
-						                         cycle:   numCycles,
-						                         commit:  numCommit[0],
-						                         data:    wToken.inst.data });
+						hexReportQ.enq(Message { verifID: mapID[wToken.feID],
+						                         cycle  : numCycles,
+						                         commit : numCommit[0],
+						                         data   : wToken.inst.data });
 					end
 				end
 
 				if (mem_ext_DEBUG == True) begin
 					if(wToken.inst.iType == St && wToken.inst.addr == msr_ADDR) begin
 						LSUStat   lsr = lsu.getStat();
-						MemStat   msr = MemStat{ verifID: verif.getVerifID(wToken.feID),
+						MemStat   msr = MemStat{ verifID: mapID[wToken.feID],
 						                         cycle  : numCycles,
 						                         commit : numCommit[0],
 						                         data   : wToken.inst.data,
@@ -482,7 +486,7 @@ module mkBackend (VerifMaster verif, Backend ifc);
 					numWB = numWB+1;
 
 					if (cmr_ext_DEBUG == True) begin
-						commitReportQ.port[i].enq(generateCMR(numCycles, verif.getVerifID(wToken.feID), ?, wToken, ?, mulRes));
+						commitReportQ.port[i].enq(generateCMR(numCycles, mapID[wToken.feID], ?, wToken, ?, mulRes));
 					end
 
 					if(perf_DEBUG == True) begin
@@ -572,7 +576,7 @@ module mkBackend (VerifMaster verif, Backend ifc);
 		numCommit[1] <= numCommit[1]+1;
 
 		if (cmr_ext_DEBUG == True) begin
-			commitReportQ.port[0].enq(generateCMR(numCycles, verif.getVerifID(feID), ?, wToken, loadRes, ?));
+			commitReportQ.port[0].enq(generateCMR(numCycles, mapID[feID], ?, wToken, loadRes, ?));
 		end
 
 		if(perf_DEBUG == True) begin
@@ -681,6 +685,15 @@ module mkBackend (VerifMaster verif, Backend ifc);
 	method Action startCore();
 		coreStarted <= True;
 	endmethod
+
+	method Action setVerifID(FrontID feID, VerifID verifID);
+		mapID[feID] <= verifID;
+	endmethod
+
+	method VerifID getVerifID(FrontID feID);
+		return mapID[feID];
+	endmethod
+
 
 	method ActionValue#(CommitReport) getCMR();
 		let latest = commitReportQ.first(); commitReportQ.deq();

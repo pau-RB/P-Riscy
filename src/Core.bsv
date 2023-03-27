@@ -1,6 +1,5 @@
 import FShow::*;
 import Config::*;
-import VerifMaster::*;
 
 // types
 import Types::*;
@@ -46,7 +45,7 @@ interface Core;
 
 endinterface
 
-module mkCore7SS(VerifMaster verif, Core ifc);
+module mkCore7SS(Core ifc);
 
 	//////////// COUNTERS ////////////
 
@@ -61,7 +60,7 @@ module mkCore7SS(VerifMaster verif, Core ifc);
 
 	Frontend    frontend <- mkFrontend();
 	SyncArbiter arbiter  <- mkSyncArbiter();
-	Backend     backend  <- mkBackend(verif);
+	Backend     backend  <- mkBackend();
 	NTTX        nttx     <- mkNTTX();
 
 	//////////// SWITCH ////////////
@@ -135,7 +134,7 @@ module mkCore7SS(VerifMaster verif, Core ifc);
 
 			//////////// FETCH ////////////
 
-			if(frontend.fetch[i].currentState() != Empty) $write("|| %d ", verif.getVerifID(fromInteger(i))); else $write("||            ");
+			if(frontend.fetch[i].currentState() != Empty) $write("|| %d ", backend.getVerifID(fromInteger(i))); else $write("||            ");
 
 			case (frontend.fetch[i].currentState())
 				Full :   $write("|| Full  ");
@@ -236,7 +235,7 @@ module mkCore7SS(VerifMaster verif, Core ifc);
 		frontend.regFile[feID].setL (token.rfL);
 		frontend.regFile[feID].setH (token.rfH);
 
-		verif.setVerifID(feID, token.verifID);
+		backend.setVerifID(feID, token.verifID);
 
 		frontend.startCore();
 		arbiter.startCore();

@@ -1,7 +1,6 @@
 import Ifc::*;
 import HostInterface::*;
-import Core::*; 
-import VerifMaster::*;
+import Core::*;
 import Types::*;
 import WideMemTypes::*;
 import ClientServer::*;
@@ -39,12 +38,13 @@ endinterface
 
 module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
+	Reg#(Bool) systemStarted <- mkReg(False);
+
 	WideMemDDR4#(RAMLatency)                                                           mainDDR4 <- mkWideMemDDR4(host);
 	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, TMul#(2,FrontWidth)) mainL2SC <- mkWideMemCache();
 	WideMemSplit#(2,TMul#(2,FrontWidth))                                               mainL2SB <- mkSplitWideMem();
 
-	VerifMaster                          verif        <- mkVerifMaster();
-	Core                                 core         <- mkCore7SS(verif);
+	Core core <- mkCore7SS();
 
 	mkConnection(mainL2SC.mem, mainDDR4.portA  );
 	mkConnection(mainL2SB.mem, mainL2SC.portA  );
@@ -172,12 +172,12 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 		endmethod
 
-		method Action startPC(Bit#(32) startpc) if(memInit);
+		method Action startPC(Bit#(32) startpc) if(memInit && !systemStarted);
 
-			VerifID verifID <- verif.newVerifID();
+			systemStarted <= True;
 
 			mainTokenQ.enq(ContToken{
-			                  verifID: verifID,
+			                  verifID: '0,
 			                  pc     : startpc,
 			                  rfL    : replicate('0),
 			                  rfH    : replicate('0)  });
