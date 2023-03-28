@@ -41,8 +41,6 @@ Bool l1IAssociative = False;
 typedef 64 LSUCacheRows;    // Must be power of 2
 typedef 2  LSUCacheColumns; // Must be power of 2
 Bool lsuAssociative = False;
-typedef FrontWidth LSUmshrW;
-typedef FrontWidth LSUmshrD;
 
 // L2
 typedef 256 L2CacheRows;       // Must be power of 2

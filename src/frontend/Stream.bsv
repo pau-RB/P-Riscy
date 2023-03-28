@@ -10,7 +10,7 @@ import Ehr::*;
 interface Stream;
 
 	// Acces to IMEM
-	interface WideMemClient mem;
+	interface WideMemClient#(void) mem;
 
 	// Flow control
 	method ActionValue#(DecToken) fetch();
@@ -44,19 +44,19 @@ module mkStream (Stream ifc);
 
 	//////////// SEQ ////////////
 
-	Ehr#(4,StreamStatus)    state     <- mkEhr(Empty);
-	Ehr#(2,Addr)            pc        <- mkEhr('0);
-	Reg#(Epoch)             epoch     <- mkReg('0);
+	Ehr#(4,StreamStatus)      state     <- mkEhr(Empty);
+	Ehr#(2,Addr)              pc        <- mkEhr('0);
+	Reg#(Epoch)               epoch     <- mkReg('0);
 
-	FIFOF#(DecToken)        instQ     <- mkPipelineFIFOF();
-	FIFOF#(Redirect)        redirectQ <- mkBypassFIFOF();
+	FIFOF#(DecToken)          instQ     <- mkPipelineFIFOF();
+	FIFOF#(Redirect)          redirectQ <- mkBypassFIFOF();
 	
-	Reg  #(CacheLine)       l0I       <- mkRegU();
-	Ehr  #(2, CacheLineNum) l0Iline   <- mkEhr(?);
-	Ehr  #(2, Bool)         l0Ival    <- mkEhr(False);
-	FIFOF#(CacheLineNum)    l1Ireq    <- mkPipelineFIFOF();
-	FIFOF#(WideMemReq  )    memreq    <- mkBypassFIFOF();
-	FIFOF#(WideMemResp )    memres    <- mkBypassFIFOF();
+	Reg  #(CacheLine)         l0I       <- mkRegU();
+	Ehr  #(2, CacheLineNum)   l0Iline   <- mkEhr(?);
+	Ehr  #(2, Bool)           l0Ival    <- mkEhr(False);
+	FIFOF#(CacheLineNum)      l1Ireq    <- mkPipelineFIFOF();
+	FIFOF#(WideMemReq#(void)) memreq    <- mkBypassFIFOF();
+	FIFOF#(WideMemRes#(void)) memres    <- mkBypassFIFOF();
 
 	// Note: After pc+4 we might request a new line. Then, we might receive
 	// a redirect request and generate a new L1I request. When getting the
@@ -143,11 +143,11 @@ module mkStream (Stream ifc);
 
 	rule do_l1Iresp;
 
-		CacheLine data = memres.first(); memres.deq();
+		WideMemRes#(void) res = memres.first(); memres.deq();
 		l1Ireq.deq();
 
 		if(l1Ireq.first() == nextpcline) begin
-			l0I        <= data;
+			l0I        <= res.line;
 			l0Iline[0] <= l1Ireq.first();
 			l0Ival [0] <= True;
 		end
@@ -158,7 +158,8 @@ module mkStream (Stream ifc);
 
 	rule do_l1Ireq if (state[3] == Full && !nextl0Ihit);
 
-		memreq.enq(WideMemReq { write: False,
+		memreq.enq(WideMemReq { tag  : ?,
+		                        write: False,
 		                        num  : nextpcline,
 		                        line : ? } );
 		l1Ireq.enq(nextpcline);
@@ -170,13 +171,13 @@ module mkStream (Stream ifc);
 	// IMEM
 	interface WideMemClient mem;
 		interface request = (interface Get#(WideMemReq);
-			method ActionValue#(WideMemReq) get();
+			method ActionValue#(WideMemReq#(void)) get();
 				memreq.deq();
 				return memreq.first();
 			endmethod
 		endinterface);
-		interface response = (interface Put#(WidememResp);
-			method Action put(WideMemResp r);
+		interface response = (interface Put#(WidememRes#(void));
+			method Action put(WideMemRes#(void) r);
 				memres.enq(r);
 			endmethod
 		endinterface);

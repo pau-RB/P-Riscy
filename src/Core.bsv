@@ -25,8 +25,8 @@ import NTTX::*;
 interface Core;
 
 	// IMEM and DMEM
-	interface WideMemClient instMem;
-	interface WideMemClient dataMem;
+	interface WideMemClient#(FrontID) instMem;
+	interface WideMemClient#(FrontID) dataMem;
 
 	// Thread control
 	method Action start (FrontID feID, ContToken token);

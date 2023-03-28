@@ -44,7 +44,7 @@ endinterface
 interface Backend;
 
 	// DMEM
-	interface WideMemClient mem;
+	interface WideMemClient#(FrontID) mem;
 
 	// Execute
 	method Action enq(Vector#(BackWidth, Maybe#(ExecToken)) inst);

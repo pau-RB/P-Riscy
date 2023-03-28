@@ -6,18 +6,18 @@ import FIFOF::*;
 import SpecialFIFOs::*;
 import Vector::*;
 
-interface WideMemDelay#(numeric type delayLatency);
-	interface WideMemClient mem;
-	interface WideMemServer portA;
+interface WideMemDelay#(numeric type delayLatency, type tagT);
+	interface WideMemClient#(tagT) mem;
+	interface WideMemServer#(tagT) portA;
 endinterface
 
-module mkWideMemDelay(WideMemDelay#(delayLatency) ifc);
+module mkWideMemDelay(WideMemDelay#(delayLatency, tagT) ifc) provisos(Bits#(tagT, t__));
 
-	Vector#(delayLatency, FIFOF#(WideMemReq)) forward <- replicateM(mkPipelineFIFOF());
-	FIFOF#(WideMemReq)  inQ  = forward[0];
-	FIFOF#(WideMemReq)  outQ = forward[valueof(delayLatency)-1];
-	FIFOF#(WideMemReq ) memreq <- mkBypassFIFOF();
-	FIFOF#(WideMemResp) memres <- mkBypassFIFOF();
+	Vector#(delayLatency, FIFOF#(WideMemReq#(tagT))) forward <- replicateM(mkPipelineFIFOF());
+	FIFOF#(WideMemReq#(tagT)) inQ  = forward[0];
+	FIFOF#(WideMemReq#(tagT)) outQ = forward[valueof(delayLatency)-1];
+	FIFOF#(WideMemReq#(tagT)) memreq <- mkBypassFIFOF();
+	FIFOF#(WideMemRes#(tagT)) memres <- mkBypassFIFOF();
 
 	for (Integer i = 0; i < valueOf(delayLatency)-1; i=i+1) begin
 		rule do_FORWARD;
@@ -31,27 +31,27 @@ module mkWideMemDelay(WideMemDelay#(delayLatency) ifc);
 	endrule
 
 	interface WideMemClient mem;
-		interface request = (interface Get#(WideMemReq);
-			method ActionValue#(WideMemReq) get();
+		interface request = (interface Get#(WideMemReq#(tagT));
+			method ActionValue#(WideMemReq#(tagT)) get();
 				memreq.deq();
 				return memreq.first();
 			endmethod
 		endinterface);
-		interface response = (interface Put#(WidememResp);
-			method Action put(WideMemResp r);
+		interface response = (interface Put#(WideMemRes#(tagT));
+			method Action put(WideMemRes#(tagT) r);
 				memres.enq(r);
 			endmethod
 		endinterface);
 	endinterface
 
 	interface WideMemServer portA;
-		interface request = (interface Put#(WideMemReq);
-			method Action put(WideMemReq r);
+		interface request = (interface Put#(WideMemReq#(tagT));
+			method Action put(WideMemReq#(tagT) r);
 				inQ.enq(r);
 			endmethod
 		endinterface);
-		interface response = (interface Get#(WidememResp);
-			method ActionValue#(CacheLine) get();
+		interface response = (interface Get#(WideMemRes#(tagT));
+			method ActionValue#(WideMemRes#(tagT)) get();
 				memres.deq();
 				return memres.first();
 			endmethod

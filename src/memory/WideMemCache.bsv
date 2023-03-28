@@ -20,29 +20,31 @@ typedef struct{
 } CacheMeta deriving(Eq, Bits, FShow);
 
 typedef struct{
+	tagT         tag  ; // Request tag
 	Bool         inv  ; // Invalidate that entry if hit
 	Bool         write; // Write that entry
 	Bool         dirty; // If write, is it dirty?
 	CacheLineNum num  ;
 	CacheLine    line ;
-} WMCReq deriving(Eq, Bits, FShow);
+} WMCReq#(type tagT) deriving(Eq, Bits, FShow);
 
-interface WideMemCache#(numeric type cacheRows, numeric type cacheColumns, numeric type cacheHash, numeric type numReq);
-	interface WideMemClient mem;
-	interface WideMemServer portA;
+interface WideMemCache#(numeric type cacheRows, numeric type cacheColumns, numeric type cacheHash, numeric type numReq, type tagT);
+	interface WideMemClient#(tagT) mem;
+	interface WideMemServer#(tagT) portA;
 	method WMCStat getStat();
 endinterface
 
-module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) ifc) provisos(Log#(cacheRows, b__),
-                                                                                              Add#(c__, TLog#(cacheRows), CacheLineNumSz),
-                                                                                              Log#(cacheColumns, d__),
-                                                                                              Log#(cacheHash, e__),
-                                                                                              Add#(f__, TLog#(cacheHash), TLog#(cacheRows)),
-                                                                                              Add#(g__, TLog#(cacheHash), CacheLineNumSz),
-                                                                                              Alias#(cacheTag ,    CacheTag#(cacheRows)),
-                                                                                              Alias#(cacheRowIdx,  CacheRowIndex#(cacheRows)),
-                                                                                              Alias#(cacheRowHash, CacheRowHash#(cacheHash)),
-                                                                                              Alias#(cacheColIdx,  CacheColIndex#(cacheColumns)));
+module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq, tagT) ifc) provisos(Log#(cacheRows, b__),
+                                                                                                    Add#(c__, TLog#(cacheRows), CacheLineNumSz),
+                                                                                                    Log#(cacheColumns, d__),
+                                                                                                    Log#(cacheHash, e__),
+                                                                                                    Add#(f__, TLog#(cacheHash), TLog#(cacheRows)),
+                                                                                                    Add#(g__, TLog#(cacheHash), CacheLineNumSz),
+                                                                                                    Bits#(tagT, t__),
+                                                                                                    Alias#(cacheTag ,    CacheTag#(cacheRows)),
+                                                                                                    Alias#(cacheRowIdx,  CacheRowIndex#(cacheRows)),
+                                                                                                    Alias#(cacheRowHash, CacheRowHash#(cacheHash)),
+                                                                                                    Alias#(cacheColIdx,  CacheColIndex#(cacheColumns)));
 
 	//////////// UTILITIES ////////////
 
@@ -80,20 +82,20 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) 
 
 	//////////// QUEUES ////////////
 
-	Vector#(cacheColumns, FIFOF#(WMCReq             )) colReqQ <- replicateM(mkPipelineFIFOF());
-	Vector#(cacheColumns, FIFOF#(WMCReq             )) colBRMQ <- replicateM(mkPipelineFIFOF());
-	Vector#(cacheColumns, FIFOF#(Maybe#(WideMemResp))) colResQ <- replicateM(mkPipelineFIFOF());
-	Vector#(cacheColumns, FIFOF#(WideMemReq         )) colWBQ  <- replicateM(mkPipelineFIFOF());
+	Vector#(cacheColumns, FIFOF#(WMCReq#(void)    )) colReqQ <- replicateM(mkPipelineFIFOF());
+	Vector#(cacheColumns, FIFOF#(WMCReq#(void)    )) colBRMQ <- replicateM(mkPipelineFIFOF());
+	Vector#(cacheColumns, FIFOF#(Maybe#(CacheLine))) colResQ <- replicateM(mkPipelineFIFOF());
+	Vector#(cacheColumns, FIFOF#(WideMemReq#(tagT))) colWBQ  <- replicateM(mkPipelineFIFOF());
 
-	FIFOF#(WMCReq)       reqQ   <- mkSizedFIFOF(valueOf(numReq));
-	FIFOF#(WMCReq)       brmQ   <- mkSizedFIFOF(5);
-	FIFOF#(CacheLineNum) memQ   <- mkSizedFIFOF(valueOf(numReq));
-	FIFOF#(WideMemReq )  memreq <- mkBypassFIFOF();
-	FIFOF#(WideMemResp)  memres <- mkBypassFIFOF();
+	FIFOF#(WMCReq#(tagT))      reqQ   <- mkSizedFIFOF(valueOf(numReq));
+	FIFOF#(WMCReq#(tagT))      brmQ   <- mkSizedFIFOF(5);
+	FIFOF#(CacheLineNum)       memQ   <- mkSizedFIFOF(valueOf(numReq));
+	FIFOF#(WideMemReq#(tagT))  memreq <- mkBypassFIFOF();
+	FIFOF#(WideMemRes#(tagT))  memres <- mkBypassFIFOF();
 
-	FIFOF#(Bool)         resQ <- mkFIFOF();
-	FIFOF#(WideMemResp)  hitQ <- mkFIFOF();
-	FIFOF#(WideMemResp)  misQ <- mkFIFOF();
+	FIFOF#(Bool)               resQ <- mkFIFOF();
+	FIFOF#(WideMemRes#(tagT))  hitQ <- mkFIFOF();
+	FIFOF#(WideMemRes#(tagT))  misQ <- mkFIFOF();
 
 	Reg#(Maybe#(cacheRowIdx)) invIndex <- mkReg(tagged Valid 0); // Invalidate entries
 
@@ -130,28 +132,35 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) 
 
 	rule do_ISSUEREQ;
 
-		WMCReq req = reqQ.first(); reqQ.deq();
+		WMCReq#(tagT) req = reqQ.first(); reqQ.deq();
 
 		if(req.write) begin // We only write on one columns
 			for (Integer i = 0; i < valueOf(cacheColumns); i=i+1)
 				if(fromInteger(i) == replaceIndex) begin
-					colReqQ[i].enq(WMCReq { inv  : False,
-					                        write: True,
-					                        dirty: req.dirty,
-					                        num  : req.num,
-					                        line : req.line });
+					colReqQ[i].enq(WMCReq{ tag  : ?,
+					                       inv  : False,
+					                       write: True,
+					                       dirty: req.dirty,
+					                       num  : req.num,
+					                       line : req.line });
 				end else begin
-					colReqQ[i].enq(WMCReq { inv  : True,
-					                        write: False,
-					                        dirty: req.dirty,
-					                        num  : req.num,
-					                        line : req.line });
+					colReqQ[i].enq(WMCReq{ tag  : ?,
+					                       inv  : True,
+					                       write: False,
+					                       dirty: req.dirty,
+					                       num  : req.num,
+					                       line : req.line });
 				end
 			replaceIndex <= replaceIndex+1;
-		end else begin // We try to read from al of them
+		end else begin // We try to read from all of them
 			brmQ.enq(req);
 			for (Integer i = 0; i < valueOf(cacheColumns); i=i+1)
-				colReqQ[i].enq(req);
+				colReqQ[i].enq(WMCReq{ tag  : ?,
+				                       inv  : False,
+				                       write: False,
+				                       dirty: req.dirty,
+				                       num  : req.num,
+				                       line : req.line });
 		end
 
 	endrule
@@ -171,7 +180,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) 
 
 		rule do_COLREQ if(!isValid(invIndex) && !colWBQ[i].notEmpty() && (!isValid(writePortHash[i][1]) || fromMaybe(?,writePortHash[i][1]) != hashOf(colReqQ[i].first.num)));
 
-			WMCReq req = colReqQ[i].first(); colReqQ[i].deq();
+			WMCReq#(void) req = colReqQ[i].first(); colReqQ[i].deq();
 			cacheRowIdx index = indexOf(req.num);
 
 			colBRMQ[i].enq(req);
@@ -197,7 +206,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) 
 
 		rule do_COLRESP;
 
-			WMCReq req = colBRMQ[i].first(); colBRMQ[i].deq();
+			WMCReq#(void) req = colBRMQ[i].first(); colBRMQ[i].deq();
 
 			CacheLine line <- dataArray[i].portA.response.get;
 			cacheTag  tag  <- tagsArray[i].portA.response.get;
@@ -221,7 +230,8 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) 
 			end else if (req.write) begin // write
 
 				if(meta.valid && meta.dirty) begin // old line is dirty
-					colWBQ[i].enq(WideMemReq { write: True,
+					colWBQ[i].enq(WideMemReq { tag  : ?,
+					                           write: True,
 					                           num  : tag,
 					                           line : line });
 				end
@@ -270,7 +280,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) 
 
 		rule do_WB;
 
-			WideMemReq req = colWBQ[i].first(); colWBQ[i].deq();
+			WideMemReq#(tagT) req = colWBQ[i].first(); colWBQ[i].deq();
 			memreq.enq(req);
 
 		endrule
@@ -281,24 +291,25 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) 
 
 	rule do_RESP;
 
-		WMCReq req = brmQ.first(); brmQ.deq();
+		WMCReq#(tagT) req = brmQ.first(); brmQ.deq();
 
-		WideMemResp res = unpack('0);
-		Bool        val = False;
+		CacheLine line = unpack('0);
+		Bool      val  = False;
 
 		for(Integer i = 0; i < valueOf(cacheColumns); i=i+1) begin
 			colResQ[i].deq();
-			res = unpack(pack(res)|pack(fromMaybe(unpack('0),colResQ[i].first)));
+			line = unpack(pack(line)|pack(fromMaybe(unpack('0),colResQ[i].first)));
 			val = val||isValid(colResQ[i].first);
 		end
 
 		if(val) begin // hit
 			resQ.enq(True);
-			hitQ.enq(res);
+			hitQ.enq(WideMemRes{ tag: req.tag, line: line });
 		end else begin // miss
 			resQ.enq(False);
 			memQ.enq(req.num);
-			memreq.enq( WideMemReq { write: False,
+			memreq.enq( WideMemReq { tag  : req.tag,
+			                         write: False,
 			                         num  : req.num,
 			                         line : req.line } );
 		end
@@ -317,39 +328,41 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) 
 
 	rule do_MEMRESP;
 
-		WideMemResp  line = memres.first(); memres.deq();
-		CacheLineNum num  = memQ.first(); memQ.deq();
+		WideMemRes#(tagT) res = memres.first(); memres.deq();
+		CacheLineNum      num = memQ.first(); memQ.deq();
 
-		reqQ.enq( WMCReq { inv  : False,
+		reqQ.enq( WMCReq { tag  : ?,
+		                   inv  : False,
 		                   write: True,
 		                   dirty: False,
 		                   num  : num,
-		                   line : line } );
+		                   line : res.line } );
 
-		misQ.enq(line);
+		misQ.enq(res);
 
 	endrule
 
 	//////////// INTERFACE ////////////
 
 	interface WideMemClient mem;
-        interface request = (interface Get#(WideMemReq);
-            method ActionValue#(WideMemReq) get();
+        interface request = (interface Get#(WideMemReq#(tagT));
+            method ActionValue#(WideMemReq#(tagT)) get();
                 memreq.deq();
                 return memreq.first();
             endmethod
         endinterface);
         interface response = (interface Put#(WidememResp);
-            method Action put(WideMemResp r);
+            method Action put(WideMemRes#(tagT) r);
                 memres.enq(r);
             endmethod
         endinterface);
     endinterface
 
 	interface WideMemServer portA;
-		interface request = (interface Put#(WideMemReq);
-			method Action put(WideMemReq r);
-				reqQ.enq( WMCReq { inv  : False,
+		interface request = (interface Put#(WideMemReq#(tagT));
+			method Action put(WideMemReq#(tagT) r);
+				reqQ.enq( WMCReq { tag  : r.tag,
+					               inv  : False,
 				                   write: r.write,
 				                   dirty: r.write,
 				                   num  : r.num,
@@ -361,12 +374,12 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq) 
 			endmethod
 		endinterface);
 		interface response = (interface Get#(WidememResp);
-			method ActionValue#(CacheLine) get();
+			method ActionValue#(WideMemRes#(tagT)) get();
 				if(resQ.first) begin // hit
-					WideMemResp res = hitQ.first(); hitQ.deq(); resQ.deq();
+					WideMemRes#(tagT) res = hitQ.first(); hitQ.deq(); resQ.deq();
 					return res;
 				end else begin // miss
-					WideMemResp res = misQ.first(); misQ.deq(); resQ.deq();
+					WideMemRes#(tagT) res = misQ.first(); misQ.deq(); resQ.deq();
 					return res;
 				end
 			endmethod

@@ -66,7 +66,7 @@ endinterface
 interface Frontend;
 
 	// IMEM
-	interface WideMemClient mem;
+	interface WideMemClient#(FrontID) mem;
 
 	// Function
 	interface Vector#(FrontWidth, Hart) hart;

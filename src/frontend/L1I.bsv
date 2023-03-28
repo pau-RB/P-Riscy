@@ -44,8 +44,8 @@ endinterface
 //////////// L1I TYPES ////////////
 
 interface L1I#(numeric type numHart, numeric type cacheRows);
-    interface WideMemClient mem;
-    interface Vector#(numHart, WideMemServer) port;
+    interface WideMemClient#(Bit#(TLog#(numHart))) mem;
+    interface Vector#(numHart, WideMemServer#(void)) port;
     method Data getNumHit();
     method Data getNumMiss();
 endinterface
@@ -197,18 +197,18 @@ typedef struct{
 } BramReq#(type transIdType) deriving(Eq, Bits, FShow);
 
 module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheRows), CacheLineNumSz),
-                                                          Alias#(hartId  , Bit#(TLog#(numHart))),
-                                                          Alias#(bramReq , BramReq#(hartId))  );
+                                                          Alias#(hartID  , Bit#(TLog#(numHart))),
+                                                          Alias#(bramReq , BramReq#(hartID))  );
 
     BareInstCache instCache <- (l1IAssociative?mkAssociativeInstCache():mkDirectInstCache());
 
-    FIFOF#(bramReq    ) reqQ   <- mkBypassFIFOF();
-    FIFOF#(bramReq    ) brmQ   <- mkFIFOF();
-    FIFOF#(bramReq    ) memQ   <- mkSizedFIFOF(valueOf(TAdd#(numHart,1)));
-    FIFOF#(WideMemReq ) memreq <- mkBypassFIFOF();
-    FIFOF#(WideMemResp) memres <- mkBypassFIFOF();
+    FIFOF#(bramReq            ) reqQ   <- mkBypassFIFOF();
+    FIFOF#(bramReq            ) brmQ   <- mkFIFOF();
+    FIFOF#(CacheLineNum       ) memQ   <- mkSizedFIFOF(valueOf(TAdd#(numHart,1)));
+    FIFOF#(WideMemReq#(hartID)) memreq <- mkBypassFIFOF();
+    FIFOF#(WideMemRes#(hartID)) memres <- mkBypassFIFOF();
 
-    Vector#(numHart, FIFOF#(WideMemResp)) resQ <- replicateM(mkFIFOF());
+    Vector#(numHart, FIFOF#(WideMemRes#(void))) resQ <- replicateM(mkFIFOF());
 
     //////////// STATS ////////////
 
@@ -235,12 +235,13 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
         InstCacheRes res <- instCache.resp();
 
         if(res matches tagged Valid .line) // read hit
-            resQ[req.transID].enq(line);
+            resQ[req.transID].enq(WideMemRes{tag: ?, line: line});
         else begin // read miss
-            memreq.enq(WideMemReq{ write: False,
+            memreq.enq(WideMemReq{ tag  : req.transID,
+                                   write: False,
                                    num  : req.num,
                                    line : ? });
-            memQ.enq(req);
+            memQ.enq(req.num);
         end
 
         if (mem_ext_DEBUG) begin
@@ -255,32 +256,32 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
 
     rule do_MEMRESP;
 
-        bramReq   req  = memQ.first(); memQ.deq();
-        CacheLine line = memres.first(); memres.deq();
+        CacheLineNum        num = memQ.first(); memQ.deq();
+        WideMemRes#(hartID) res = memres.first(); memres.deq();
 
-        resQ[req.transID].enq(line);
+        resQ[res.tag].enq(WideMemRes{tag: ?, line: res.line});
 
-        instCache.req(InstCacheReq{ write: True   ,
-                                    num  : req.num,
-                                    line : line   });
+        instCache.req(InstCacheReq{ write: True,
+                                    num  : num,
+                                    line : res.line });
 
     endrule
 
     //////////// INTERFACE ////////////
 
     // IPORTS
-    Vector#(numHart, WideMemServer) wideMemIfcs = newVector;
+    Vector#(numHart, WideMemServer#(void)) wideMemIfcs = newVector;
     for( Integer i = 0; i < valueOf(numHart); i = i+1 ) begin
         wideMemIfcs[i] =
             (interface WideMemServer;
-                interface request = (interface Put#(WideMemReq);
-                    method Action put(WideMemReq r);
+                interface request = (interface Put#(WideMemReq#(void));
+                    method Action put(WideMemReq#(void) r);
                         reqQ.enq(BramReq{ transID: fromInteger(i),
                                           num    : r.num });
                     endmethod
                 endinterface);
-                interface response = (interface Get#(WidememResp);
-                    method ActionValue#(CacheLine) get();
+                interface response = (interface Get#(WidememRes#(void));
+                    method ActionValue#(WideMemRes#(void)) get();
                         resQ[fromInteger(i)].deq();
                         return resQ[fromInteger(i)].first();
                     endmethod
@@ -290,14 +291,14 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
 
     // IMEM
     interface WideMemClient mem;
-        interface request = (interface Get#(WideMemReq);
-            method ActionValue#(WideMemReq) get();
+        interface request = (interface Get#(WideMemReq#(hartID));
+            method ActionValue#(WideMemReq#(hartID)) get();
                 memreq.deq();
                 return memreq.first();
             endmethod
         endinterface);
-        interface response = (interface Put#(WidememResp);
-            method Action put(WideMemResp r);
+        interface response = (interface Put#(WidememRes#(hartID));
+            method Action put(WideMemRes#(hartID) r);
                 memres.enq(r);
             endmethod
         endinterface);

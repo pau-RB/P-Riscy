@@ -40,9 +40,9 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 	Reg#(Bool) systemStarted <- mkReg(False);
 
-	WideMemDDR4#(RAMLatency)                                                           mainDDR4 <- mkWideMemDDR4(host);
-	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, TMul#(2,FrontWidth)) mainL2SC <- mkWideMemCache();
-	WideMemSplit#(2,TMul#(2,FrontWidth))                                               mainL2SB <- mkSplitWideMem();
+	WideMemDDR4#(RAMLatency, FrontID)                                                           mainDDR4 <- mkWideMemDDR4(host);
+	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, TMul#(2,FrontWidth), FrontID) mainL2SC <- mkWideMemCache();
+	WideMemSplit#(2,TMul#(2,FrontWidth), FrontID)                                               mainL2SB <- mkSplitWideMem();
 
 	Core core <- mkCore7SS();
 
@@ -165,7 +165,8 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 			if(addr == max_ADDR) begin
 				memInit <= True;
 			end else if(offsetOf(addr) == '1) begin
-				mainDDR4.portA.request.put(WideMemReq { write: True,
+				mainDDR4.portA.request.put(WideMemReq { tag  : ?,
+				                                        write: True,
 				                                        num  : lineNumOf(addr),
 				                                        line : line });
 			end
