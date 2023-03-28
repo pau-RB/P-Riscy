@@ -94,7 +94,7 @@ endif
 
 # connectal project
 
-CONNECTALFLAGS += --mainclockperiod=24
+CONNECTALFLAGS += --mainclockperiod=18
 CONNECTALFLAGS += --bscflags="-show-schedule"
 CONNECTALFLAGS += --bscflags="-aggressive-conditions"
 CONNECTALFLAGS += --bscflags="-steps-warn-interval 1000000"
@@ -127,4 +127,4 @@ fast:
 	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-c-matmul 1 600
 
 vcu:
-	./vcu108/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-mxm-ikj-f 1 600
+	./vcu108/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-c-matmul 1 600
