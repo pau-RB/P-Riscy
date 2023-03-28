@@ -150,11 +150,11 @@ typedef struct{
 	transIdType transId;
 } LSUResp#(type transIdType) deriving(Eq, Bits, FShow);
 
-interface LSU#(type transIdType);
-	interface WideMemClient#(transIdType) mem;
-	method Action req(LSUReq#(transIdType) r);
-	method ActionValue#(LSUResp#(transIdType)) resp();
-	method ActionValue#(LSUResp#(transIdType)) oldResp();
+interface LSU#(numeric type numHart);
+	interface WideMemClient#(Bit#(TLog#(numHart))) mem;
+	method Action req(LSUReq#(Bit#(TLog#(numHart))) r);
+	method ActionValue#(LSUResp#(Bit#(TLog#(numHart)))) resp();
+	method ActionValue#(LSUResp#(Bit#(TLog#(numHart)))) oldResp();
 	method LSUStat getStat();
 endinterface
 
@@ -370,21 +370,19 @@ typedef struct{
 	Bool                 isOld;
 } DataCacheToken#(type transIdType) deriving(Eq, Bits, FShow);
 
-module mkLSU (LSU#(transIdType) ifc) provisos(Bits     #(transIdType,tit__),
-	                                          FShow    #(transIdType),
-	                                          PrimIndex#(transIdType, a__),
-	                                          NumAlias #(mshrSZ, TExp#(tit__)));
+module mkLSU (LSU#(numHart) ifc) provisos(Alias#(hartID, Bit#(TLog#(numHart))));
 
-	BareDataCache                                       dataCache <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
-	Vector#(mshrSZ, Fifo#(mshrSZ,LSUReq#(transIdType))) mshr      <- replicateM(mkCFFifo());
-	Ehr#(2,Maybe#(transIdType))                         retryMSHR <- mkEhr(tagged Invalid);
+	BareDataCache                                    dataCache <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
+	Vector#(numHart, Fifo#(numHart,LSUReq#(hartID))) mshr      <- replicateM(mkCFFifo());
+	Vector#(numHart, Reg#(CacheLineNum))             mshrLine  <- replicateM(mkReg(?));
+	Ehr#(2,Maybe#(hartID))                           retryMSHR <- mkEhr(tagged Invalid);
 
-	FIFOF#(LSUReq        #(transIdType)) inReqQ   <- mkBypassFIFOF();
-	FIFOF#(DataCacheToken#(transIdType)) dcReqQ   <- mkPipelineFIFOF();
-	FIFOF#(WideMemReq    #(transIdType)) memreq   <- mkBypassFIFOF();
-	FIFOF#(WideMemRes    #(transIdType)) memres   <- mkBypassFIFOF();
-	FIFOF#(LSUResp       #(transIdType)) respQ    <- mkBypassFIFOF();
-	FIFOF#(LSUResp       #(transIdType)) oldRespQ <- mkBypassFIFOF();
+	FIFOF#(LSUReq        #(hartID)) inReqQ   <- mkBypassFIFOF();
+	FIFOF#(DataCacheToken#(hartID)) dcReqQ   <- mkPipelineFIFOF();
+	FIFOF#(WideMemReq    #(hartID)) memreq   <- mkBypassFIFOF();
+	FIFOF#(WideMemRes    #(hartID)) memres   <- mkBypassFIFOF();
+	FIFOF#(LSUResp       #(hartID)) respQ    <- mkBypassFIFOF();
+	FIFOF#(LSUResp       #(hartID)) oldRespQ <- mkBypassFIFOF();
 
 	Ehr#(2,Data) hLd   <- mkEhr(0);
 	Ehr#(2,Data) hSt   <- mkEhr(0);
@@ -398,7 +396,7 @@ module mkLSU (LSU#(transIdType) ifc) provisos(Bits     #(transIdType,tit__),
 
 	rule do_INREQ if(!isValid(retryMSHR[1]));
 
-		LSUReq#(transIdType) req = inReqQ.first(); inReqQ.deq();
+		LSUReq#(hartID) req = inReqQ.first(); inReqQ.deq();
 
 		dataCache.req(DataCacheReq{ op  : cacheOpOf(req.op, req.ldFunc, req.stFunc),
 		                            addr: req.addr,
@@ -412,20 +410,20 @@ module mkLSU (LSU#(transIdType) ifc) provisos(Bits     #(transIdType,tit__),
 	rule do_RESP if(respQ.notFull() && oldRespQ.notFull() || !cmr_ext_DEBUG);
 	// If cmr_ext_DEBUG (verification), we must preserve the order
 
-		LSUReq#(transIdType) req = dcReqQ.first().req; dcReqQ.deq();
+		LSUReq#(hartID) req = dcReqQ.first().req; dcReqQ.deq();
 		DataCacheResp d <- dataCache.resp();
 
 		// Try matching an older mshr in case of miss
-		Maybe#(transIdType) isMatch = tagged Invalid;
-		for (Integer i = 0; i < valueOf(mshrSZ); i = i+1) begin
-			if(mshr[fromInteger(i)].notEmpty() && lineNumOf(mshr[fromInteger(i)].first().addr) == lineNumOf(req.addr)) begin
+		Maybe#(hartID) isMatch = tagged Invalid;
+		for (Integer i = 0; i < valueOf(numHart); i = i+1) begin
+			if(mshr[fromInteger(i)].notEmpty() && mshrLine[fromInteger(i)] == lineNumOf(req.addr)) begin
 				isMatch = tagged Valid fromInteger(i);
 			end
 		end
 
 		// Try to allocate a new mshr in case of miss
-		Maybe#(transIdType) isEmpty = tagged Invalid;
-		for (Integer i = 0; i < valueOf(mshrSZ); i = i+1) begin
+		Maybe#(hartID) isEmpty = tagged Invalid;
+		for (Integer i = 0; i < valueOf(numHart); i = i+1) begin
 			if(!mshr[fromInteger(i)].notEmpty()) begin
 				isEmpty = tagged Valid fromInteger(i);
 			end
@@ -451,7 +449,8 @@ module mkLSU (LSU#(transIdType) ifc) provisos(Bits     #(transIdType,tit__),
 
 			if(isValid(isMatch)) begin
 
-				mshr[fromMaybe(?,isMatch)].enq(req);
+				mshr    [fromMaybe(?,isMatch)].enq(req);
+				mshrLine[fromMaybe(?,isMatch)] <= lineNumOf(req.addr);
 
 			end else if(isValid(isEmpty)) begin
 
@@ -494,7 +493,7 @@ module mkLSU (LSU#(transIdType) ifc) provisos(Bits     #(transIdType,tit__),
 
 	rule do_MEMRESP if(!isValid(retryMSHR[0]));
 
-		WideMemRes#(transIdType) res = memres.first(); memres.deq();
+		WideMemRes#(hartID) res = memres.first(); memres.deq();
 		dataCache.req(DataCacheReq{ op  : PUT,
 		                            addr: mshr[res.tag].first.addr,
 		                            data: ?,
@@ -505,7 +504,7 @@ module mkLSU (LSU#(transIdType) ifc) provisos(Bits     #(transIdType,tit__),
 
 	rule do_RETRY if(isValid(retryMSHR[0]));
 
-		transIdType mshrId = fromMaybe(?,retryMSHR[0]);
+		hartID mshrId = fromMaybe(?,retryMSHR[0]);
 
 		if(mshr[mshrId].notEmpty()) begin
 
@@ -540,28 +539,28 @@ module mkLSU (LSU#(transIdType) ifc) provisos(Bits     #(transIdType,tit__),
 
 	interface WideMemClient mem;
         interface request = (interface Get#(WideMemReq);
-            method ActionValue#(WideMemReq#(transIdType)) get();
+            method ActionValue#(WideMemReq#(hartID)) get();
                 memreq.deq();
                 return memreq.first();
             endmethod
         endinterface);
         interface response = (interface Put#(WidememRes);
-            method Action put(WideMemRes#(transIdType) r);
+            method Action put(WideMemRes#(hartID) r);
                 memres.enq(r);
             endmethod
         endinterface);
     endinterface
 
-	method Action req(LSUReq#(transIdType) r);
+	method Action req(LSUReq#(hartID) r);
 		inReqQ.enq(r);
 	endmethod
 
-	method ActionValue#(LSUResp#(transIdType)) resp;
+	method ActionValue#(LSUResp#(hartID)) resp;
 		respQ.deq();
 		return respQ.first();
 	endmethod
 
-	method ActionValue#(LSUResp#(transIdType)) oldResp;
+	method ActionValue#(LSUResp#(hartID)) oldResp;
 		oldRespQ.deq();
 		return oldRespQ.first();
 	endmethod

@@ -85,7 +85,7 @@ endinterface
 module mkBackend (Backend ifc);
 
 	// LSU
-	LSU#(FrontID) lsu <- mkLSU();
+	LSU#(FrontWidth) lsu <- mkLSU();
 
 	// Missed access table
 	Vector#(FrontWidth, Reg#(WBToken)) miata <- replicateM(mkReg(?));
