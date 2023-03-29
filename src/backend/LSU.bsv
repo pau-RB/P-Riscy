@@ -449,12 +449,13 @@ module mkLSU (LSU#(numHart) ifc) provisos(Alias#(hartID, Bit#(TLog#(numHart))));
 
 			if(isValid(isMatch)) begin
 
-				mshr    [fromMaybe(?,isMatch)].enq(req);
-				mshrLine[fromMaybe(?,isMatch)] <= lineNumOf(req.addr);
+				mshr[fromMaybe(?,isMatch)].enq(req);
 
 			end else if(isValid(isEmpty)) begin
 
 				mshr[fromMaybe(?,isEmpty)].enq(req);
+
+				mshrLine[fromMaybe(?,isEmpty)] <= lineNumOf(req.addr);
 
 				memreq.enq(WideMemReq{ tag  : fromMaybe(?,isEmpty),
 				                       write: False,
