@@ -92,10 +92,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq, 
 	FIFOF#(CacheLineNum)       memQ   <- mkSizedFIFOF(valueOf(numReq));
 	FIFOF#(WideMemReq#(tagT))  memreq <- mkBypassFIFOF();
 	FIFOF#(WideMemRes#(tagT))  memres <- mkBypassFIFOF();
-
-	FIFOF#(Bool)               resQ <- mkFIFOF();
-	FIFOF#(WideMemRes#(tagT))  hitQ <- mkFIFOF();
-	FIFOF#(WideMemRes#(tagT))  misQ <- mkFIFOF();
+	FIFOF#(WideMemRes#(tagT))  resQ   <- mkFIFOF();
 
 	Reg#(Maybe#(cacheRowIdx)) invIndex <- mkReg(tagged Valid 0); // Invalidate entries
 
@@ -303,10 +300,8 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq, 
 		end
 
 		if(val) begin // hit
-			resQ.enq(True);
-			hitQ.enq(WideMemRes{ tag: req.tag, line: line });
+			resQ.enq(WideMemRes{ tag: req.tag, line: line });
 		end else begin // miss
-			resQ.enq(False);
 			memQ.enq(req.num);
 			memreq.enq( WideMemReq { tag  : req.tag,
 			                         write: False,
@@ -338,7 +333,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq, 
 		                   num  : num,
 		                   line : res.line } );
 
-		misQ.enq(res);
+		resQ.enq(res);
 
 	endrule
 
@@ -375,13 +370,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, numReq, 
 		endinterface);
 		interface response = (interface Get#(WidememResp);
 			method ActionValue#(WideMemRes#(tagT)) get();
-				if(resQ.first) begin // hit
-					WideMemRes#(tagT) res = hitQ.first(); hitQ.deq(); resQ.deq();
-					return res;
-				end else begin // miss
-					WideMemRes#(tagT) res = misQ.first(); misQ.deq(); resQ.deq();
-					return res;
-				end
+				resQ.deq(); return resQ.first(); 
 			endmethod
 		endinterface);
 	endinterface
