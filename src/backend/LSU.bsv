@@ -370,7 +370,7 @@ typedef struct{
 	Bool                 isOld;
 } DataCacheToken#(type transIdType) deriving(Eq, Bits, FShow);
 
-module mkLSU (LSU#(numHart) ifc) provisos(Alias#(hartID, Bit#(TLog#(numHart))));
+module mkLSU (LSU#(numHart) ifc) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(hartID, Bit#(TLog#(numHart))));
 
 	BareDataCache                                    dataCache <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
 	Vector#(numHart, Fifo#(numHart,LSUReq#(hartID))) mshr      <- replicateM(mkCFFifo());
@@ -414,19 +414,13 @@ module mkLSU (LSU#(numHart) ifc) provisos(Alias#(hartID, Bit#(TLog#(numHart))));
 		DataCacheResp d <- dataCache.resp();
 
 		// Try matching an older mshr in case of miss
-		Maybe#(hartID) isMatch = tagged Invalid;
-		for (Integer i = 0; i < valueOf(numHart); i = i+1) begin
-			if(mshr[fromInteger(i)].notEmpty() && mshrLine[fromInteger(i)] == lineNumOf(req.addr)) begin
-				isMatch = tagged Valid fromInteger(i);
-			end
-		end
+		Bool   isMatch = False;
+		hartID idMatch = '0;
 
-		// Try to allocate a new mshr in case of miss
-		Maybe#(hartID) isEmpty = tagged Invalid;
 		for (Integer i = 0; i < valueOf(numHart); i = i+1) begin
-			if(!mshr[fromInteger(i)].notEmpty()) begin
-				isEmpty = tagged Valid fromInteger(i);
-			end
+			Bool mmMatch = (mshr[fromInteger(i)].notEmpty() && mshrLine[fromInteger(i)] == lineNumOf(req.addr));
+			isMatch = isMatch || mmMatch;
+			idMatch = idMatch  | signExtend(pack(mmMatch))&fromInteger(i);
 		end
 
 		if(isValid(d)) begin // Hit
@@ -447,21 +441,15 @@ module mkLSU (LSU#(numHart) ifc) provisos(Alias#(hartID, Bit#(TLog#(numHart))));
 			                   data   : ?,
 			                   transId: req.transId });
 
-			if(isValid(isMatch)) begin
-
-				mshr[fromMaybe(?,isMatch)].enq(req);
-
-			end else if(isValid(isEmpty)) begin
-
-				mshr[fromMaybe(?,isEmpty)].enq(req);
-
-				mshrLine[fromMaybe(?,isEmpty)] <= lineNumOf(req.addr);
-
-				memreq.enq(WideMemReq{ tag  : fromMaybe(?,isEmpty),
+			if(isMatch) begin
+				mshr[idMatch].enq(req);
+			end else begin
+				mshr    [req.transId].enq(req);
+				mshrLine[req.transId] <= lineNumOf(req.addr);
+				memreq.enq(WideMemReq{ tag  : req.transId,
 				                       write: False,
 				                       num  : lineNumOf(req.addr),
 				                       line : ? });
-
 			end
 
 		end
@@ -474,17 +462,11 @@ module mkLSU (LSU#(numHart) ifc) provisos(Alias#(hartID, Bit#(TLog#(numHart))));
 						St:   hSt  [0] <= hSt  [0]+1;
 						Join: hJoin[0] <= hJoin[0]+1;
 					endcase
-				end else if(isValid(isMatch) || isValid(isEmpty)) begin
+				end else begin
 					case (req.op)
 						Ld:   mLd  [0] <= mLd  [0]+1;
 						St:   mSt  [0] <= mSt  [0]+1;
 						Join: mJoin[0] <= mJoin[0]+1;
-					endcase
-				end else begin
-					case (req.op)
-						Ld:   dLd  [0] <= dLd  [0]+1;
-						St:   dSt  [0] <= dSt  [0]+1;
-						Join: dJoin[0] <= dJoin[0]+1;
 					endcase
 				end
 			end
