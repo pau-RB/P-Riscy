@@ -201,10 +201,10 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
                                                           Alias#(bramReq , BramReq#(hartID))  );
 
     BareInstCache instCache <- (l1IAssociative?mkAssociativeInstCache():mkDirectInstCache());
+    Vector#(numHart, Reg#(CacheLineNum)) mshrLine <- replicateM(mkReg(?));
 
     FIFOF#(bramReq            ) reqQ   <- mkBypassFIFOF();
     FIFOF#(bramReq            ) brmQ   <- mkFIFOF();
-    FIFOF#(CacheLineNum       ) memQ   <- mkSizedFIFOF(valueOf(TAdd#(numHart,1)));
     FIFOF#(WideMemReq#(hartID)) memreq <- mkBypassFIFOF();
     FIFOF#(WideMemRes#(hartID)) memres <- mkBypassFIFOF();
 
@@ -241,7 +241,7 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
                                    write: False,
                                    num  : req.num,
                                    line : ? });
-            memQ.enq(req.num);
+            mshrLine[req.transID] <= req.num;
         end
 
         if (mem_ext_DEBUG) begin
@@ -256,8 +256,8 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
 
     rule do_MEMRESP;
 
-        CacheLineNum        num = memQ.first(); memQ.deq();
         WideMemRes#(hartID) res = memres.first(); memres.deq();
+        CacheLineNum        num = mshrLine[res.tag];
 
         resQ[res.tag].enq(WideMemRes{tag: ?, line: res.line});
 
