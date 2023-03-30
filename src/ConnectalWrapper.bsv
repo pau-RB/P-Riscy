@@ -40,9 +40,9 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 	Reg#(Bool) systemStarted <- mkReg(False);
 
-	WideMemDDR4#(RAMLatency, Tuple2#(Bit#(TLog#(2)),FrontID))                                                           mainDDR4 <- mkWideMemDDR4(host);
-	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, TMul#(2,FrontWidth), Tuple2#(Bit#(TLog#(2)),FrontID)) mainL2SC <- mkWideMemCache();
-	WideMemSplit#(2,TMul#(2,FrontWidth), FrontID)                                                                       mainL2SB <- mkSplitWideMem();
+	WideMemDDR4#(RAMLatency, Tuple2#(Bit#(TLog#(2)),FrontID))                                      mainDDR4 <- mkWideMemDDR4(host);
+	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, Tuple2#(Bit#(TLog#(2)),FrontID)) mainL2SC <- mkWideMemCache();
+	WideMemSplit#(2,TMul#(2,FrontWidth), FrontID)                                                  mainL2SB <- mkSplitWideMem();
 
 	Core core <- mkCore7SS();
 
