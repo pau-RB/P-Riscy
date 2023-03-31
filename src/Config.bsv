@@ -18,7 +18,7 @@ Addr	msr_ADDR  = 32'h7ffff008;
 Addr	max_ADDR  = 32'h80000000;
 
 // Round Robin
-Bool 	roundRobin = True;
+Bool 	roundRobin = False;
 typedef	1000 RR_INT;
 
 // Main Token Queue

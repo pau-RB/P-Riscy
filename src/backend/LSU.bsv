@@ -370,12 +370,56 @@ typedef struct{
 	Bool                 isOld;
 } DataCacheToken#(type transIdType) deriving(Eq, Bits, FShow);
 
+
+interface MSHR#(numeric type numHart);
+	method Bool isMatch(Addr addr);
+	method Action enq(LSUReq#(Bit#(TLog#(numHart))) req);
+	method Action deq();
+	method LSUReq#(Bit#(TLog#(numHart))) first();
+	method Bool isLast();
+	method CacheLineNum cacheLineNum();
+endinterface
+
+module mkMSHR (MSHR#(numHart)) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(hartID, Bit#(TLog#(numHart))));
+
+	Fifo#(numHart,LSUReq#(hartID)) requests <- mkCFFifo();
+	Reg #(CacheLineNum) linenum  <- mkReg(?);
+	Reg #(hartID) numreq <- mkReg('0);
+
+	method Bool isMatch(Addr addr);
+		return (numreq != '0 && linenum == lineNumOf(addr));
+	endmethod
+
+	method Action enq(LSUReq#(hartID) r);
+		linenum <= lineNumOf(r.addr);
+		requests.enq(r);
+		numreq <= numreq+1;
+	endmethod
+
+	method Action deq();
+		requests.deq();
+		numreq <= numreq-1;
+	endmethod
+
+	method LSUReq#(hartID) first();
+		return requests.first();
+	endmethod
+
+	method Bool isLast();
+		return (numreq == 'd1);
+	endmethod
+
+	method CacheLineNum cacheLineNum();
+		return linenum;
+	endmethod
+
+endmodule
+
 module mkLSU (LSU#(numHart) ifc) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(hartID, Bit#(TLog#(numHart))));
 
-	BareDataCache                                    dataCache <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
-	Vector#(numHart, Fifo#(numHart,LSUReq#(hartID))) mshr      <- replicateM(mkCFFifo());
-	Vector#(numHart, Reg#(CacheLineNum))             mshrLine  <- replicateM(mkReg(?));
-	Ehr#(2,Maybe#(hartID))                           retryMSHR <- mkEhr(tagged Invalid);
+	BareDataCache                    dataCache <- (lsuAssociative ? mkAssociativeDataCache() : mkDirectDataCache());
+	Vector#(numHart, MSHR#(numHart)) mshrArray <- replicateM(mkMSHR());
+	Ehr#(2,Maybe#(hartID))           retryMSHR <- mkEhr(tagged Invalid);
 
 	FIFOF#(LSUReq        #(hartID)) inReqQ   <- mkBypassFIFOF();
 	FIFOF#(DataCacheToken#(hartID)) dcReqQ   <- mkPipelineFIFOF();
@@ -418,7 +462,7 @@ module mkLSU (LSU#(numHart) ifc) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(h
 		hartID idMatch = '0;
 
 		for (Integer i = 0; i < valueOf(numHart); i = i+1) begin
-			Bool mmMatch = (mshr[fromInteger(i)].notEmpty() && mshrLine[fromInteger(i)] == lineNumOf(req.addr));
+			Bool mmMatch = mshrArray[fromInteger(i)].isMatch(req.addr);
 			isMatch = isMatch || mmMatch;
 			idMatch = idMatch  | signExtend(pack(mmMatch))&fromInteger(i);
 		end
@@ -442,10 +486,9 @@ module mkLSU (LSU#(numHart) ifc) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(h
 			                   transId: req.transId });
 
 			if(isMatch) begin
-				mshr[idMatch].enq(req);
+				mshrArray[idMatch].enq(req);
 			end else begin
-				mshr    [req.transId].enq(req);
-				mshrLine[req.transId] <= lineNumOf(req.addr);
+				mshrArray[req.transId].enq(req);
 				memreq.enq(WideMemReq{ tag  : req.transId,
 				                       write: False,
 				                       num  : lineNumOf(req.addr),
@@ -478,32 +521,25 @@ module mkLSU (LSU#(numHart) ifc) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(h
 
 		WideMemRes#(hartID) res = memres.first(); memres.deq();
 		dataCache.req(DataCacheReq{ op  : PUT,
-		                            addr: mshr[res.tag].first.addr,
+		                            addr: {mshrArray[res.tag].cacheLineNum,'0},
 		                            data: ?,
 		                            line: res.line });
 		retryMSHR[0] <= tagged Valid res.tag;
 
 	endrule
 
-	rule do_RETRY if(isValid(retryMSHR[0]));
+	rule do_RETRY if(retryMSHR[0] matches tagged Valid .mshrId);
 
-		hartID mshrId = fromMaybe(?,retryMSHR[0]);
+		let req = mshrArray[mshrId].first(); mshrArray[mshrId].deq();
+		dataCache.req(DataCacheReq{ op  : cacheOpOf(req.op, req.ldFunc, req.stFunc),
+		                            addr: req.addr,
+		                            data: req.data,
+		                            line: ? });
+		dcReqQ.enq(DataCacheToken{ req  : req,
+		                           isOld: True});
 
-		if(mshr[mshrId].notEmpty()) begin
-
-			let req = mshr[mshrId].first(); mshr[mshrId].deq();
-			dataCache.req(DataCacheReq{ op  : cacheOpOf(req.op, req.ldFunc, req.stFunc),
-			                            addr: req.addr,
-			                            data: req.data,
-			                            line: ? });
-			dcReqQ.enq(DataCacheToken{ req  : req,
-			                           isOld: True});
-
-		end else begin
-
+		if(mshrArray[mshrId].isLast())
 			retryMSHR[0] <= tagged Invalid;
-
-		end
 
 	endrule
 

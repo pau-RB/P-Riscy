@@ -15,8 +15,8 @@ module mkSplitWideMem(WideMemSplit#(n, m, tagT) ifc) provisos(Bits#(tagT, t__), 
 
     FIFOF#(WideMemReq#(Tuple2#(srcT,tagT))) memreq   <- mkBypassFIFOF();
     FIFOF#(WideMemRes#(Tuple2#(srcT,tagT))) memres   <- mkBypassFIFOF();
-    Vector#(n, FIFOF#(WideMemReq#(tagT)))   reqFifos <- replicateM(mkFIFOF);
-    Vector#(n, FIFOF#(WideMemRes#(tagT)))   resFifos <- replicateM(mkFIFOF);
+    Vector#(n, FIFOF#(WideMemReq#(tagT)))   reqFifos <- replicateM(mkBypassFIFOF);
+    Vector#(n, FIFOF#(WideMemRes#(tagT)))   resFifos <- replicateM(mkBypassFIFOF);
 
     rule doWideMemReq;
         Maybe#(Bit#(TLog#(n))) req_index = tagged Invalid;
