@@ -16,6 +16,7 @@ import WideMemBRAM::*;
 import WideMemCache::*;
 import WideMemSplit::*;
 import FIFOF::*;
+import FIFO::*;
 import BRAMFIFO::*;
 import Config::*;
 import Vector::*;
@@ -38,7 +39,8 @@ endinterface
 
 module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
-	Reg#(Bool) systemStarted <- mkReg(False);
+	Reg#(Bool) memInit <- mkReg(False);
+	Reg#(Bool) cpuInit <- mkReg(False);
 
 	WideMemDDR4#(RAMLatency, Tuple2#(Bit#(TLog#(2)),FrontID))                                      mainDDR4 <- mkWideMemDDR4(host);
 	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, Tuple2#(Bit#(TLog#(2)),FrontID)) mainL2SC <- mkWideMemCache();
@@ -51,15 +53,22 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	mkConnection(core.instMem, mainL2SB.port[0]);
 	mkConnection(core.dataMem, mainL2SB.port[1]);
 
-	Reg#(Bool)                           memInit      <- mkReg(False);
-	FIFOF#(ContToken)                    mainTokenQ   <- mkSizedBRAMFIFOF(valueOf(MTQ_LEN));
-	Reg#(Data)                           commitTarget <- mkReg(80);
-	Reg#(FrontID)                        evictTarget  <- mkReg(0);
+	FIFOF#(ContToken) mainTokenQ <- mkSizedBRAMFIFOF(valueOf(MTQ_LEN));
 
-	FIFOF#(CommitReport)                 mainCMRQ     <- mkSizedBRAMFIFOF(cmr_ext_DEBUG?valueOf(MTHQ_LEN):4);
-	FIFOF#(Message)                      mainMSGQ     <- mkSizedBRAMFIFOF(msg_ext_DEBUG?valueOf(MTHQ_LEN):4);
-	FIFOF#(Message)                      mainHEXQ     <- mkSizedBRAMFIFOF(hex_ext_DEBUG?valueOf(MTHQ_LEN):4);
-	FIFOF#(MemStat)                      mainMSRQ     <- mkSizedBRAMFIFOF(mem_ext_DEBUG?valueOf(MTHQ_LEN):4);
+	FIFOF#(CommitReport) mainCMRQ <- mkSizedBRAMFIFOF(cmr_ext_DEBUG?valueOf(MTHQ_LEN):4);
+	FIFOF#(Message)      mainMSGQ <- mkSizedBRAMFIFOF(msg_ext_DEBUG?valueOf(MTHQ_LEN):4);
+	FIFOF#(Message)      mainHEXQ <- mkSizedBRAMFIFOF(hex_ext_DEBUG?valueOf(MTHQ_LEN):4);
+	FIFOF#(MemStat)      mainMSRQ <- mkSizedBRAMFIFOF(mem_ext_DEBUG?valueOf(MTHQ_LEN):4);
+
+	//////////// MTQ ////////////
+
+	rule do_core_to_MTQ;
+		mainTokenQ.enq(core.toMTQ.first()); core.toMTQ.deq();
+	endrule
+
+	rule do_MTQ_to_core;
+		core.toMTQ.enq(mainTokenQ.first()); mainTokenQ.deq();
+	endrule
 
 	//////////// RELAY REPORTS ////////////
 
@@ -113,43 +122,6 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 		              msr.l2s.tWR,        msr.l2s.tWB,          msr.l2s.hRD,       msr.l2s.mRD);
 	endrule
 
-	//////////// HANDLE THREADS ////////////
-
-	rule doEvict if(roundRobin && core.getNumCommit() == commitTarget);
-
-		if(mainTokenQ.notEmpty) begin
-		   core.evict(evictTarget);
-		   evictTarget  <=  (evictTarget == lastFrontID) ? '0 : evictTarget+1;
-		end
-
-		commitTarget <= commitTarget+fromInteger(valueOf(RR_INT));
-
-	endrule
-
-	rule getContToken;
-
-		let t <- core.getContToken();
-		mainTokenQ.enq(t);
-
-	endrule
-
-	rule putContToken;
-
-		FrontID hart = 0;
-
-		if(valueOf(FrontWidth) != 1) begin
-			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-				if(!core.available(hart)) begin
-					hart = (hart == lastFrontID) ? '0 : hart+1;
-				end
-			end
-		end
-
-		let t = mainTokenQ.first(); mainTokenQ.deq();
-		core.start(hart,t);
-
-	endrule
-
 	//////////// INTERFACE ////////////
 
 	Reg#(CacheLine) lineSend <- mkReg(replicate('0));
@@ -173,9 +145,9 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 		endmethod
 
-		method Action startPC(Bit#(32) startpc) if(memInit && !systemStarted);
+		method Action startPC(Bit#(32) startpc) if(memInit && !cpuInit);
 
-			systemStarted <= True;
+			cpuInit <= True;
 
 			mainTokenQ.enq(ContToken{
 			                  verifID: '0,

@@ -9,6 +9,7 @@ import CMRTypes::*;
 
 // include
 import Vector::*;
+import FIFO::*;
 import Ehr::*;
 import Connectable::*;
 
@@ -28,14 +29,8 @@ interface Core;
 	interface WideMemClient#(FrontID) instMem;
 	interface WideMemClient#(FrontID) dataMem;
 
-	// Thread control
-	method Action start (FrontID feID, ContToken token);
-	method Action evict(FrontID feID);
-	method Bool   available(FrontID feID);
-	method Data   getNumCommit();
-
-	// ContToken
-	method ActionValue#(ContToken)    getContToken();
+	// Stream control
+	interface FIFO#(ContToken) toMTQ;
 
 	// CMR
 	method ActionValue#(CommitReport) getCMR();
@@ -110,6 +105,39 @@ module mkCore7SS(Core ifc);
 			frontend.hart[i].redirect(redirect);
 		endrule
 	end
+
+	//////////// STREAM SCHEDULING ////////////
+
+	rule do_schedule_stream;
+
+		FrontID feID = 0;
+		Bool    free = False;
+
+		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+			if(frontend.hart[i].available()) begin
+				feID = fromInteger(i);
+				free = True;
+			end
+		end
+
+		if(free) begin
+
+			ContToken token = nttx.ready.first(); nttx.ready.deq();
+
+			frontend.hart   [feID].start(token.pc );
+			frontend.regFile[feID].setL (token.rfL);
+			frontend.regFile[feID].setH (token.rfH);
+
+			backend.setVerifID(feID, token.verifID);
+
+			coreStarted <= True;
+			frontend.startCore();
+			arbiter .startCore();
+			backend .startCore();
+
+		end
+
+	endrule
 
 	//////////// PERFORMANCE CNT ////////////
 
@@ -229,40 +257,8 @@ module mkCore7SS(Core ifc);
 	interface WideMemClient instMem = frontend.mem;
 	interface WideMemClient dataMem = backend .mem;
 
-	// Thread control
-	method Action start (FrontID feID, ContToken token);
-		frontend.hart   [feID].start(token.pc );
-		frontend.regFile[feID].setL (token.rfL);
-		frontend.regFile[feID].setH (token.rfH);
-
-		backend.setVerifID(feID, token.verifID);
-
-		frontend.startCore();
-		arbiter.startCore();
-		backend.startCore();
-
-		coreStarted <= True;
-	endmethod
-
-	method Action evict(FrontID feID);
-		frontend.hart[feID].evict();
-	endmethod
-
-	method Bool available(FrontID feID);
-		return frontend.hart[feID].available();
-	endmethod
-
-	method Data getNumCommit();
-		return backend.getNumCommit();
-	endmethod
-
-
-	// ContToken
-	method ActionValue#(ContToken) getContToken();
-		let latest = nttx.first(); nttx.deq();
-		return latest;
-	endmethod
-
+	// Stream control
+	interface toMTQ = nttx.toMTQ;
 
 	// CMR
 	method ActionValue#(CommitReport) getCMR();

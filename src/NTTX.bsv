@@ -1,16 +1,20 @@
 import Types::*;
 import ProcTypes::*;
 import Config::*;
+import FIFO::*;
 import FIFOF::*;
 import SpecialFIFOs::*;
 import Vector::*;
+
+import FShow::*;
+
 
 typedef struct {
 	FrontID frontID; // FE id from  parent
 	VerifID verifID; // FE id for evicted cont
 	Addr    nextpc;  // next expected pc
 	Bool    evict;   // evict/fork
-} NTTXreq deriving(Bits);
+} NTTXreq deriving(Bits, FShow);
 
 interface FifoDeq#(type t);
 	method Bool notEmpty;
@@ -24,13 +28,15 @@ interface NTTX;
 	method Action putFork(NTTXreq req);
 
 	// Requests to FE
-	method ActionValue#(FrontID)  getReadRF();
-	method Action                 putLineRF(CacheLine lo, CacheLine hi);
+	method ActionValue#(FrontID) getReadRF();
+	method Action putLineRF(CacheLine lo, CacheLine hi);
 	interface Vector#(FrontWidth,FifoDeq#(Redirect)) deqRedirect;
 
-	// Completed req
-	method Action    deq();
-	method ContToken first();
+	// ready tokens
+	interface FifoDeq#(ContToken) ready;
+
+	// Stream control
+	interface FIFO#(ContToken) toMTQ;
 
 endinterface
 
@@ -38,30 +44,37 @@ module mkNTTX (NTTX ifc);
 
 	//////////// QUEUES ////////////
 
-	FIFOF#(NTTXreq) eforkQ <- mkFIFOF();
-
+	// Fork requests
+	FIFOF#(NTTXreq)   eforkQ   <- mkFIFOF();
 	FIFOF#(FrontID)   rfreqQ   <- mkFIFOF();
 	FIFOF#(NTTXreq)   rfreqidQ <- mkFIFOF();
 	FIFOF#(CacheLine) rfresloQ <- mkFIFOF();
 	FIFOF#(CacheLine) rfreshiQ <- mkFIFOF();
+
+	// Send redirects
 	Vector#(FrontWidth, FIFOF#(Redirect)) redirectQ <- replicateM(mkFIFOF());
 
-	FIFOF#(ContToken) contQ <- mkSizedBypassFIFOF(valueOf(CTQ_LEN));
+	// Completed tokens
+	FIFOF#(ContToken) readytx <- mkFIFOF();
+
+	// MTQ ifc
+	FIFOF#(ContToken) mtqtx <- mkFIFOF();
+	FIFOF#(ContToken) mtqrx <- mkFIFOF();
 
 	//////////// RULES ////////////
 
-	rule do_req;
+	rule do_fork_req;
+
 		NTTXreq req = eforkQ.first(); eforkQ.deq();
 		rfreqQ.enq(req.frontID); rfreqidQ.enq(req);
+
 	endrule
 
-	rule do_res;
+	rule do_fork_res;
+
 		NTTXreq req = rfreqidQ.first(); rfreqidQ.deq();
 		rfresloQ.deq(); rfreshiQ.deq();
-		contQ.enq(ContToken{ verifID: req.verifID,
-		                     pc     : req.nextpc,
-		                     rfL    : rfresloQ.first,
-		                     rfH    : rfreshiQ.first });
+
 		if(req.evict) // If evict, dry ghost
 			redirectQ[req.frontID].enq(Redirect{ lock    : False,
 			                                     dry     : True,
@@ -76,6 +89,22 @@ module mkNTTX (NTTX ifc);
 			                                     redirect: False,
 			                                     epoch   : ?    ,
 			                                     nextPc  : ?    });
+
+		if(readytx.notFull)
+			readytx.enq(ContToken{ verifID: req.verifID,
+			                       pc     : req.nextpc,
+			                       rfL    : rfresloQ.first,
+			                       rfH    : rfreshiQ.first });
+		else
+			mtqtx.enq(ContToken{ verifID: req.verifID,
+			                     pc     : req.nextpc,
+			                     rfL    : rfresloQ.first,
+			                     rfH    : rfreshiQ.first });
+
+	endrule
+
+	rule do_forward_mtq;
+		readytx.enq(mtqrx.first()); mtqrx.deq();
 	endrule
 
 	//////////// INTERFACE ////////////
@@ -105,8 +134,19 @@ module mkNTTX (NTTX ifc);
 	endmethod
 	interface deqRedirect = deqRedirectIfc;
 
-	// Completed req
-	method Action    deq()   = contQ.deq();
-	method ContToken first() = contQ.first();
+	// ready tokens
+	interface FifoDeq ready;
+		method Bool      notEmpty = readytx.notEmpty;
+		method Action    deq      = readytx.deq;
+		method ContToken first    = readytx.first;
+	endinterface
+
+	// Stream control
+	interface FIFO toMTQ;
+		method Action    enq(ContToken x) = mtqrx.enq(x);
+		method Action    deq              = mtqtx.deq();
+		method ContToken first            = mtqtx.first();
+		method Action    clear            = mtqtx.clear();
+	endinterface
 
 endmodule

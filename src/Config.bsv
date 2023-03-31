@@ -17,13 +17,8 @@ Addr	hex_ADDR  = 32'h7ffff004;
 Addr	msr_ADDR  = 32'h7ffff008;
 Addr	max_ADDR  = 32'h80000000;
 
-// Round Robin
-Bool 	roundRobin = False;
-typedef	1000 RR_INT;
-
 // Main Token Queue
 typedef 512 MTQ_LEN;
-typedef 4   CTQ_LEN;
 
 // Core width
 typedef 8 FrontWidth;
@@ -46,9 +41,6 @@ Bool lsuAssociative = False;
 typedef 256 L2CacheRows;       // Must be power of 2
 typedef 4   L2CacheColumns;    // Must be power of 2
 typedef 16  L2CacheHashBlocks; // Must be power of 2
-
-// Verification
-typedef Bit#(32) VerifID;
 
 // Main Mem
 typedef 15 RAMLatency;

@@ -144,13 +144,6 @@ typedef struct {
 	Data        res;
 } RFwb deriving (Bits, Eq, FShow);
 
-typedef struct {
-	VerifID   verifID;
-	Addr      pc;
-	CacheLine rfL;
-	CacheLine rfH;
-} ContToken deriving(Bits, Eq);
-
 function Bool isMemInst(ExecToken inst);
 	return (inst.inst.iType == Ld          || inst.inst.iType == St    ||
 	        inst.inst.iType == Fork        || inst.inst.iType == Forkr ||
