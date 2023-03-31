@@ -376,6 +376,7 @@ interface MSHR#(numeric type numHart);
 	method Action enq(LSUReq#(Bit#(TLog#(numHart))) req);
 	method Action deq();
 	method LSUReq#(Bit#(TLog#(numHart))) first();
+	method Bool isEmpty();
 	method Bool isLast();
 	method CacheLineNum cacheLineNum();
 endinterface
@@ -403,6 +404,10 @@ module mkMSHR (MSHR#(numHart)) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(har
 
 	method LSUReq#(hartID) first();
 		return requests.first();
+	endmethod
+
+	method Bool isEmpty();
+		return !requests.notEmpty();
 	endmethod
 
 	method Bool isLast();
@@ -524,7 +529,21 @@ module mkLSU (LSU#(numHart) ifc) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(h
 		                            addr: {mshrArray[res.tag].cacheLineNum,'0},
 		                            data: ?,
 		                            line: res.line });
-		retryMSHR[0] <= tagged Valid res.tag;
+
+		hartID mshrId = res.tag;
+		if(!mshrArray[mshrId].isEmpty && mshrArray[mshrId].first.op == Ld) begin
+			let  req = mshrArray[mshrId].first(); mshrArray[mshrId].deq();
+			Data dat = extendLoad( res.line[wordSelectOf(req.addr)],
+			                       req.addr,
+			                       cacheOpOf(req.op, req.ldFunc, req.stFunc));
+			oldRespQ.enq(LSUResp{ valid  : True,
+			                      data   : dat,
+			                      transId: mshrId });
+			if(!mshrArray[mshrId].isLast())
+				retryMSHR[0] <= tagged Valid res.tag;
+		end else begin
+			retryMSHR[0] <= tagged Valid res.tag;
+		end
 
 	endrule
 
