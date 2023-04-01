@@ -119,7 +119,9 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 		              msr.lsu.hLd,        msr.lsu.hSt,          msr.lsu.hJoin,
 		              msr.lsu.mLd,        msr.lsu.mSt,          msr.lsu.mJoin,
 		              msr.lsu.dLd,        msr.lsu.dSt,          msr.lsu.dJoin,
-		              msr.l2s.tWR,        msr.l2s.tWB,          msr.l2s.hRD,       msr.l2s.mRD);
+		              msr.l2s.hWR,        msr.l2s.mWR,
+		              msr.l2s.hRD,        msr.l2s.mRD,
+		              msr.l2s.tWB );
 	endrule
 
 	//////////// INTERFACE ////////////

@@ -14,5 +14,7 @@ interface ToHost;
 	                        Bit#(32) hLd,     Bit#(32) hSt,       Bit#(32) hJoin,
 	                        Bit#(32) mLd,     Bit#(32) mSt,       Bit#(32) mJoin,
 	                        Bit#(32) dLd,     Bit#(32) dSt,       Bit#(32) dJoin,
-	                        Bit#(32) l2tWR,   Bit#(32) l2tWB,     Bit#(32) l2hRD,   Bit#(32) l2mRD);
+	                        Bit#(32) l2hWR,   Bit#(32) l2mWR,
+	                        Bit#(32) l2hRD,   Bit#(32) l2mRD,
+	                        Bit#(32) l2tWB );
 endinterface

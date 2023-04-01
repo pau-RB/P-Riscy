@@ -85,10 +85,11 @@ typedef struct {
 } LSUStat;
 
 typedef struct {
-	Data tWR; // Total writes
-	Data tWB; // Total writebacks
+	Data hWR; // Total hits on read
+	Data mWR; // Total miss on read
 	Data hRD; // Total hits on read
 	Data mRD; // Total miss on read
+	Data tWB; // Total writebacks
 } WMCStat;
 
 typedef struct {

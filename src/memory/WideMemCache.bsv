@@ -106,10 +106,11 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 
 	//////////// STATS ////////////
 
-	Ehr#(2,Data) tWR <- mkEhr(0); // Total writes
-	Ehr#(2,Data) tWB <- mkEhr(0); // Total writebacks
+	Ehr#(2,Data) hWR <- mkEhr(0); // Total hits on write
+	Ehr#(2,Data) mWR <- mkEhr(0); // Total miss on write
 	Ehr#(2,Data) hRD <- mkEhr(0); // Total hits on read
 	Ehr#(2,Data) mRD <- mkEhr(0); // Total miss on read
+	Ehr#(3,Data) tWB <- mkEhr(0); // Total writebacks
 
 	//////////// INVALIDATE ON START ////////////
 
@@ -153,7 +154,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 				                       dirty: req.dirty,
 				                       num  : req.num,
 				                       line : req.line });
-			if(req.op == RD)
+			if(req.op == RD || req.op == WR)
 				brmQ.enq(req);
 		end
 
@@ -217,8 +218,6 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 					                           write: True,
 					                           num  : tag,
 					                           line : line });
-					if (mem_ext_DEBUG)
-						tWB[0] <= tWB[0]+1;
 				end
 
 				CacheMeta newMeta = CacheMeta { valid: True,
@@ -276,13 +275,12 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 
 					writePortHash[i][0] <= tagged Valid (hashOf(req.num));
 
+					colResQ[i].enq(tagged Valid (?));
+
 				end else if(req.dirty) begin // write miss and new line is dirty
-					colWBQ[i].enq(WideMemReq { tag  : ?,
-					                           write: True,
-					                           num  : req.num,
-					                           line : req.line });
-					if (mem_ext_DEBUG)
-						tWB[0] <= tWB[0]+1;
+
+					colResQ[i].enq(tagged Invalid);
+
 				end
 
 			end
@@ -312,6 +310,9 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 			WideMemReq#(tagT) req = colWBQ[i].first(); colWBQ[i].deq();
 			memreq.enq(req);
 
+			if (mem_ext_DEBUG)
+				tWB[1] <= tWB[1]+1;
+
 		endrule
 
 	end
@@ -331,23 +332,39 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 			val = val||isValid(colResQ[i].first);
 		end
 
-		if(val) begin // hit
-			resQ.enq(WideMemRes{ tag: req.tag, line: line });
-		end else begin // miss
-			mshrArray[pack(req.tag)] <= req.num;
-			memreq.enq( WideMemReq { tag  : req.tag,
-			                         write: False,
-			                         num  : req.num,
-			                         line : req.line } );
+		if(req.op == WR) begin
+			if(!val) begin // if no hit, we must WB
+				memreq.enq(WideMemReq { tag  : ?,
+				                        write: True,
+				                        num  : req.num,
+				                        line : req.line });	
+			end
+		end else if(req.op == RD) begin
+			if(val) begin // hit
+				resQ.enq(WideMemRes{ tag: req.tag, line: line });
+			end else begin // miss
+				mshrArray[pack(req.tag)] <= req.num;
+				memreq.enq( WideMemReq { tag  : req.tag,
+				                         write: False,
+				                         num  : req.num,
+				                         line : req.line } );
+			end
 		end
 
 		if (mem_ext_DEBUG) begin
-			if (val) begin
-				// read hit
-				hRD[0] <= hRD[0]+1;
-			end else begin
-				// read miss
-				mRD[0] <= mRD[0]+1;
+			if(req.op == WR) begin
+				if (val) begin
+					hWR[0] <= hWR[0]+1;
+				end else begin
+					mWR[0] <= mWR[0]+1;
+					tWB[0] <= tWB[0]+1;
+				end
+			end else if(req.op == RD) begin
+				if (val) begin
+					hRD[0] <= hRD[0]+1;
+				end else begin
+					mRD[0] <= mRD[0]+1;
+				end
 			end
 		end
 
@@ -392,10 +409,6 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 				                 dirty: r.write       ,
 				                 num  : r.num         ,
 				                 line : r.line        });
-
-				if (mem_ext_DEBUG)
-					if (r.write)
-						tWR[0] <= tWR[0]+1;
 			endmethod
 		endinterface);
 		interface response = (interface Get#(WidememResp);
@@ -406,10 +419,11 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 	endinterface
 
 	method WMCStat getStat();
-		return WMCStat{ tWR: tWR[1],
-		                tWB: tWB[1],
+		return WMCStat{ hWR: hWR[1],
+		                mWR: mWR[1],
 		                hRD: hRD[1],
-		                mRD: mRD[1] };
+		                mRD: mRD[1],
+		                tWB: tWB[2]};
 	endmethod
 
 endmodule

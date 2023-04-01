@@ -143,7 +143,9 @@ class ToHost: public ToHostWrapper {
                                  const uint32_t hLd,     const uint32_t hSt,       const uint32_t hJoin,
                                  const uint32_t mLd,     const uint32_t mSt,       const uint32_t mJoin,
                                  const uint32_t dLd,     const uint32_t dSt,       const uint32_t dJoin,
-                                 const uint32_t l2tWR,   const uint32_t l2tWB,     const uint32_t l2hRD,   const uint32_t l2mRD){
+                                 const uint32_t l2hWR,   const uint32_t l2mWR,     
+                                 const uint32_t l2hRD,   const uint32_t l2mRD,
+                                 const uint32_t l2tWB){
 
             if(error_detected >= ERROR_THRESHOLD)
                 return;
@@ -172,10 +174,11 @@ class ToHost: public ToHostWrapper {
             lsu.dSt          = dSt      ;
             lsu.dJoin        = dJoin    ;
 
-            l2s.tWR          = l2tWR    ;
-            l2s.tWB          = l2tWB    ;
+            l2s.hWR          = l2hWR    ;
+            l2s.mWR          = l2mWR    ;
             l2s.hRD          = l2hRD    ;
             l2s.mRD          = l2mRD    ;
+            l2s.tWB          = l2tWB    ;
 
             msr.verifID      = verifID  ;
             msr.cycle        = cycle    ;

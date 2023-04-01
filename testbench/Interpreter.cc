@@ -162,16 +162,22 @@ void Interpreter::print_MSR_dut(const MemStat msr) {
     phrase = "                    |------------------------|------------------------|------------------------|";
     printf("%s \n", phrase.c_str());
 
-    phrase = "            L2S     | tRD   :                | hRD   :                | mRD   :                |";
+    phrase = "            L2S     | tRD   :                | tWR   :                | tWB   :                |";
     overwrite(phrase, std::to_string(l2s.hRD + l2s.mRD),  30, 14 );
-    overwrite(phrase, std::to_string(l2s.hRD          ),  55, 14 );
-    overwrite(phrase, std::to_string(l2s.mRD          ),  80, 14 );
+    overwrite(phrase, std::to_string(l2s.hWR + l2s.mWR),  55, 14 );
+    overwrite(phrase, std::to_string(l2s.tWB          ),  80, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "                    | tWR   :                | tWB   :                |                        |";
-    overwrite(phrase, std::to_string(l2s.tWR),  30, 14 );
-    overwrite(phrase, std::to_string(l2s.tWB),  55, 14 );
+    phrase = "                    | hRD   :                | hWR   :                |                        |";
+    overwrite(phrase, std::to_string(l2s.hRD          ),  30, 14 );
+    overwrite(phrase, std::to_string(l2s.hWR          ),  55, 14 );
     printf("%s \n", phrase.c_str());
+
+    phrase = "                    | mRD   :                | mWR   :                |                        |";
+    overwrite(phrase, std::to_string(l2s.mRD          ),  30, 14 );
+    overwrite(phrase, std::to_string(l2s.mWR          ),  55, 14 );
+    printf("%s \n", phrase.c_str());
+
 
     phrase = "------------------------------------------------------------------------------------------------";
     printf("%s \n", phrase.c_str());
