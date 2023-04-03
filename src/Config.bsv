@@ -20,6 +20,11 @@ Addr	max_ADDR  = 32'h80000000;
 // Main Token Queue
 typedef 512 MTQ_LEN;
 
+// Core harts
+typedef 32 NumHart;
+typedef Bit#(TLog#(NumHart)) HartID;
+HartID lastHartID = fromInteger(valueOf(NumHart)-1);
+
 // Core width
 typedef 8 FrontWidth;
 typedef Bit#(TLog#(FrontWidth)) FrontID;

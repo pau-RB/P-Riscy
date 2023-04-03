@@ -1,6 +1,16 @@
 import Types::*;
 import Config::*;
 
+//////////// TOKEN ////////////
+
+typedef struct {
+	VerifID   verifID;
+	HartID    hartID;
+	Addr      pc;
+	CacheLine rfL;
+	CacheLine rfH;
+} ContToken deriving(Bits, Eq);
+
 //////////// FRONTEND ////////////
 
 typedef enum {

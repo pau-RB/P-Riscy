@@ -8,12 +8,14 @@ import Vector::*;
 
 import FShow::*;
 
+typedef enum {EVICT, FORK, JOIN} NTTXtype deriving(Bits, FShow, Eq);
 
 typedef struct {
-	FrontID frontID; // FE id from  parent
-	VerifID verifID; // FE id for evicted cont
-	Addr    nextpc;  // next expected pc
-	Bool    evict;   // evict/fork
+	FrontID  frontID; // FE id from parent
+	HartID   hartID;  // HT id from parent
+	VerifID  verifID; // VF id for evicted cont
+	Addr     nextpc;  // next expected pc
+	NTTXtype reqtype; // Evict, Fork or Join
 } NTTXreq deriving(Bits, FShow);
 
 interface FifoDeq#(type t);
@@ -61,7 +63,22 @@ module mkNTTX (NTTX ifc);
 	FIFOF#(ContToken) mtqtx <- mkFIFOF();
 	FIFOF#(ContToken) mtqrx <- mkFIFOF();
 
+	// hartID queues
+	FIFOF#(HartID) hartAvail <- mkSizedFIFOF(valueOf(NumHart)+1);
+	Reg#(Maybe#(HartID)) initAvail <- mkReg(tagged Valid '0);
+
 	//////////// RULES ////////////
+
+	rule do_initAvail if(initAvail matches tagged Valid .hartID);
+
+		hartAvail.enq(hartID);
+
+		if(hartID != lastHartID)
+			initAvail <= tagged Valid (hartID+1);
+		else
+			initAvail <= tagged Invalid;
+
+	endrule
 
 	rule do_fork_req;
 
@@ -75,36 +92,67 @@ module mkNTTX (NTTX ifc);
 		NTTXreq req = rfreqidQ.first(); rfreqidQ.deq();
 		rfresloQ.deq(); rfreshiQ.deq();
 
-		if(req.evict) // If evict, dry ghost
-			redirectQ[req.frontID].enq(Redirect{ lock    : False,
-			                                     dry     : True,
-			                                     kill    : False,
-			                                     redirect: False,
-			                                     epoch   : ?    ,
-			                                     nextPc  : ?    });
-		else // If fork, unlock thd
-			redirectQ[req.frontID].enq(Redirect{ lock    : False,
-			                                     dry     : False,
-			                                     kill    : False,
-			                                     redirect: False,
-			                                     epoch   : ?    ,
-			                                     nextPc  : ?    });
-
-		if(readytx.notFull)
-			readytx.enq(ContToken{ verifID: req.verifID,
-			                       pc     : req.nextpc,
-			                       rfL    : rfresloQ.first,
-			                       rfH    : rfreshiQ.first });
-		else
-			mtqtx.enq(ContToken{ verifID: req.verifID,
-			                     pc     : req.nextpc,
-			                     rfL    : rfresloQ.first,
-			                     rfH    : rfreshiQ.first });
+		case(req.reqtype)
+			EVICT: begin
+				// If evict, dry ghost
+				redirectQ[req.frontID].enq(Redirect{ lock    : False,
+				                                     dry     : True ,
+				                                     kill    : False,
+				                                     redirect: False,
+				                                     epoch   : ?    ,
+				                                     nextPc  : ?    });
+				if(readytx.notFull) begin
+					readytx.enq(ContToken{ verifID: req.verifID   ,
+					                       hartID : req.hartID    ,
+					                       pc     : req.nextpc    ,
+					                       rfL    : rfresloQ.first,
+					                       rfH    : rfreshiQ.first});
+				end else begin
+					mtqtx.enq(ContToken{ verifID: req.verifID   ,
+					                     hartID : ?             ,
+					                     pc     : req.nextpc    ,
+					                     rfL    : rfresloQ.first,
+					                     rfH    : rfreshiQ.first});
+					hartAvail.enq(req.hartID);
+				end
+			end
+			FORK: begin
+				redirectQ[req.frontID].enq(Redirect{ lock    : False,
+				                                     dry     : False,
+				                                     kill    : False,
+				                                     redirect: False,
+				                                     epoch   : ?    ,
+				                                     nextPc  : ?    });
+				if(readytx.notFull) begin
+					readytx.enq(ContToken{ verifID: req.verifID    ,
+					                       hartID : hartAvail.first,
+					                       pc     : req.nextpc     ,
+					                       rfL    : rfresloQ.first ,
+					                       rfH    : rfreshiQ.first });
+					hartAvail.deq();
+				end else begin
+					mtqtx.enq(ContToken{ verifID: req.verifID    ,
+					                     hartID : hartAvail.first,
+					                     pc     : req.nextpc     ,
+					                     rfL    : rfresloQ.first ,
+					                     rfH    : rfreshiQ.first });
+				end
+			end
+			JOIN: begin
+				hartAvail.enq(req.hartID);
+			end
+		endcase
 
 	endrule
 
 	rule do_forward_mtq;
-		readytx.enq(mtqrx.first()); mtqrx.deq();
+		readytx.enq(ContToken{ verifID: mtqrx.first.verifID,
+		                       hartID : hartAvail.first    ,
+		                       pc     : mtqrx.first.pc     ,
+		                       rfL    : mtqrx.first.rfL    ,
+		                       rfH    : mtqrx.first.rfH    });
+		hartAvail.deq();
+		mtqrx.deq();
 	endrule
 
 	//////////// INTERFACE ////////////

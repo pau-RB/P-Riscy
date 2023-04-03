@@ -56,6 +56,8 @@ interface Backend;
 
 	// To NTTX
 	method ActionValue#(NTTXreq) getFork();
+	method Action setHartID(FrontID feID, HartID hartID);
+	method HartID getHartID(FrontID feID);
 
 	// To sched
 	method Data getNumCommit();
@@ -105,6 +107,7 @@ module mkBackend (Backend ifc);
 
 	// To NTTX
 	FIFOF#(NTTXreq)                                eforkQ          <- mkFIFOF();
+	Vector#(FrontWidth, Reg#(HartID))              mapHartID       <- replicateM(mkRegU());
 
 	// MulDiv
 	Vector#(TSub#(BackWidth,1), XilinxIntMul#(void)) mulArray <- replicateM(mkMul);
@@ -116,7 +119,7 @@ module mkBackend (Backend ifc);
 	Vector#(FrontWidth, FIFOF#(Redirect))          redirectQ       <- replicateM(mkFIFOF());
 
 	// CMR
-	Vector#(FrontWidth, Reg#(VerifID))             mapID           <- replicateM(mkRegU());
+	Vector#(FrontWidth, Reg#(VerifID))             mapVerifID      <- replicateM(mkRegU());
 	Reg#(VerifID)                                  nextID          <- mkReg('d1);
 
 	MFifo#(CTHQ_LEN,BackWidth,CommitReport)        commitReportQ   <- mkPipelineMFifo();
@@ -289,10 +292,11 @@ module mkBackend (Backend ifc);
 
 				if(wToken.inst.iType == Ghost) begin
 
-					eforkQ.enq(NTTXreq { frontID: wToken.feID,
-					                     verifID: mapID[wToken.feID],
-					                     nextpc : wToken.pc,
-					                     evict  : True });
+					eforkQ.enq(NTTXreq { frontID: wToken.feID            ,
+					                     hartID : mapHartID [wToken.feID],
+					                     verifID: mapVerifID[wToken.feID],
+					                     nextpc : wToken.pc              ,
+					                     reqtype: EVICT                  });
 
 				end else if(wToken.inst.iType == Ld) begin
 
@@ -301,7 +305,7 @@ module mkBackend (Backend ifc);
 						rfWriteBack[wToken.feID] = tagged Valid RFwb{dst: fromMaybe(?, wToken.inst.dst), res: res.data};
 						numWB = numWB+1;
 						if(cmr_ext_DEBUG == True)
-							commitReportQ.port[0].enq(generateCMR(numCycles, mapID[wToken.feID], ?, wToken, res.data, ?));
+							commitReportQ.port[0].enq(generateCMR(numCycles, mapVerifID[wToken.feID], ?, wToken, res.data, ?));
 					end else begin
 						miata     [wToken.feID] <= wToken;
 						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
@@ -321,7 +325,7 @@ module mkBackend (Backend ifc);
 					if(res.valid) begin
 						numWB = numWB+1;
 						if(cmr_ext_DEBUG == True)
-							commitReportQ.port[0].enq(generateCMR(numCycles, mapID[wToken.feID], ?, wToken, ?, ?));
+							commitReportQ.port[0].enq(generateCMR(numCycles, mapVerifID[wToken.feID], ?, wToken, ?, ?));
 					end else begin
 						miata     [wToken.feID] <= wToken;
 						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
@@ -347,10 +351,15 @@ module mkBackend (Backend ifc);
 							                                                 redirect: False,
 							                                                 epoch   : commitEpoch[wToken.feID][0]+1,
 							                                                 nextPc  : ? };
+							eforkQ.enq(NTTXreq { frontID: wToken.feID            ,
+							                     hartID : mapHartID [wToken.feID],
+							                     verifID: mapVerifID[wToken.feID],
+							                     nextpc : wToken.pc              ,
+							                     reqtype: JOIN                   });
 						end
 						numWB = numWB+1;
 						if (cmr_ext_DEBUG == True)
-								commitReportQ.port[0].enq(generateCMR(numCycles, mapID[wToken.feID], ?, wToken, res.data, ?));
+								commitReportQ.port[0].enq(generateCMR(numCycles, mapVerifID[wToken.feID], ?, wToken, res.data, ?));
 					end else begin
 						miata     [wToken.feID] <= wToken;
 						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
@@ -368,10 +377,11 @@ module mkBackend (Backend ifc);
 
 					nextID <= nextID+1;
 
-					eforkQ.enq(NTTXreq { frontID: wToken.feID,
-					                     verifID: nextID,
-					                     nextpc : wToken.inst.addr,
-					                     evict  : False });
+					eforkQ.enq(NTTXreq { frontID: wToken.feID           ,
+					                     hartID : mapHartID[wToken.feID],
+					                     verifID: nextID                ,
+					                     nextpc : wToken.inst.addr      ,
+					                     reqtype: FORK                  });
 
 					stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
 					stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
@@ -383,13 +393,13 @@ module mkBackend (Backend ifc);
 
 					numWB = numWB+1;
 					if (cmr_ext_DEBUG == True)
-						commitReportQ.port[0].enq(generateCMR(numCycles, mapID[wToken.feID], nextID, wToken, ?, ?));
+						commitReportQ.port[0].enq(generateCMR(numCycles, mapVerifID[wToken.feID], nextID, wToken, ?, ?));
 
 				end
 
 				if (msg_ext_DEBUG == True) begin
 					if(wToken.inst.iType == St && wToken.inst.addr == msg_ADDR) begin
-						messageReportQ.enq(Message { verifID: mapID[wToken.feID],
+						messageReportQ.enq(Message { verifID: mapVerifID[wToken.feID],
 						                             cycle  : numCycles,
 						                             commit : numCommit[0],
 						                             data   : wToken.inst.data });
@@ -398,7 +408,7 @@ module mkBackend (Backend ifc);
 
 				if (hex_ext_DEBUG == True) begin
 					if(wToken.inst.iType == St && wToken.inst.addr == hex_ADDR) begin
-						hexReportQ.enq(Message { verifID: mapID[wToken.feID],
+						hexReportQ.enq(Message { verifID: mapVerifID[wToken.feID],
 						                         cycle  : numCycles,
 						                         commit : numCommit[0],
 						                         data   : wToken.inst.data });
@@ -408,7 +418,7 @@ module mkBackend (Backend ifc);
 				if (mem_ext_DEBUG == True) begin
 					if(wToken.inst.iType == St && wToken.inst.addr == msr_ADDR) begin
 						LSUStat   lsr = lsu.getStat();
-						MemStat   msr = MemStat{ verifID: mapID[wToken.feID],
+						MemStat   msr = MemStat{ verifID: mapVerifID[wToken.feID],
 						                         cycle  : numCycles,
 						                         commit : numCommit[0],
 						                         data   : wToken.inst.data,
@@ -486,7 +496,7 @@ module mkBackend (Backend ifc);
 					numWB = numWB+1;
 
 					if (cmr_ext_DEBUG == True) begin
-						commitReportQ.port[i].enq(generateCMR(numCycles, mapID[wToken.feID], ?, wToken, ?, mulRes));
+						commitReportQ.port[i].enq(generateCMR(numCycles, mapVerifID[wToken.feID], ?, wToken, ?, mulRes));
 					end
 
 					if(perf_DEBUG == True) begin
@@ -562,6 +572,11 @@ module mkBackend (Backend ifc);
 				                                                  redirect: False,
 				                                                  epoch   : commitEpoch[feID][0]+1,
 				                                                  nextPc  : ? };
+				eforkQ.enq(NTTXreq { frontID: wToken.feID            ,
+				                     hartID : mapHartID [wToken.feID],
+				                     verifID: mapVerifID[wToken.feID],
+				                     nextpc : wToken.pc              ,
+				                     reqtype: JOIN                   });
 			end else begin
 				toWBstRedirect[feID][1] <= tagged Valid Redirect{ lock    : False,
 				                                                  dry     : False,
@@ -576,7 +591,7 @@ module mkBackend (Backend ifc);
 		numCommit[1] <= numCommit[1]+1;
 
 		if (cmr_ext_DEBUG == True) begin
-			commitReportQ.port[0].enq(generateCMR(numCycles, mapID[feID], ?, wToken, loadRes, ?));
+			commitReportQ.port[0].enq(generateCMR(numCycles, mapVerifID[feID], ?, wToken, loadRes, ?));
 		end
 
 		if(perf_DEBUG == True) begin
@@ -676,6 +691,14 @@ module mkBackend (Backend ifc);
 		eforkQ.deq(); return eforkQ.first();
 	endmethod
 
+	method Action setHartID(FrontID feID, HartID hartID);
+		mapHartID[feID] <= hartID;
+	endmethod
+
+	method HartID getHartID(FrontID feID);
+		return mapHartID[feID];
+	endmethod
+
 	// To sched
 	method Data getNumCommit();
 		return numCommit[0];
@@ -687,11 +710,11 @@ module mkBackend (Backend ifc);
 	endmethod
 
 	method Action setVerifID(FrontID feID, VerifID verifID);
-		mapID[feID] <= verifID;
+		mapVerifID[feID] <= verifID;
 	endmethod
 
 	method VerifID getVerifID(FrontID feID);
-		return mapID[feID];
+		return mapVerifID[feID];
 	endmethod
 
 

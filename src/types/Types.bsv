@@ -16,15 +16,6 @@ typedef Bit#(2) Epoch;
 
 typedef Bit#(32) VerifID;
 
-//////////// TOKEN ////////////
-
-typedef struct {
-	VerifID   verifID;
-	Addr      pc;
-	CacheLine rfL;
-	CacheLine rfH;
-} ContToken deriving(Bits, Eq);
-
 //////////// MEM ////////////
 
 typedef 16                                        CacheLineWords;
