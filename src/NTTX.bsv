@@ -1,6 +1,7 @@
 import Types::*;
 import ProcTypes::*;
 import Config::*;
+import BRAM::*;
 import FIFO::*;
 import FIFOF::*;
 import SpecialFIFOs::*;
@@ -63,9 +64,16 @@ module mkNTTX (NTTX ifc);
 	FIFOF#(ContToken) mtqtx <- mkFIFOF();
 	FIFOF#(ContToken) mtqrx <- mkFIFOF();
 
-	// hartID queues
-	FIFOF#(HartID) hartAvail <- mkSizedFIFOF(valueOf(NumHart)+1);
-	Reg#(Maybe#(HartID)) initAvail <- mkReg(tagged Valid '0);
+	// Hart table
+	BRAM_Configure cfg = BRAM_Configure { memorySize              : 0,
+	                                      latency                 : 1,
+	                                      outFIFODepth            : 2,
+	                                      loadFormat              : None,
+	                                      allowWriteResponseBypass: False };
+	BRAM2Port#(HartID, ContToken) hartTable <- mkBRAM2Server(cfg);
+	FIFOF#(HartID)                hartAvail <- mkSizedFIFOF(valueOf(NumHart)+1);
+	FIFOF#(HartID)                hartReady <- mkSizedFIFOF(valueOf(NumHart)+1);
+	Reg#(Maybe#(HartID))          initAvail <- mkReg(tagged Valid '0);
 
 	//////////// RULES ////////////
 
@@ -94,43 +102,46 @@ module mkNTTX (NTTX ifc);
 
 		case(req.reqtype)
 			EVICT: begin
-				// If evict, dry ghost
+				// Dry ghost
 				redirectQ[req.frontID].enq(Redirect{ lock    : False,
 				                                     dry     : True ,
 				                                     kill    : False,
 				                                     redirect: False,
 				                                     epoch   : ?    ,
 				                                     nextPc  : ?    });
-				if(readytx.notFull) begin
-					readytx.enq(ContToken{ verifID: req.verifID   ,
-					                       hartID : req.hartID    ,
-					                       pc     : req.nextpc    ,
-					                       rfL    : rfresloQ.first,
-					                       rfH    : rfreshiQ.first});
-				end else begin
-					mtqtx.enq(ContToken{ verifID: req.verifID   ,
-					                     hartID : ?             ,
-					                     pc     : req.nextpc    ,
-					                     rfL    : rfresloQ.first,
-					                     rfH    : rfreshiQ.first});
-					hartAvail.enq(req.hartID);
-				end
+				// Update hart table token and mark as ready
+				hartTable.portA.request.put( BRAMRequest{ write          : True      ,
+				                                          responseOnWrite: False     ,
+				                                          address        : req.hartID,
+				                                          datain         : ContToken{ verifID: req.verifID   ,
+				                                                                      hartID : req.hartID    ,
+				                                                                      pc     : req.nextpc    ,
+				                                                                      rfL    : rfresloQ.first,
+				                                                                      rfH    : rfreshiQ.first} } );
+				hartReady.enq(req.hartID);
 			end
 			FORK: begin
+				// Unlock stream
 				redirectQ[req.frontID].enq(Redirect{ lock    : False,
 				                                     dry     : False,
 				                                     kill    : False,
 				                                     redirect: False,
 				                                     epoch   : ?    ,
 				                                     nextPc  : ?    });
-				if(readytx.notFull) begin
-					readytx.enq(ContToken{ verifID: req.verifID    ,
-					                       hartID : hartAvail.first,
-					                       pc     : req.nextpc     ,
-					                       rfL    : rfresloQ.first ,
-					                       rfH    : rfreshiQ.first });
+				if(hartAvail.notEmpty) begin
+					// If a slot is available, add new stream to hart table
+					hartTable.portA.request.put( BRAMRequest{ write          : True           ,
+					                                          responseOnWrite: False          ,
+					                                          address        : hartAvail.first,
+					                                          datain         : ContToken{ verifID: req.verifID    ,
+					                                                                      hartID : hartAvail.first,
+					                                                                      pc     : req.nextpc     ,
+					                                                                      rfL    : rfresloQ.first ,
+					                                                                      rfH    : rfreshiQ.first } } );
+					hartReady.enq(hartAvail.first);
 					hartAvail.deq();
 				end else begin
+					// Otherwise, offload to MTQ
 					mtqtx.enq(ContToken{ verifID: req.verifID    ,
 					                     hartID : hartAvail.first,
 					                     pc     : req.nextpc     ,
@@ -146,13 +157,33 @@ module mkNTTX (NTTX ifc);
 	endrule
 
 	rule do_forward_mtq;
-		readytx.enq(ContToken{ verifID: mtqrx.first.verifID,
-		                       hartID : hartAvail.first    ,
-		                       pc     : mtqrx.first.pc     ,
-		                       rfL    : mtqrx.first.rfL    ,
-		                       rfH    : mtqrx.first.rfH    });
+
+		// If a slot is available, add new stream to hart table
+		hartTable.portA.request.put( BRAMRequest{ write          : True           ,
+		                                          responseOnWrite: False          ,
+		                                          address        : hartAvail.first,
+		                                          datain         : ContToken{ verifID: mtqrx.first.verifID,
+		                                                                      hartID : hartAvail.first    ,
+		                                                                      pc     : mtqrx.first.pc     ,
+		                                                                      rfL    : mtqrx.first.rfL    ,
+		                                                                      rfH    : mtqrx.first.rfH    } } );
+		hartReady.enq(hartAvail.first);
 		hartAvail.deq();
 		mtqrx.deq();
+
+	endrule
+
+	rule do_forward_readytx_req;
+		hartTable.portB.request.put( BRAMRequest{ write          : False          ,
+		                                          responseOnWrite: False          ,
+		                                          address        : hartReady.first,
+		                                          datain         : ?              });
+		hartReady.deq();
+	endrule
+
+	rule do_forward_readytx_res;
+		ContToken latest <- hartTable.portB.response.get();
+		readytx.enq(latest);
 	endrule
 
 	//////////// INTERFACE ////////////
