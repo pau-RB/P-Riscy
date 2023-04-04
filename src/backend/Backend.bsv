@@ -44,7 +44,7 @@ endinterface
 interface Backend;
 
 	// DMEM
-	interface WideMemClient#(FrontID) mem;
+	interface WideMemClient#(HartID) mem;
 
 	// Execute
 	method Action enq(Vector#(BackWidth, Maybe#(ExecToken)) inst);
@@ -87,10 +87,10 @@ endinterface
 module mkBackend (Backend ifc);
 
 	// LSU
-	LSU#(FrontWidth) lsu <- mkLSU();
+	LSU#(NumHart) lsu <- mkLSU();
 
 	// Missed access table
-	Vector#(FrontWidth, Reg#(WBToken)) miata <- replicateM(mkReg(?));
+	Vector#(NumHart, Reg#(WBToken)) miata <- replicateM(mkReg(?));
 
 	// Epoch
 	Vector#(FrontWidth, Ehr#(2,Epoch) ) commitEpoch <- replicateM(mkEhr('0));
@@ -226,21 +226,21 @@ module mkBackend (Backend ifc);
 					                stFunc : mToken.inst.stFunc,
 					                addr   : mToken.inst.addr,
 					                data   : mToken.inst.data,
-					                transId: mToken.feID });
+					                transId: mapHartID[mToken.feID] });
 				end else if (mToken.inst.iType == St) begin
 					lsu.req(LSUReq{ op     : St,
 					                ldFunc : mToken.inst.ldFunc,
 					                stFunc : mToken.inst.stFunc,
 					                addr   : mToken.inst.addr,
 					                data   : mToken.inst.data,
-					                transId: mToken.feID });
+					                transId: mapHartID[mToken.feID] });
 				end else if(mToken.inst.iType == Join) begin
 					lsu.req(LSUReq{ op     : Join,
 					                ldFunc : mToken.inst.ldFunc,
 					                stFunc : mToken.inst.stFunc,
 					                addr   : mToken.inst.addr,
 					                data   : mToken.inst.data,
-					                transId: mToken.feID });
+					                transId: mapHartID[mToken.feID] });
 				end 
 			end
 		end
@@ -307,7 +307,7 @@ module mkBackend (Backend ifc);
 						if(cmr_ext_DEBUG == True)
 							commitReportQ.port[0].enq(generateCMR(numCycles, mapVerifID[wToken.feID], ?, wToken, res.data, ?));
 					end else begin
-						miata     [wToken.feID] <= wToken;
+						miata     [mapHartID[wToken.feID]] <= wToken;
 						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
 						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
@@ -327,7 +327,7 @@ module mkBackend (Backend ifc);
 						if(cmr_ext_DEBUG == True)
 							commitReportQ.port[0].enq(generateCMR(numCycles, mapVerifID[wToken.feID], ?, wToken, ?, ?));
 					end else begin
-						miata     [wToken.feID] <= wToken;
+						miata     [mapHartID[wToken.feID]] <= wToken;
 						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
 						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
@@ -361,7 +361,7 @@ module mkBackend (Backend ifc);
 						if (cmr_ext_DEBUG == True)
 								commitReportQ.port[0].enq(generateCMR(numCycles, mapVerifID[wToken.feID], ?, wToken, res.data, ?));
 					end else begin
-						miata     [wToken.feID] <= wToken;
+						miata     [mapHartID[wToken.feID]] <= wToken;
 						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
 						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
@@ -536,10 +536,10 @@ module mkBackend (Backend ifc);
 
 	rule do_old_commit;
 
-		LSUResp#(FrontID) resp      <- lsu.oldResp();
-		WBToken           wToken     = miata[resp.transId];
-		FrontID           feID       = wToken.feID;
-		Data              loadRes    = 'hdeadbeef;
+		LSUResp#(HartID) resp   <- lsu.oldResp();
+		WBToken          wToken  = miata[resp.transId];
+		FrontID          feID    = wToken.feID;
+		Data             loadRes = 'hdeadbeef;
 
 		if(wToken.inst.iType == Ld) begin
 

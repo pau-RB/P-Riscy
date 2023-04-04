@@ -43,9 +43,9 @@ endinterface
 
 //////////// L1I TYPES ////////////
 
-interface L1I#(numeric type numHart, numeric type cacheRows);
+interface L1I#(numeric type numFront, numeric type numHart, numeric type cacheRows);
     interface WideMemClient#(Bit#(TLog#(numHart))) mem;
-    interface Vector#(numHart, WideMemServer#(void)) port;
+    interface Vector#(numFront, WideMemServer#(void)) port;
     method Data getNumHit();
     method Data getNumMiss();
 endinterface
@@ -196,19 +196,22 @@ typedef struct{
     CacheLineNum num;
 } BramReq#(type transIdType) deriving(Eq, Bits, FShow);
 
-module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheRows), CacheLineNumSz),
-                                                          Alias#(hartID  , Bit#(TLog#(numHart))),
-                                                          Alias#(bramReq , BramReq#(hartID))  );
+module mkDirectL1I(L1I#(numFront, numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheRows), CacheLineNumSz),
+                                                                    Add#(b__, numFront        , numHart       ),
+                                                                    Add#(c__, TLog#(numFront) , TLog#(numHart)),
+                                                                    Alias#(frontID, Bit#(TLog#(numFront))),
+                                                                    Alias#(hartID , Bit#(TLog#(numHart))),
+                                                                    Alias#(bramReq, BramReq#(frontID)));
 
     BareInstCache instCache <- (l1IAssociative?mkAssociativeInstCache():mkDirectInstCache());
-    Vector#(numHart, Reg#(CacheLineNum)) mshrLine <- replicateM(mkReg(?));
+    Vector#(numFront, Reg#(CacheLineNum)) mshrLine <- replicateM(mkReg(?));
 
     FIFOF#(bramReq            ) reqQ   <- mkBypassFIFOF();
     FIFOF#(bramReq            ) brmQ   <- mkFIFOF();
     FIFOF#(WideMemReq#(hartID)) memreq <- mkBypassFIFOF();
     FIFOF#(WideMemRes#(hartID)) memres <- mkBypassFIFOF();
 
-    Vector#(numHart, FIFOF#(WideMemRes#(void))) resQ <- replicateM(mkFIFOF());
+    Vector#(numFront, FIFOF#(WideMemRes#(void))) resQ <- replicateM(mkFIFOF());
 
     //////////// STATS ////////////
 
@@ -237,7 +240,7 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
         if(res matches tagged Valid .line) // read hit
             resQ[req.transID].enq(WideMemRes{tag: ?, line: line});
         else begin // read miss
-            memreq.enq(WideMemReq{ tag  : req.transID,
+            memreq.enq(WideMemReq{ tag  : zeroExtend(req.transID),
                                    write: False,
                                    num  : req.num,
                                    line : ? });
@@ -270,8 +273,8 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
     //////////// INTERFACE ////////////
 
     // IPORTS
-    Vector#(numHart, WideMemServer#(void)) wideMemIfcs = newVector;
-    for( Integer i = 0; i < valueOf(numHart); i = i+1 ) begin
+    Vector#(numFront, WideMemServer#(void)) wideMemIfcs = newVector;
+    for( Integer i = 0; i < valueOf(numFront); i = i+1 ) begin
         wideMemIfcs[i] =
             (interface WideMemServer;
                 interface request = (interface Put#(WideMemReq#(void));

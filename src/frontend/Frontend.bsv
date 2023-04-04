@@ -66,7 +66,7 @@ endinterface
 interface Frontend;
 
 	// IMEM
-	interface WideMemClient#(FrontID) mem;
+	interface WideMemClient#(HartID) mem;
 
 	// Function
 	interface Vector#(FrontWidth, Hart) hart;
@@ -89,7 +89,7 @@ endinterface
 module mkFrontend (Frontend ifc);
 
 	// Data cache
-	L1I#(FrontWidth, L1ICacheRows) l1I <- mkDirectL1I();
+	L1I#(FrontWidth, NumHart, L1ICacheRows) l1I <- mkDirectL1I();
 
 	// Stages
 	Vector#(FrontWidth, FIFOF#(RFToken)  ) regfetchQ  <- replicateM(mkPipelineFIFOF());

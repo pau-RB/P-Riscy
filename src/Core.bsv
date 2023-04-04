@@ -26,8 +26,8 @@ import NTTX::*;
 interface Core;
 
 	// IMEM and DMEM
-	interface WideMemClient#(FrontID) instMem;
-	interface WideMemClient#(FrontID) dataMem;
+	interface WideMemClient#(HartID) instMem;
+	interface WideMemClient#(HartID) dataMem;
 
 	// Stream control
 	interface FIFO#(ContToken) toMTQ;
@@ -129,6 +129,7 @@ module mkCore7SS(Core ifc);
 			frontend.regFile[feID].setH (token.rfH);
 
 			backend.setVerifID(feID, token.verifID);
+			backend.setHartID(feID, token.hartID);
 
 			coreStarted <= True;
 			frontend.startCore();
