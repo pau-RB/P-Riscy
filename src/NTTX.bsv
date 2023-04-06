@@ -9,7 +9,7 @@ import Vector::*;
 
 import FShow::*;
 
-typedef enum {EVICT, FORK, JOIN} NTTXtype deriving(Bits, FShow, Eq);
+typedef enum {EVICT, FORK, JOIN, STALL, MKRD} NTTXtype deriving(Bits, FShow, Eq);
 
 typedef struct {
 	FrontID  frontID; // FE id from parent
@@ -151,6 +151,27 @@ module mkNTTX (NTTX ifc);
 			end
 			JOIN: begin
 				hartAvail.enq(req.hartID);
+			end
+			STALL: begin
+				// Unlock stream
+				redirectQ[req.frontID].enq(Redirect{ lock    : False,
+				                                     dry     : False,
+				                                     kill    : False,
+				                                     redirect: False,
+				                                     epoch   : ?    ,
+				                                     nextPc  : ?    });
+				// Update hart table token and mark as ready
+				hartTable.portA.request.put( BRAMRequest{ write          : True      ,
+				                                          responseOnWrite: False     ,
+				                                          address        : req.hartID,
+				                                          datain         : ContToken{ verifID: req.verifID   ,
+				                                                                      hartID : req.hartID    ,
+				                                                                      pc     : req.nextpc    ,
+				                                                                      rfL    : rfresloQ.first,
+				                                                                      rfH    : rfreshiQ.first} } );
+			end
+			MKRD: begin
+				hartReady.enq(req.hartID);
 			end
 		endcase
 

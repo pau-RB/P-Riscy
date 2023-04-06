@@ -42,6 +42,9 @@ typedef 64 LSUCacheRows;    // Must be power of 2
 typedef 2  LSUCacheColumns; // Must be power of 2
 Bool lsuAssociative = False;
 
+typedef 10 MiataThresh;
+typedef Bit#(TLog#(TAdd#(MiataThresh,1))) MiataAge;
+
 // L2
 typedef 256 L2CacheRows;       // Must be power of 2
 typedef 4   L2CacheColumns;    // Must be power of 2
