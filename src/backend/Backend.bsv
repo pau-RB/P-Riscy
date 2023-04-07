@@ -474,13 +474,6 @@ module mkBackend (Backend ifc);
 						                                                 redirect: True,
 						                                                 epoch   : commitEpoch[wToken.feID][0]+1,
 						                                                 nextPc  : wToken.inst.addr };
-					end else if (wToken.inst.iType == Br) begin
-						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : False,
-						                                                 dry     : False,
-						                                                 kill    : False,
-						                                                 redirect: False,
-						                                                 epoch   : ?,
-						                                                 nextPc  : ?};
 					end
 
 					numWB = numWB+1;
