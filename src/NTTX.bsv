@@ -143,7 +143,7 @@ module mkNTTX (NTTX ifc);
 				end else begin
 					// Otherwise, offload to MTQ
 					mtqtx.enq(ContToken{ verifID: req.verifID    ,
-					                     hartID : hartAvail.first,
+					                     hartID : ?              ,
 					                     pc     : req.nextpc     ,
 					                     rfL    : rfresloQ.first ,
 					                     rfH    : rfreshiQ.first });

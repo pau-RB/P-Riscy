@@ -222,7 +222,9 @@ module mkFrontend (Frontend ifc);
 
 				// Thread control
 				method Bool   available()    = stream[i].available();
-				method Action start(Addr pc) = stream[i].start(pc);
+				method Action start(Addr pc) if(!regfetchLock[i]);
+					stream[i].start(pc);
+				endmethod
 				method Action evict()        = stream[i].evict();
 
 				// To downstream

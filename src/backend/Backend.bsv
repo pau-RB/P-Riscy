@@ -90,9 +90,10 @@ module mkBackend (Backend ifc);
 	LSU#(NumHart) lsu <- mkLSU();
 
 	// Missed access table
-	Vector#(NumHart, Reg#(WBToken )) miata    <- replicateM(mkReg(?));
-	Vector#(NumHart, Reg#(MiataAge)) miataAge <- replicateM(mkReg('0));
-	Vector#(NumHart, Reg#(Bool    )) miataEvi <- replicateM(mkReg(True));
+	Vector#(NumHart, FIFOF#(WBToken )) miata    <- replicateM(mkPipelineFIFOF());
+	Vector#(NumHart, Ehr#(2,MiataAge)) miataAge <- replicateM(mkEhr('0  ));
+	Vector#(NumHart, Ehr#(2,Bool    )) miataEvi <- replicateM(mkEhr(True));
+	Vector#(NumHart, Ehr#(2,VerifID )) miataVer <- replicateM(mkEhr(?   ));
 
 	// Epoch
 	Vector#(FrontWidth, Ehr#(2,Epoch) ) commitEpoch <- replicateM(mkEhr('0));
@@ -102,10 +103,10 @@ module mkBackend (Backend ifc);
 	FIFOF#(Vector#(BackWidth,Maybe#(MemToken)))     memoryQ         <- mkPipelineFIFOF();
 	FIFOF#(Vector#(BackWidth,Maybe#(WBToken)))      commitQ         <- mkPipelineFIFOF();
 
-	Vector#(FrontWidth, Ehr#(3, Maybe#(void    ))) toWBsbRemove    <- replicateM(mkEhr(tagged Invalid));
-	Vector#(FrontWidth, Ehr#(3, Maybe#(RFwb    ))) toWBrfWriteBack <- replicateM(mkEhr(tagged Invalid));
-	Vector#(FrontWidth, Ehr#(3, Maybe#(Epoch   ))) toWBstEpoch     <- replicateM(mkEhr(tagged Invalid));
-	Vector#(FrontWidth, Ehr#(3, Maybe#(Redirect))) toWBstRedirect  <- replicateM(mkEhr(tagged Invalid));
+	Vector#(FrontWidth, Ehr#(4, Maybe#(void    ))) toWBsbRemove    <- replicateM(mkEhr(tagged Invalid));
+	Vector#(FrontWidth, Ehr#(4, Maybe#(RFwb    ))) toWBrfWriteBack <- replicateM(mkEhr(tagged Invalid));
+	Vector#(FrontWidth, Ehr#(4, Maybe#(Epoch   ))) toWBstEpoch     <- replicateM(mkEhr(tagged Invalid));
+	Vector#(FrontWidth, Ehr#(4, Maybe#(Redirect))) toWBstRedirect  <- replicateM(mkEhr(tagged Invalid));
 
 	// To NTTX
 	FIFOF#(NTTXreq)                                eforkQ          <- mkFIFOF();
@@ -309,10 +310,10 @@ module mkBackend (Backend ifc);
 						if(cmr_ext_DEBUG == True)
 							commitReportQ.port[0].enq(generateCMR(numCycles, mapVerifID[wToken.feID], ?, wToken, res.data, ?));
 					end else begin
-						$display("miata add Ld %d", mapHartID[wToken.feID]);
-						miata     [mapHartID[wToken.feID]] <= wToken;
-						miataAge  [mapHartID[wToken.feID]] <= '0;
-						miataEvi  [mapHartID[wToken.feID]] <= False;
+						miata     [mapHartID[wToken.feID]].enq(wToken);
+						miataAge  [mapHartID[wToken.feID]][0] <= '0;
+						miataEvi  [mapHartID[wToken.feID]][0] <= False;
+						miataVer  [mapHartID[wToken.feID]][0] <= mapVerifID[wToken.feID];
 						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
 						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
@@ -332,10 +333,10 @@ module mkBackend (Backend ifc);
 						if(cmr_ext_DEBUG == True)
 							commitReportQ.port[0].enq(generateCMR(numCycles, mapVerifID[wToken.feID], ?, wToken, ?, ?));
 					end else begin
-						$display("miata add St %d", mapHartID[wToken.feID]);
-						miata     [mapHartID[wToken.feID]] <= wToken;
-						miataAge  [mapHartID[wToken.feID]] <= '0;
-						miataEvi  [mapHartID[wToken.feID]] <= False;
+						miata     [mapHartID[wToken.feID]].enq(wToken);
+						miataAge  [mapHartID[wToken.feID]][0] <= '0;
+						miataEvi  [mapHartID[wToken.feID]][0] <= False;
+						miataVer  [mapHartID[wToken.feID]][0] <= mapVerifID[wToken.feID];
 						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
 						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
@@ -369,10 +370,10 @@ module mkBackend (Backend ifc);
 						if (cmr_ext_DEBUG == True)
 								commitReportQ.port[0].enq(generateCMR(numCycles, mapVerifID[wToken.feID], ?, wToken, res.data, ?));
 					end else begin
-						$display("miata add join %d", mapHartID[wToken.feID]);
-						miata     [mapHartID[wToken.feID]] <= wToken;
-						miataAge  [mapHartID[wToken.feID]] <= '0;
-						miataEvi  [mapHartID[wToken.feID]] <= False;
+						miata     [mapHartID[wToken.feID]].enq(wToken);
+						miataAge  [mapHartID[wToken.feID]][0] <= '0;
+						miataEvi  [mapHartID[wToken.feID]][0] <= False;
+						miataVer  [mapHartID[wToken.feID]][0] <= mapVerifID[wToken.feID];
 						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
 						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
@@ -548,14 +549,16 @@ module mkBackend (Backend ifc);
 	rule do_old_commit;
 
 		LSUResp#(HartID) resp   <- lsu.oldResp();
-		WBToken          wToken  = miata[resp.transId];
+		WBToken          wToken  = miata[resp.transId].first(); miata[resp.transId].deq();
 		FrontID          feID    = wToken.feID;
 		Data             loadRes = 'hdeadbeef;
 
-		if(!miataEvi[resp.transId]) begin
-			miataEvi[resp.transId] <= True;
+		if(!miataEvi[resp.transId][0]) begin
+
+			// The stream has not yet been evicted, can commit and resume execution as usual
+
 			if(wToken.inst.iType == Ld) begin
-				$display("commit old Ld %d", resp.transId);
+
 				loadRes = resp.data;
 				toWBrfWriteBack[feID][1] <= tagged Valid RFwb{dst: fromMaybe(?, wToken.inst.dst), res: loadRes};
 				toWBstRedirect [feID][1] <= tagged Valid Redirect{ lock    : False,
@@ -566,7 +569,7 @@ module mkBackend (Backend ifc);
 				                                                   nextPc  : ? };
 
 			end else if(wToken.inst.iType == St) begin
-				$display("commit old St %d", resp.transId);
+
 				toWBstRedirect[feID][1] <= tagged Valid Redirect{ lock    : False,
 				                                                  dry     : False,
 				                                                  kill    : False,
@@ -575,9 +578,10 @@ module mkBackend (Backend ifc);
 				                                                  nextPc  : ? };
 
 			end else if(wToken.inst.iType == Join) begin
-				$display("commit old Join %d", resp.transId);
+
 				loadRes = resp.data;
 				if(resp.data == '0) begin
+
 					toWBstEpoch   [feID][1] <= tagged Valid (commitEpoch[feID][0]+1);
 					toWBstRedirect[feID][1] <= tagged Valid Redirect{ lock    : False,
 					                                                  dry     : False,
@@ -586,11 +590,12 @@ module mkBackend (Backend ifc);
 					                                                  epoch   : commitEpoch[feID][0]+1,
 					                                                  nextPc  : ? };
 					eforkQ.enq(NTTXreq { frontID: wToken.feID            ,
-					                     hartID : mapHartID [wToken.feID],
+					                     hartID : resp.transId           ,
 					                     verifID: mapVerifID[wToken.feID],
 					                     nextpc : wToken.pc              ,
 					                     reqtype: JOIN                   });
 				end else begin
+
 					toWBstRedirect[feID][1] <= tagged Valid Redirect{ lock    : False,
 					                                                  dry     : False,
 					                                                  kill    : False,
@@ -603,29 +608,31 @@ module mkBackend (Backend ifc);
 
 			numCommit[1] <= numCommit[1]+1;
 		end else begin
+			// The stream has been evicted, cannot commit Ld or trust any feID-indexed field
+
 			if(wToken.inst.iType == Ld) begin
-				$display("MKRD very old Ld %d", resp.transId);
-				eforkQ.enq(NTTXreq { frontID: wToken.feID            ,
-				                     hartID : mapHartID [wToken.feID],
-				                     verifID: mapVerifID[wToken.feID],
-				                     nextpc : wToken.pc              ,
-				                     reqtype: MKRD                   });
+				eforkQ.enq(NTTXreq { frontID: ?           ,
+				                     hartID : resp.transId,
+				                     verifID: ?           ,
+				                     nextpc : ?           ,
+				                     reqtype: MKRD        });
 
 			end else if(wToken.inst.iType == St) begin
-				$display("MKRD very old St %d", resp.transId);
-				eforkQ.enq(NTTXreq { frontID: wToken.feID            ,
-				                     hartID : mapHartID [wToken.feID],
-				                     verifID: mapVerifID[wToken.feID],
-				                     nextpc : wToken.pc+4            ,
-				                     reqtype: MKRD                   });
+				eforkQ.enq(NTTXreq { frontID: ?           ,
+				                     hartID : resp.transId,
+				                     verifID: ?           ,
+				                     nextpc : ?           ,
+				                     reqtype: MKRD        });
 
 				numCommit[1] <= numCommit[1]+1;
 
 			end
+
 		end
 
 		if (cmr_ext_DEBUG == True) begin
-			commitReportQ.port[0].enq(generateCMR(numCycles, mapVerifID[feID], ?, wToken, loadRes, ?));
+			if(!miataEvi[resp.transId][0] || wToken.inst.iType == St)
+				commitReportQ.port[0].enq(generateCMR(numCycles, miataVer[resp.transId][0], ?, wToken, loadRes, ?));
 		end
 
 		if(perf_DEBUG == True) begin
@@ -635,39 +642,40 @@ module mkBackend (Backend ifc);
 	endrule
 
 	for(Integer i = 0; i < valueOf(NumHart); i=i+1) begin
-		rule do_miata_evi if(miataAge[i] == fromInteger(valueOf(MiataThresh)) && !miataEvi[i]);
+		rule do_miata_evi if(miataAge[i][1] == fromInteger(valueOf(MiataThresh)) && !miataEvi[i][1]);
 
-				WBToken wToken = miata[i]; miataEvi[i] <= True;
+				WBToken wToken = miata[i].first;
 				if(wToken.inst.iType == Ld) begin
-					$display("miata evi Ld %d", i);
-					toWBstEpoch   [wToken.feID][1] <= tagged Valid (commitEpoch[wToken.feID][0]+1);
-					toWBstRedirect[wToken.feID][1] <= tagged Valid Redirect{ lock    : True,
+
+					miataEvi[i][1] <= True;
+					toWBstEpoch   [wToken.feID][2] <= tagged Valid (commitEpoch[wToken.feID][0]+1);
+					toWBstRedirect[wToken.feID][2] <= tagged Valid Redirect{ lock    : True,
 					                                                         dry     : False,
 					                                                         kill    : True,
 					                                                         redirect: False,
 					                                                         epoch   : commitEpoch[wToken.feID][0]+1,
 					                                                         nextPc  : ? };
-					eforkQ.enq(NTTXreq { frontID: wToken.feID            ,
-					                     hartID : mapHartID [wToken.feID],
-					                     verifID: mapVerifID[wToken.feID],
-					                     nextpc : wToken.pc              ,
-					                     reqtype: STALL                  });
+					eforkQ.enq(NTTXreq { frontID: wToken.feID   ,
+					                     hartID : fromInteger(i),
+					                     verifID: miataVer[i][1],
+					                     nextpc : wToken.pc     ,
+					                     reqtype: STALL         });
 
 				end else if(wToken.inst.iType == St) begin
 
-					$display("miata evi St %d", i);
-					toWBstEpoch   [wToken.feID][1] <= tagged Valid (commitEpoch[wToken.feID][0]+1);
-					toWBstRedirect[wToken.feID][1] <= tagged Valid Redirect{ lock    : True,
+					miataEvi[i][1] <= True;
+					toWBstEpoch   [wToken.feID][2] <= tagged Valid (commitEpoch[wToken.feID][0]+1);
+					toWBstRedirect[wToken.feID][2] <= tagged Valid Redirect{ lock    : True,
 					                                                         dry     : False,
 					                                                         kill    : True,
 					                                                         redirect: False,
 					                                                         epoch   : commitEpoch[wToken.feID][0]+1,
 					                                                         nextPc  : ? };
-					eforkQ.enq(NTTXreq { frontID: wToken.feID            ,
-					                     hartID : mapHartID [wToken.feID],
-					                     verifID: mapVerifID[wToken.feID],
-					                     nextpc : wToken.pc+4            ,
-					                     reqtype: STALL                  });
+					eforkQ.enq(NTTXreq { frontID: wToken.feID   ,
+					                     hartID : fromInteger(i),
+					                     verifID: miataVer[i][1],
+					                     nextpc : wToken.pc+4   ,
+					                     reqtype: STALL         });
 
 				end
 
@@ -675,8 +683,8 @@ module mkBackend (Backend ifc);
 	end
 
 	for(Integer i = 0; i < valueOf(NumHart); i=i+1) begin
-		rule do_miata_age if(miataAge[i] != fromInteger(valueOf(MiataThresh)) && !miataEvi[i]);
-				miataAge[i] <= (miataAge[i]+1);
+		rule do_miata_age if(miataAge[i][1] != fromInteger(valueOf(MiataThresh)) && !miataEvi[i][1]);
+				miataAge[i][1] <= (miataAge[i][1]+1);
 		endrule
 	end
 
@@ -685,24 +693,21 @@ module mkBackend (Backend ifc);
 
 		rule do_wb;
 
-			if(toWBsbRemove[i][2] matches tagged Valid .rm)
+			if(toWBsbRemove[i][3] matches tagged Valid .rm)
 				sbRemoveQ[i].enq(?);
 
-			rfWriteBackQ[i].enq(fromMaybe(RFwb{dst: '0, res: 'hdeadbeef}, toWBrfWriteBack[i][2]));
+			rfWriteBackQ[i].enq(fromMaybe(RFwb{dst: '0, res: 'hdeadbeef}, toWBrfWriteBack[i][3]));
 
-			if(toWBstEpoch[i][2] matches tagged Valid .epoch)
+			if(toWBstEpoch[i][3] matches tagged Valid .epoch)
 				commitEpoch[i][0] <= epoch;
 
-			if(toWBstRedirect[i][2] matches tagged Valid .redirect) begin
-				$display("redirect %d",i);
-				$display(fshow(redirect));
+			if(toWBstRedirect[i][3] matches tagged Valid .redirect)
 				redirectQ[i].enq(redirect);
-			end
 
-			toWBsbRemove   [i][2] <= tagged Invalid;
-			toWBrfWriteBack[i][2] <= tagged Invalid;
-			toWBstEpoch    [i][2] <= tagged Invalid;
-			toWBstRedirect [i][2] <= tagged Invalid;
+			toWBsbRemove   [i][3] <= tagged Invalid;
+			toWBrfWriteBack[i][3] <= tagged Invalid;
+			toWBstEpoch    [i][3] <= tagged Invalid;
+			toWBstRedirect [i][3] <= tagged Invalid;
 
 		endrule
 
