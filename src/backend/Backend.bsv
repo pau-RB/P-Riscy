@@ -72,13 +72,13 @@ interface Backend;
 	// Performance Debug
 	method Vector#(BackWidth,Maybe#(ExecToken)) get_exec_inst  ();
 	method Vector#(BackWidth,Maybe#(MemToken) ) get_mem_inst   ();
-	method Vector#(BackWidth,Maybe#(WBToken)  ) get_wb_inst    ();
+	method Vector#(BackWidth,Maybe#(ComToken) ) get_wb_inst    ();
 	method Vector#(BackWidth,Bool             ) get_wb_valid   ();
 	method Vector#(BackWidth,Bool             ) get_wb_miss    ();
 
 	method Data                                 get_wb_commit  ();
 
-	method Maybe#(WBToken)                      get_old_wb_inst();
+	method Maybe#(ComToken)                     get_old_wb_inst();
 
 endinterface
 
@@ -88,7 +88,7 @@ module mkBackend (Backend ifc);
 	LSU#(FrontWidth) lsu <- mkLSU();
 
 	// Missed access table
-	Vector#(FrontWidth, FIFOF#(WBToken)) miata <- replicateM(mkPipelineFIFOF());
+	Vector#(FrontWidth, FIFOF#(ComToken)) miata <- replicateM(mkPipelineFIFOF());
 
 	// Epoch
 	Vector#(FrontWidth, Ehr#(2,Epoch) ) commitEpoch <- replicateM(mkEhr('0));
@@ -96,7 +96,7 @@ module mkBackend (Backend ifc);
 	// Stages
 	FIFOF#(Vector#(BackWidth,Maybe#(ExecToken)))    executeQ        <- mkBypassFIFOF();
 	FIFOF#(Vector#(BackWidth,Maybe#(MemToken)))     memoryQ         <- mkPipelineFIFOF();
-	FIFOF#(Vector#(BackWidth,Maybe#(WBToken)))      commitQ         <- mkPipelineFIFOF();
+	FIFOF#(Vector#(BackWidth,Maybe#(ComToken)))     commitQ         <- mkPipelineFIFOF();
 
 	Vector#(2,Vector#(FrontWidth, FIFOF#(void    ))) toWBsbRemove    <- replicateM(replicateM(mkBypassFIFOF));
 	Vector#(2,Vector#(FrontWidth, FIFOF#(RFwb    ))) toWBrfWriteBack <- replicateM(replicateM(mkBypassFIFOF));
@@ -127,7 +127,7 @@ module mkBackend (Backend ifc);
 	// Perf debug
 	Ehr#(2,Vector#(BackWidth,Maybe#(ExecToken)))   perf_exec_inst  <- mkEhr(replicate(tagged Invalid));
 	Ehr#(2,Vector#(BackWidth,Maybe#(MemToken) ))   perf_mem_inst   <- mkEhr(replicate(tagged Invalid));
-	Ehr#(2,Vector#(BackWidth,Maybe#(WBToken)  ))   perf_wb_inst    <- mkEhr(replicate(tagged Invalid));
+	Ehr#(2,Vector#(BackWidth,Maybe#(ComToken) ))   perf_wb_inst    <- mkEhr(replicate(tagged Invalid));
 	Ehr#(2,Vector#(BackWidth,Bool             ))   perf_wb_valid   <- mkEhr(replicate(       False  ));
 	Ehr#(2,Vector#(BackWidth,Bool             ))   perf_wb_miss    <- mkEhr(replicate(       False  ));
 
@@ -152,65 +152,82 @@ module mkBackend (Backend ifc);
 
 		// Mem lane
 		if(toExec[0] matches tagged Valid .eToken) begin
-			// Alu and branch, mem pass through
-			ExecInst execInst = addr(eToken.iType  ,
-			                         eToken.aluFunc,
-			                         eToken.mulFunc,
-			                         eToken.brFunc ,
-			                         eToken.ldFunc ,
-			                         eToken.stFunc ,
-			                         eToken.arg1   ,
-			                         eToken.arg2   ,
-			                         eToken.imm    ,
-			                         eToken.dst    ,
-			                         eToken.pc     );
-			let mToken   = MemToken{ inst   : execInst      ,
-			                         pc     : eToken.pc     ,
-			                         feID   : eToken.feID   ,
-			                         epoch  : eToken.epoch  ,
-			                         rawInst: eToken.rawInst};
+
+			Exec exec = execmem(eToken.iType  ,
+			                    eToken.arg1   ,
+			                    eToken.arg2   ,
+			                    eToken.imm    ,
+			                    eToken.pc     );
+
+			let mToken = MemToken{ feID   : eToken.feID   ,
+			                       pc     : eToken.pc     ,
+			                       epoch  : eToken.epoch  ,
+			                       rawInst: eToken.rawInst,
+			                       // iType
+			                       iType  : eToken.iType  ,
+			                       mulFunc: eToken.mulFunc,
+			                       divFunc: eToken.divFunc,
+			                       ldFunc : eToken.ldFunc ,
+			                       stFunc : eToken.stFunc ,
+			                       // Op
+			                       res    : exec.res      ,
+			                       addr   : exec.add      ,
+			                       brTaken: exec.brt      ,
+			                       dst    : eToken.dst    };
+
 			toMem[0] = tagged Valid mToken;
+
 		end
 
 		// Arith lanes
 		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
-			if(toExec[i] matches tagged Valid .eToken) begin
+		if(toExec[i] matches tagged Valid .eToken) begin
 
-				// Alu and branch, mem pass through
-				ExecInst execInst = exec(eToken.iType  ,
-				                         eToken.aluFunc,
-				                         eToken.mulFunc,
-				                         eToken.brFunc ,
-				                         eToken.ldFunc ,
-				                         eToken.stFunc ,
-				                         eToken.arg1   ,
-				                         eToken.arg2   ,
-				                         eToken.imm    ,
-				                         eToken.dst    ,
-				                         eToken.pc     );
+			Exec exec = execari(eToken.iType  ,
+			                    eToken.aluFunc,
+			                    eToken.brFunc ,
+			                    eToken.arg1   ,
+			                    eToken.arg2   ,
+			                    eToken.imm    ,
+			                    eToken.pc     );
 
-				// Mul/Div
-				if(eToken.iType == Mul) begin
-					case(eToken.mulFunc)
-					Mul   : mulArray[i-1].req(eToken.arg1, eToken.arg2, Signed        , ?);
-					Mulh  : mulArray[i-1].req(eToken.arg1, eToken.arg2, Signed        , ?);
-					Mulhsu: mulArray[i-1].req(eToken.arg1, eToken.arg2, SignedUnsigned, ?);
-					Mulhu : mulArray[i-1].req(eToken.arg1, eToken.arg2, Unsigned      , ?);
-					Div   : divArray[i-1].req(eToken.arg1, eToken.arg2, True          , ?);
-					Divu  : divArray[i-1].req(eToken.arg1, eToken.arg2, False         , ?);
-					Rem   : divArray[i-1].req(eToken.arg1, eToken.arg2, True          , ?);
-					Remu  : divArray[i-1].req(eToken.arg1, eToken.arg2, False         , ?);
-					endcase
-				end
+			let mToken = MemToken{ feID   : eToken.feID   ,
+			                       pc     : eToken.pc     ,
+			                       epoch  : eToken.epoch  ,
+			                       rawInst: eToken.rawInst,
+			                       // iType
+			                       iType  : eToken.iType  ,
+			                       mulFunc: eToken.mulFunc,
+			                       divFunc: eToken.divFunc,
+			                       ldFunc : eToken.ldFunc ,
+			                       stFunc : eToken.stFunc ,
+			                       // Op
+			                       res    : exec.res      ,
+			                       addr   : exec.add      ,
+			                       brTaken: exec.brt      ,
+			                       dst    : eToken.dst    };
 
-				let mToken   = MemToken{ inst   : execInst,
-				                         pc     : eToken.pc,
-				                         feID   : eToken.feID,
-				                         epoch  : eToken.epoch,
-				                         rawInst: eToken.rawInst};
+			toMem[i] = tagged Valid mToken;
 
-				toMem[i] = tagged Valid mToken;
+			// Mul/Div
+			if(eToken.iType == Mul) begin
+				case(eToken.mulFunc)
+				Mul   : mulArray[i-1].req(eToken.arg1, eToken.arg2, Signed        , ?);
+				Mulh  : mulArray[i-1].req(eToken.arg1, eToken.arg2, Signed        , ?);
+				Mulhsu: mulArray[i-1].req(eToken.arg1, eToken.arg2, SignedUnsigned, ?);
+				Mulhu : mulArray[i-1].req(eToken.arg1, eToken.arg2, Unsigned      , ?);
+				endcase
 			end
+			if(eToken.iType == Div) begin
+				case(eToken.divFunc)
+				Div   : divArray[i-1].req(eToken.arg1, eToken.arg2, True          , ?);
+				Divu  : divArray[i-1].req(eToken.arg1, eToken.arg2, False         , ?);
+				Rem   : divArray[i-1].req(eToken.arg1, eToken.arg2, True          , ?);
+				Remu  : divArray[i-1].req(eToken.arg1, eToken.arg2, False         , ?);
+				endcase
+			end
+
+		end
 		end
 
 		memoryQ.enq(toMem);
@@ -226,55 +243,70 @@ module mkBackend (Backend ifc);
 	rule do_mem;
 
 		Vector#(BackWidth, Maybe#(MemToken)) toMem    = memoryQ.first(); memoryQ.deq();
-		Vector#(BackWidth, Maybe#(WBToken))  toCommit = replicate(tagged Invalid);
+		Vector#(BackWidth, Maybe#(ComToken)) toCommit = replicate(tagged Invalid);
 
 		// Mem lane
 		if(toMem[0] matches tagged Valid .mToken) begin
-			let wToken = WBToken{ inst   : mToken.inst,
-			                      pc     : mToken.pc,
-			                      feID   : mToken.feID,
-			                      epoch  : mToken.epoch,
-			                      rawInst: mToken.rawInst};
-
-			toCommit[0] = tagged Valid wToken;
+			let cToken = ComToken { feID   : mToken.feID   ,
+			                        pc     : mToken.pc     ,
+			                        epoch  : mToken.epoch  ,
+			                        rawInst: mToken.rawInst,
+			                        // iType
+			                        iType  : mToken.iType  ,
+			                        mulFunc: mToken.mulFunc,
+			                        divFunc: mToken.divFunc,
+			                        // Op
+			                        res    : mToken.res    ,
+			                        addr   : mToken.addr   ,
+			                        brTaken: mToken.brTaken,
+			                        dst    : mToken.dst    };
+			toCommit[0] = tagged Valid cToken;
 
 			// Send LSU req, if the instruction is valid
 			if (mToken.epoch == commitEpoch[mToken.feID][1]) begin
-				if (mToken.inst.iType == Ld) begin
-					lsu.req(LSUReq{ op     : Ld,
-					                ldFunc : mToken.inst.ldFunc,
-					                stFunc : mToken.inst.stFunc,
-					                addr   : mToken.inst.addr,
-					                data   : mToken.inst.data,
-					                transId: mToken.feID });
-				end else if (mToken.inst.iType == St) begin
-					lsu.req(LSUReq{ op     : St,
-					                ldFunc : mToken.inst.ldFunc,
-					                stFunc : mToken.inst.stFunc,
-					                addr   : mToken.inst.addr,
-					                data   : mToken.inst.data,
-					                transId: mToken.feID });
-				end else if(mToken.inst.iType == Join) begin
-					lsu.req(LSUReq{ op     : Join,
-					                ldFunc : mToken.inst.ldFunc,
-					                stFunc : mToken.inst.stFunc,
-					                addr   : mToken.inst.addr,
-					                data   : mToken.inst.data,
-					                transId: mToken.feID });
+				if (mToken.iType == Ld) begin
+					lsu.req(LSUReq{ op     : Ld           ,
+					                ldFunc : mToken.ldFunc,
+					                stFunc : mToken.stFunc,
+					                addr   : mToken.addr  ,
+					                data   : mToken.res   ,
+					                transId: mToken.feID  });
+				end else if (mToken.iType == St) begin
+					lsu.req(LSUReq{ op     : St           ,
+					                ldFunc : mToken.ldFunc,
+					                stFunc : mToken.stFunc,
+					                addr   : mToken.addr  ,
+					                data   : mToken.res   ,
+					                transId: mToken.feID  });
+				end else if(mToken.iType == Join) begin
+					lsu.req(LSUReq{ op     : Join         ,
+					                ldFunc : mToken.ldFunc,
+					                stFunc : mToken.stFunc,
+					                addr   : mToken.addr  ,
+					                data   : mToken.res   ,
+					                transId: mToken.feID  });
 				end 
 			end
 		end
 
 		// Arith lanes
 		for(Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
-			if(toMem[i] matches tagged Valid .mToken) begin
-				let wToken = WBToken{ inst   : mToken.inst,
-				                      pc     : mToken.pc,
-				                      feID   : mToken.feID,
-				                      epoch  : mToken.epoch,
-				                      rawInst: mToken.rawInst};
-				toCommit[i] = tagged Valid wToken;
-			end
+		if(toMem[i] matches tagged Valid .mToken) begin
+			let cToken = ComToken { feID   : mToken.feID   ,
+			                        pc     : mToken.pc     ,
+			                        epoch  : mToken.epoch  ,
+			                        rawInst: mToken.rawInst,
+			                        // iType
+			                        iType  : mToken.iType  ,
+			                        mulFunc: mToken.mulFunc,
+			                        divFunc: mToken.divFunc,
+			                        // Op
+			                        res    : mToken.res    ,
+			                        addr   : mToken.addr   ,
+			                        brTaken: mToken.brTaken,
+			                        dst    : mToken.dst    };
+			toCommit[i] = tagged Valid cToken;
+		end
 		end
 
 		commitQ.enq(toCommit);
@@ -284,7 +316,6 @@ module mkBackend (Backend ifc);
 		end
 
 	endrule
-
 
 	//////////// COMMIT ////////////
 
@@ -297,144 +328,144 @@ module mkBackend (Backend ifc);
 		Vector#(FrontWidth, Maybe#(Redirect)) stRedirect   = replicate(tagged Invalid);
 
 		// WB
-		Vector#(BackWidth, Maybe#(WBToken))   toCommit     = commitQ.first(); commitQ.deq();
-		Vector#(BackWidth,Bool            )   commit_valid = replicate(False);
-		Vector#(BackWidth,Bool            )   commit_miss  = replicate(False);
+		Vector#(BackWidth, Maybe#(ComToken))  toCommit     = commitQ.first(); commitQ.deq();
+		Vector#(BackWidth,Bool             )  commit_valid = replicate(False);
+		Vector#(BackWidth,Bool             )  commit_miss  = replicate(False);
 		Data numWB = 0;
 
 
 		// Mem lane
-		if(toCommit[0] matches tagged Valid .wToken) begin
+		if(toCommit[0] matches tagged Valid .cToken) begin
 
-			if(wToken.epoch == commitEpoch[wToken.feID][0])  begin
+			if(cToken.epoch == commitEpoch[cToken.feID][0])  begin
 
-				sbRemove[wToken.feID] = tagged Valid(?);
+				sbRemove[cToken.feID] = tagged Valid(?);
 
-				if(wToken.inst.iType == Ghost) begin
+				if(cToken.iType == Ghost) begin
 
-					eforkQ.enq(NTTXreq { frontID: wToken.feID,
-					                     verifID: mapID[wToken.feID],
-					                     nextpc : wToken.pc,
+					eforkQ.enq(NTTXreq { frontID: cToken.feID,
+					                     verifID: mapID[cToken.feID],
+					                     nextpc : cToken.pc,
 					                     evict  : True });
 
-				end else if(wToken.inst.iType == Ld) begin
+				end else if(cToken.iType == Ld) begin
 
 					let res <- lsu.resp();
 					if(res.valid) begin
-						rfWriteBack[wToken.feID] = tagged Valid RFwb{dst: fromMaybe(?, wToken.inst.dst), res: res.data};
+						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe(?, cToken.dst), res: res.data};
 						numWB = numWB+1;
 						if(cmr_ext_DEBUG == True)
-							commitReportQ.port[0].enq(generateCMR(numCycles, mapID[wToken.feID], ?, wToken, res.data, ?));
+							commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, res.data, ?));
 					end else begin
-						miata     [wToken.feID].enq(wToken);
-						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
-						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
+						miata     [cToken.feID].enq(cToken);
+						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
+						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
 						                                                 kill    : False,
 						                                                 redirect: True,
-						                                                 epoch   : commitEpoch[wToken.feID][0]+1,
-						                                                 nextPc  : wToken.pc+4 };
+						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
+						                                                 nextPc  : cToken.pc+4 };
 						if(perf_DEBUG == True)
 							commit_miss [0] = True;
 					end
 
-				end else if(wToken.inst.iType == St) begin
+				end else if(cToken.iType == St) begin
 
 					let res <- lsu.resp();
 					if(res.valid) begin
 						numWB = numWB+1;
 						if(cmr_ext_DEBUG == True)
-							commitReportQ.port[0].enq(generateCMR(numCycles, mapID[wToken.feID], ?, wToken, ?, ?));
+							commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, ?));
 					end else begin
-						miata     [wToken.feID].enq(wToken);
-						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
-						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
+						miata     [cToken.feID].enq(cToken);
+						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
+						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
 						                                                 kill    : False,
 						                                                 redirect: True,
-						                                                 epoch   : commitEpoch[wToken.feID][0]+1,
-						                                                 nextPc  : wToken.pc+4 };
+						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
+						                                                 nextPc  : cToken.pc+4 };
 						if(perf_DEBUG == True)
 							commit_miss [0] = True;
 					end
 
-				end else if(wToken.inst.iType == Join) begin
+				end else if(cToken.iType == Join) begin
 
 					let res <- lsu.resp();
 					if(res.valid) begin
 						if(res.data == '0) begin
-							stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
-							stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : False,
+							stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
+							stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : False,
 							                                                 dry     : False,
 							                                                 kill    : True,
 							                                                 redirect: False,
-							                                                 epoch   : commitEpoch[wToken.feID][0]+1,
+							                                                 epoch   : commitEpoch[cToken.feID][0]+1,
 							                                                 nextPc  : ? };
 						end
 						numWB = numWB+1;
 						if (cmr_ext_DEBUG == True)
-								commitReportQ.port[0].enq(generateCMR(numCycles, mapID[wToken.feID], ?, wToken, res.data, ?));
+								commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, res.data, ?));
 					end else begin
-						miata     [wToken.feID].enq(wToken);
-						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
-						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
+						miata     [cToken.feID].enq(cToken);
+						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
+						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
 						                                                 kill    : False,
 						                                                 redirect: True,
-						                                                 epoch   : commitEpoch[wToken.feID][0]+1,
-						                                                 nextPc  : wToken.pc+4 };
+						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
+						                                                 nextPc  : cToken.pc+4 };
 						if(perf_DEBUG == True)
 							commit_miss [0] = True;
 					end
 
-				end else if(wToken.inst.iType == Fork || wToken.inst.iType == Forkr) begin
+				end else if(cToken.iType == Fork || cToken.iType == Forkr) begin
 
 					nextID <= nextID+1;
 
-					eforkQ.enq(NTTXreq { frontID: wToken.feID,
+					eforkQ.enq(NTTXreq { frontID: cToken.feID,
 					                     verifID: nextID,
-					                     nextpc : wToken.inst.addr,
+					                     nextpc : cToken.addr,
 					                     evict  : False });
 
-					stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
-					stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : True,
+					stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
+					stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
 					                                                 dry     : False,
 					                                                 kill    : False,
 					                                                 redirect: True,
-					                                                 epoch   : commitEpoch[wToken.feID][0]+1,
-					                                                 nextPc  : wToken.pc+4 };
+					                                                 epoch   : commitEpoch[cToken.feID][0]+1,
+					                                                 nextPc  : cToken.pc+4 };
 
 					numWB = numWB+1;
 					if (cmr_ext_DEBUG == True)
-						commitReportQ.port[0].enq(generateCMR(numCycles, mapID[wToken.feID], nextID, wToken, ?, ?));
+						commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], nextID, cToken, ?, ?));
 
 				end
 
 				if (msg_ext_DEBUG == True) begin
-					if(wToken.inst.iType == St && wToken.inst.addr == msg_ADDR) begin
-						messageReportQ.enq(Message { verifID: mapID[wToken.feID],
+					if(cToken.iType == St && cToken.addr == msg_ADDR) begin
+						messageReportQ.enq(Message { verifID: mapID[cToken.feID],
 						                             cycle  : numCycles,
 						                             commit : numCommit[1],
-						                             data   : wToken.inst.data });
+						                             data   : cToken.res });
 					end
 				end
 
 				if (hex_ext_DEBUG == True) begin
-					if(wToken.inst.iType == St && wToken.inst.addr == hex_ADDR) begin
-						hexReportQ.enq(Message { verifID: mapID[wToken.feID],
+					if(cToken.iType == St && cToken.addr == hex_ADDR) begin
+						hexReportQ.enq(Message { verifID: mapID[cToken.feID],
 						                         cycle  : numCycles,
 						                         commit : numCommit[1],
-						                         data   : wToken.inst.data });
+						                         data   : cToken.res });
 					end
 				end
 
 				if (mem_ext_DEBUG == True) begin
-					if(wToken.inst.iType == St && wToken.inst.addr == msr_ADDR) begin
+					if(cToken.iType == St && cToken.addr == msr_ADDR) begin
 						LSUStat   lsr = lsu.getStat();
-						MemStat   msr = MemStat{ verifID: mapID[wToken.feID],
+						MemStat   msr = MemStat{ verifID: mapID[cToken.feID],
 						                         cycle  : numCycles,
 						                         commit : numCommit[1],
-						                         data   : wToken.inst.data,
+						                         data   : cToken.res,
 						                         fetch  : ?,
 						                         arbiter: ?,
 						                         lsu    : lsr };
@@ -453,56 +484,53 @@ module mkBackend (Backend ifc);
 		// Arith lanes
 		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
 
-			if(toCommit[i] matches tagged Valid .wToken) begin
+			if(toCommit[i] matches tagged Valid .cToken) begin
 
-				if(wToken.inst.iType == Mul) begin
-					case(wToken.inst.mulFunc)
-						Mul   : mulArray[i-1].deqResp();
-						Mulh  : mulArray[i-1].deqResp();
-						Mulhsu: mulArray[i-1].deqResp();
-						Mulhu : mulArray[i-1].deqResp();
-						Div   : divArray[i-1].deqResp();
-						Divu  : divArray[i-1].deqResp();
-						Rem   : divArray[i-1].deqResp();
-						Remu  : divArray[i-1].deqResp();
-					endcase
-				end
+				if(cToken.iType == Mul) mulArray[i-1].deqResp();
+				if(cToken.iType == Div) divArray[i-1].deqResp();
 
-				if (wToken.epoch == commitEpoch[wToken.feID][0])  begin
+				if (cToken.epoch == commitEpoch[cToken.feID][0])  begin
 
-					sbRemove[wToken.feID] = tagged Valid(?);
+					sbRemove[cToken.feID] = tagged Valid(?);
 
-					Data mulRes = ?;
+					Data muldivRes = ?;
 
-					if(wToken.inst.iType == Mul) begin
-						mulRes = (case(wToken.inst.mulFunc)
+					if(cToken.iType == Mul) begin
+						muldivRes = (case(cToken.mulFunc)
 							Mul   : truncate   (mulArray[i-1].product);
 							Mulh  : truncateLSB(mulArray[i-1].product);
 							Mulhsu: truncateLSB(mulArray[i-1].product);
 							Mulhu : truncateLSB(mulArray[i-1].product);
+						endcase);
+						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe('0, cToken.dst), res: muldivRes};
+					end else if(cToken.iType == Div) begin
+						muldivRes = (case(cToken.divFunc)
 							Div   : divArray[i-1].quotient ;
 							Divu  : divArray[i-1].quotient ;
 							Rem   : divArray[i-1].remainder;
 							Remu  : divArray[i-1].remainder;
 						endcase);
-						rfWriteBack[wToken.feID] = tagged Valid RFwb{dst: fromMaybe('0, wToken.inst.dst), res: mulRes};
-					end else if(isValid(wToken.inst.dst))
-						rfWriteBack[wToken.feID] = tagged Valid RFwb{dst: fromMaybe('0, wToken.inst.dst), res: wToken.inst.data};
+						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe('0, cToken.dst), res: muldivRes};
+					end else if(isValid(cToken.dst))
+						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe('0, cToken.dst), res: cToken.res};
 
-					if(wToken.inst.brTaken || wToken.inst.iType == J || wToken.inst.iType == Jr) begin
-						stEpoch   [wToken.feID] = tagged Valid (commitEpoch[wToken.feID][0]+1);
-						stRedirect[wToken.feID] = tagged Valid Redirect{ lock    : False,
+					if(cToken.brTaken || cToken.iType == J || cToken.iType == Jr) begin
+						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
+						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : False,
 						                                                 dry     : False,
 						                                                 kill    : False,
 						                                                 redirect: True,
-						                                                 epoch   : commitEpoch[wToken.feID][0]+1,
-						                                                 nextPc  : wToken.inst.addr };
+						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
+						                                                 nextPc  : cToken.addr };
 					end
 
 					numWB = numWB+1;
 
 					if (cmr_ext_DEBUG == True) begin
-						commitReportQ.port[i].enq(generateCMR(numCycles, mapID[wToken.feID], ?, wToken, ?, mulRes));
+						if(cToken.iType == J || cToken.iType == Jr)
+							commitReportQ.port[i].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, cToken.pc+4));
+						else
+							commitReportQ.port[i].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, muldivRes));
 					end
 
 					if(perf_DEBUG == True) begin
@@ -538,48 +566,48 @@ module mkBackend (Backend ifc);
 
 	//////////// OLD COMMIT ////////////
 
-	Ehr#(2,Maybe#(WBToken)) perf_old_wb_inst  <- mkEhr(tagged Invalid);
+	Ehr#(2,Maybe#(ComToken)) perf_old_wb_inst  <- mkEhr(tagged Invalid);
 
 	rule do_old_commit;
 
 		LSUResp#(FrontID) resp   <- lsu.oldResp();
-		WBToken           wToken  = miata[resp.transId].first; miata[resp.transId].deq();
-		FrontID           feID    = wToken.feID;
+		ComToken          cToken  = miata[resp.transId].first; miata[resp.transId].deq();
+		FrontID           feID    = cToken.feID;
 		Data              loadRes = 'hdeadbeef;
 
-		if(wToken.inst.iType == Ld) begin
+		if(cToken.iType == Ld) begin
 
 			loadRes = resp.data;
-			toWBrfWriteBack[1][wToken.feID].enq(RFwb{dst: fromMaybe(?, wToken.inst.dst), res: loadRes});
-			toWBstRedirect [1][wToken.feID].enq(Redirect{ lock    : False,
+			toWBrfWriteBack[1][cToken.feID].enq(RFwb{dst: fromMaybe(?, cToken.dst), res: loadRes});
+			toWBstRedirect [1][cToken.feID].enq(Redirect{ lock    : False,
 			                                              dry     : False,
 			                                              kill    : False,
 			                                              redirect: False,
 			                                              epoch   : ?    ,
 			                                              nextPc  : ?    });
 
-		end else if(wToken.inst.iType == St) begin
+		end else if(cToken.iType == St) begin
 
-			toWBstRedirect [1][wToken.feID].enq(Redirect{ lock    : False,
+			toWBstRedirect [1][cToken.feID].enq(Redirect{ lock    : False,
 			                                              dry     : False,
 			                                              kill    : False,
 			                                              redirect: False,
 			                                              epoch   : ?    ,
 			                                              nextPc  : ?    });
 
-		end else if(wToken.inst.iType == Join) begin
+		end else if(cToken.iType == Join) begin
 
 			loadRes = resp.data;
 			if(resp.data == '0) begin
-				toWBstEpoch    [1][wToken.feID].enq(commitEpoch[feID][0]+1);
-				toWBstRedirect [1][wToken.feID].enq(Redirect{ lock    : False                 ,
+				toWBstEpoch    [1][cToken.feID].enq(commitEpoch[feID][0]+1);
+				toWBstRedirect [1][cToken.feID].enq(Redirect{ lock    : False                 ,
 				                                              dry     : False                 ,
 				                                              kill    : True                  ,
 				                                              redirect: False                 ,
 				                                              epoch   : commitEpoch[feID][0]+1,
 				                                              nextPc  : ?                     });
 			end else begin
-				toWBstRedirect [1][wToken.feID].enq(Redirect{ lock    : False,
+				toWBstRedirect [1][cToken.feID].enq(Redirect{ lock    : False,
 				                                              dry     : False,
 				                                              kill    : False,
 				                                              redirect: False,
@@ -592,11 +620,11 @@ module mkBackend (Backend ifc);
 		numCommit[0] <= numCommit[0]+1;
 
 		if (cmr_ext_DEBUG == True) begin
-			commitReportQ.port[0].enq(generateCMR(numCycles, mapID[feID], ?, wToken, loadRes, ?));
+			commitReportQ.port[0].enq(generateCMR(numCycles, mapID[feID], ?, cToken, loadRes, ?));
 		end
 
 		if(perf_DEBUG == True) begin
-			perf_old_wb_inst[0] <= tagged Valid wToken;
+			perf_old_wb_inst[0] <= tagged Valid cToken;
 		end
 
 	endrule
@@ -736,7 +764,7 @@ module mkBackend (Backend ifc);
 		return perf_mem_inst[1];
 	endmethod
 
-	method Vector#(BackWidth,Maybe#(WBToken)) get_wb_inst();
+	method Vector#(BackWidth,Maybe#(ComToken)) get_wb_inst();
 		return perf_wb_inst[1];
 	endmethod
 
@@ -752,7 +780,7 @@ module mkBackend (Backend ifc);
 		return numCommit[2];
 	endmethod
 
-	method Maybe#(WBToken) get_old_wb_inst();
+	method Maybe#(ComToken) get_old_wb_inst();
 		return perf_old_wb_inst[1];
 	endmethod
 

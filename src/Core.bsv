@@ -148,11 +148,11 @@ module mkCore7SS(Core ifc);
 
 		Vector#(BackWidth, Maybe#(ExecToken)) perf_exec_inst   = backend.get_exec_inst  ();
 		Vector#(BackWidth, Maybe#(MemToken) ) perf_mem_inst    = backend.get_mem_inst   ();
-		Vector#(BackWidth, Maybe#(WBToken)  ) perf_wb_inst     = backend.get_wb_inst    ();
+		Vector#(BackWidth, Maybe#(ComToken) ) perf_wb_inst     = backend.get_wb_inst    ();
 		Vector#(BackWidth, Bool             ) perf_wb_valid    = backend.get_wb_valid   ();
 		Vector#(BackWidth, Bool             ) perf_wb_miss     = backend.get_wb_miss    ();
 
-		Maybe#(WBToken)                       perf_old_wb_inst = backend.get_old_wb_inst();
+		Maybe#(ComToken)                      perf_old_wb_inst = backend.get_old_wb_inst();
 
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 

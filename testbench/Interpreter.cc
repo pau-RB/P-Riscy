@@ -251,6 +251,8 @@ std::string Interpreter::print_itype(const IType iType) {
             return "Alu";
         case iTypeMul  :
             return "Mul";
+        case iTypeDiv  :
+            return "Div";
         case iTypeLd   :
             return "Ld";
         case iTypeSt   :

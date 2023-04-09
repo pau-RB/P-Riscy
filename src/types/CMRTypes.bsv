@@ -65,76 +65,87 @@ typedef struct{
 } MemStat deriving(Eq, Bits, FShow);
 
 // Construct CMR
-function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID childVerifID, WBToken wToken, Data lsuRes, Data mulRes);
+function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID childVerifID, ComToken cToken, Data lsuRes, Data muldivRes);
 
-	if(wToken.inst.iType == J || wToken.inst.iType == Jr || wToken.inst.iType == Br) begin
+	if(cToken.iType == J || cToken.iType == Jr || cToken.iType == Br) begin
 		return CommitReport{cycle  : numCycles,
 		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
+		                    pc     : cToken.pc,
+		                    rawInst: cToken.rawInst,
+		                    iType  : cToken.iType,
 		                    wbDst  : '0,
 		                    wbRes  : '0,
-		                    addr:    wToken.inst.addr};
+		                    addr:    cToken.addr};
 
-	end else if(wToken.inst.iType == Fork || wToken.inst.iType == Forkr) begin
+	end else if(cToken.iType == Fork || cToken.iType == Forkr) begin
 		return CommitReport{cycle  : numCycles,
 		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
+		                    pc     : cToken.pc,
+		                    rawInst: cToken.rawInst,
+		                    iType  : cToken.iType,
 		                    wbDst  : '0,
 		                    wbRes  : childVerifID,
-		                    addr   : wToken.inst.addr};
+		                    addr   : cToken.addr};
 
-	end else if(wToken.inst.iType == Join) begin
+	end else if(cToken.iType == Join) begin
 		return CommitReport{cycle  : numCycles,
 		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
+		                    pc     : cToken.pc,
+		                    rawInst: cToken.rawInst,
+		                    iType  : cToken.iType,
 		                    wbDst  : '0,
 		                    wbRes  : lsuRes,
-		                    addr   : wToken.inst.addr};
+		                    addr   : cToken.addr};
 
-	end else if(wToken.inst.iType == Ld) begin
+	end else if(cToken.iType == Ld) begin
 		return CommitReport{cycle  : numCycles,
 		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
-		                    wbDst  : fromMaybe('0,wToken.inst.dst),
+		                    pc     : cToken.pc,
+		                    rawInst: cToken.rawInst,
+		                    iType  : cToken.iType,
+		                    wbDst  : fromMaybe('0,cToken.dst),
 		                    wbRes  : lsuRes,
-		                    addr   : wToken.inst.addr};
+		                    addr   : cToken.addr};
 
-	end else if(wToken.inst.iType == St) begin
+	end else if(cToken.iType == St) begin
 		return CommitReport{cycle  : numCycles,
 		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
+		                    pc     : cToken.pc,
+		                    rawInst: cToken.rawInst,
+		                    iType  : cToken.iType,
 		                    wbDst  : '0,
 		                    wbRes  : '0,
-		                    addr   : wToken.inst.addr};
+		                    addr   : cToken.addr};
 
-	end else if(wToken.inst.iType == Mul) begin
+	end else if(cToken.iType == Mul) begin
 		return CommitReport{cycle  : numCycles,
 		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
-		                    wbDst  : fromMaybe('0,wToken.inst.dst),
-		                    wbRes  : mulRes,
+		                    pc     : cToken.pc,
+		                    rawInst: cToken.rawInst,
+		                    iType  : cToken.iType,
+		                    wbDst  : fromMaybe('0,cToken.dst),
+		                    wbRes  : muldivRes,
+		                    addr   : '0};
+
+
+	end else if(cToken.iType == Div) begin
+		return CommitReport{cycle  : numCycles,
+		                    verifID: verifID,
+		                    pc     : cToken.pc,
+		                    rawInst: cToken.rawInst,
+		                    iType  : cToken.iType,
+		                    wbDst  : fromMaybe('0,cToken.dst),
+		                    wbRes  : muldivRes,
 		                    addr   : '0};
 
 	end else begin
 		return CommitReport{cycle  : numCycles,
 		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
-		                    wbDst  : fromMaybe('0,wToken.inst.dst),
-		                    wbRes  : wToken.inst.data,
+		                    pc     : cToken.pc,
+		                    rawInst: cToken.rawInst,
+		                    iType  : cToken.iType,
+		                    wbDst  : fromMaybe('0,cToken.dst),
+		                    wbRes  : cToken.res,
 		                    addr   : '0};
 
 	end

@@ -3,7 +3,7 @@ import ProcTypes::*;
 import Vector::*;
 
 (* noinline *)
-function Data alu(Data a, Data b, AluFunc func);
+function Data aluAri(Data a, Data b, AluFunc func);
 
     Data res = case(func)
         Add   : (a + b);
@@ -24,7 +24,7 @@ function Data alu(Data a, Data b, AluFunc func);
 endfunction
 
 (* noinline *)
-function Bool aluBr(Data a, Data b, BrFunc brFunc);
+function Bool aluBrT(Data a, Data b, BrFunc brFunc);
 
     Bool brTaken = case(brFunc)
         Eq  : (a == b);
@@ -42,14 +42,12 @@ function Bool aluBr(Data a, Data b, BrFunc brFunc);
 endfunction
 
 (* noinline *)
-function Addr brAddrCalc(IType iType, Addr pc, Data val, Data imm, Bool taken);
+function Addr aluBrA(Data arg1, Data imm, Addr pc, Bool taken, IType iType);
 
     Addr pcPlus4 = pc + 4;
     Addr targetAddr = case (iType)
         J   : (pc + imm);
-        Fork: (pc + imm);
-        Jr  : {truncateLSB(val + imm), 1'b0};
-        Forkr: {truncateLSB(val + imm), 1'b0};
+        Jr  : {truncateLSB(arg1 + imm), 1'b0};
         Br  : (taken ? pc + imm : pcPlus4);
         default: pcPlus4;
     endcase;
@@ -58,84 +56,58 @@ function Addr brAddrCalc(IType iType, Addr pc, Data val, Data imm, Bool taken);
 
 endfunction
 
+typedef struct{
+    Data res;
+    Addr add;
+    Bool brt;
+} Exec deriving(Bits);
+
 (* noinline *)
-function ExecInst exec(IType         iType               ,
-                       AluFunc       aluFunc             ,
-                       MulFunc       mulFunc             ,
-                       BrFunc        brFunc              ,
-                       LoadFunc      ldFunc              ,
-                       StoreFunc     stFunc              ,
-                       Data          arg1                ,
-                       Data          arg2                ,
-                       Maybe#(Data)  imm                 ,
-                       Maybe#(RIndx) dst                 ,
-                       Addr          pc                  );
+function Exec execari(IType        iType  ,
+                      AluFunc      aluFunc,
+                      BrFunc       brFunc ,
+                      Data         arg1   ,
+                      Data         arg2   ,
+                      Maybe#(Data) imm    ,
+                      Addr         pc     );
 
-    Data aluRes  = alu       (arg1, fromMaybe(arg2, imm), aluFunc);
-    Bool brTaken = aluBr     (arg1, arg2, brFunc );
-    Addr brAddr  = brAddrCalc(iType, pc, arg1, fromMaybe('0, imm) , brTaken);
+    Data aluRes  = aluAri(arg1, fromMaybe(arg2, imm), aluFunc);
+    Bool brTaken = aluBrT(arg1, arg2                , brFunc );
+    Addr add     = aluBrA(arg1, fromMaybe('0  , imm), pc, brTaken, iType);
 
-    ExecInst eInst = ?;
+    Data res = (case(iType)
+                J      : (pc+4                 );
+                Jr     : (pc+4                 );
+                Auipc  : (pc+fromMaybe('0, imm));
+                default: (aluRes               );
+                endcase);
 
-    eInst.iType   = iType;
-    eInst.mulFunc = mulFunc;
-    eInst.ldFunc  = ldFunc;
-    eInst.stFunc  = stFunc;
-    eInst.dst     = dst;
-
-    eInst.data    = (case(iType)
-                    J      : (pc+4                 );
-                    Jr     : (pc+4                 );
-                    Auipc  : (pc+fromMaybe('0, imm));
-                    default: (aluRes               );
-                    endcase);
-
-    eInst.addr    = brAddr;
-
-    eInst.brTaken = brTaken;
-
-    return eInst;
+    return Exec{res: res, add: add, brt: brTaken};
 
 endfunction
 
 (* noinline *)
-function ExecInst addr(IType         iType               ,
-                       AluFunc       aluFunc             ,
-                       MulFunc       mulFunc             ,
-                       BrFunc        brFunc              ,
-                       LoadFunc      ldFunc              ,
-                       StoreFunc     stFunc              ,
-                       Data          arg1                ,
-                       Data          arg2                ,
-                       Maybe#(Data)  imm                 ,
-                       Maybe#(RIndx) dst                 ,
-                       Addr          pc                  );
+function Exec execmem(IType        iType,
+                      Data         arg1 ,
+                      Data         arg2 ,
+                      Maybe#(Data) imm  ,
+                      Addr         pc   );
 
-    ExecInst eInst = ?;
+    Data res = (case(iType)
+                St     : (arg2);
+                Join   : ('d1 );
+                default: '0;
+                endcase);
 
-    eInst.iType   = iType  ;
-    eInst.mulFunc = mulFunc;
-    eInst.ldFunc  = ldFunc ;
-    eInst.stFunc  = stFunc ;
-    eInst.dst     = dst    ;
+    Addr add = (case (iType)
+                Ld     : (arg1+fromMaybe('0, imm));
+                St     : (arg1+fromMaybe('0, imm));
+                Fork   : (pc  +fromMaybe('0, imm));
+                Forkr  : {truncateLSB(arg1 + fromMaybe('0, imm)), 1'b0};
+                Join   : (arg1+fromMaybe('0, imm));
+                default: '0;
+                endcase);
 
-    eInst.data    = (case(iType)
-                    St     : (arg2);
-                    Join   : ('d1 );
-                    default: '0;
-                    endcase);
-
-    eInst.addr    = (case (iType)
-                    Ld     : (arg1+fromMaybe('0, imm));
-                    St     : (arg1+fromMaybe('0, imm));
-                    Fork   : (pc  +fromMaybe('0, imm));
-                    Forkr  : {truncateLSB(arg1 + fromMaybe('0, imm)), 1'b0};
-                    Join   : (arg1+fromMaybe('0, imm));
-                    default: '0;
-                    endcase);
-
-    eInst.brTaken = False;
-
-    return eInst;
+    return Exec{res: res, add: add, brt: False};
 
 endfunction

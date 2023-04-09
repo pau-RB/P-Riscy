@@ -79,7 +79,7 @@ tandem_mm tandem_compare(CommitReport spike, CommitReport dut) {
 	}
 
 	// Instruction WB
-	if(dut.iType == iTypeAlu || dut.iType == iTypeMul ||
+	if(dut.iType == iTypeAlu || dut.iType == iTypeMul || dut.iType == iTypeDiv ||
 		dut.iType == iTypeLd || dut.iType == iTypeAuipc) {
 		// wb expected
 		if(dut.wbDst != spike.wbDst) {

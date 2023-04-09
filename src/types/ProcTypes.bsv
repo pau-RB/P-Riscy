@@ -17,6 +17,7 @@ typedef enum {
 	Unsupported, 
 	Alu, 
 	Mul,
+	Div,
 	Ld, 
 	St, 
 	Fork,
@@ -57,27 +58,18 @@ typedef enum {
 	Mul,
 	Mulh,
 	Mulhsu,
-	Mulhu,
+	Mulhu
+} MulFunc deriving(Bits, Eq, FShow);
+
+typedef enum {
 	Div,
 	Divu,
 	Rem,
 	Remu
-} MulFunc deriving(Bits, Eq, FShow);
+} DivFunc deriving(Bits, Eq, FShow);
 
 
 //////////// STAGES ////////////
-
-typedef struct {
-    IType            iType;
-    MulFunc          mulFunc;
-    LoadFunc         ldFunc;
-    StoreFunc        stFunc;
-    Maybe#(RIndx)    dst;
-    Data             data;
-    Addr             addr;
-    Bool             brTaken;
-} ExecInst deriving(Bits, Eq, FShow);
-
 
 // DECODE
 
@@ -92,6 +84,7 @@ typedef struct {
     IType         iType  ;
     AluFunc       aluFunc;
     MulFunc       mulFunc;
+    DivFunc       divFunc;
     BrFunc        brFunc ;
     LoadFunc      ldFunc ;
     StoreFunc     stFunc ;
@@ -112,6 +105,7 @@ typedef struct {
 	IType         iType  ;
 	AluFunc       aluFunc;
 	MulFunc       mulFunc;
+	DivFunc       divFunc;
 	BrFunc        brFunc ;
 	LoadFunc      ldFunc ;
 	StoreFunc     stFunc ;
@@ -122,7 +116,7 @@ typedef struct {
 	Maybe#(Data)  imm    ;
 } RFToken deriving (Bits, Eq, FShow);
 
-// EXECUTE
+// EXECUTE 1
 
 typedef struct {
 	FrontID       feID   ;
@@ -133,6 +127,7 @@ typedef struct {
 	IType         iType  ;
 	AluFunc       aluFunc;
 	MulFunc       mulFunc;
+	DivFunc       divFunc;
 	BrFunc        brFunc ;
 	LoadFunc      ldFunc ;
 	StoreFunc     stFunc ;
@@ -143,21 +138,45 @@ typedef struct {
 	Maybe#(RIndx) dst    ;
 } ExecToken deriving (Bits, Eq, FShow);
 
-typedef struct {
-	ExecInst    inst;
-	Addr        pc;
-	FrontID     feID;
-	Epoch       epoch;
-	Data        rawInst;
-} MemToken deriving (Bits, Eq, FShow);
+// EXECUTE 2
 
 typedef struct {
-	ExecInst    inst;
-	Addr        pc;
-	FrontID     feID;
-	Epoch       epoch;
-	Data        rawInst;
-} WBToken deriving (Bits, Eq, FShow);
+	FrontID       feID   ;
+	Addr          pc     ;
+	Epoch         epoch  ;
+	Data          rawInst;
+	// iType
+	IType         iType  ;
+	MulFunc       mulFunc;
+	DivFunc       divFunc;
+	LoadFunc      ldFunc ;
+	StoreFunc     stFunc ;
+	// Op
+	Data          res    ;
+	Addr          addr   ;
+	Bool          brTaken;
+	Maybe#(RIndx) dst    ;
+} MemToken deriving (Bits, Eq, FShow);
+
+// COMMIT
+
+typedef struct {
+	FrontID       feID   ;
+	Addr          pc     ;
+	Epoch         epoch  ;
+	Data          rawInst;
+	// iType
+	IType         iType  ;
+	MulFunc       mulFunc;
+	DivFunc       divFunc;
+	// Op
+	Data          res    ;
+	Data          addr   ;
+	Bool          brTaken;
+	Maybe#(RIndx) dst    ;
+} ComToken deriving (Bits, Eq, FShow);
+
+// REDIRECT
 
 typedef struct {
 	Bool        lock;
@@ -183,9 +202,9 @@ endfunction
 
 function Bool isArithInst(ExecToken inst);
 	return (inst.iType == Unsupported || inst.iType == Alu   ||
-	        inst.iType == Mul         || inst.iType == J     ||
-	        inst.iType == Jr          || inst.iType == Br    ||
-	        inst.iType == Auipc );
+	        inst.iType == Mul         || inst.iType == Div   ||
+	        inst.iType == J           || inst.iType == Jr    ||
+	        inst.iType == Br          || inst.iType == Auipc );
 endfunction
 
 function Bool isSpecInst(ExecToken inst);

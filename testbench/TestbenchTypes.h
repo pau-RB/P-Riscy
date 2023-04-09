@@ -32,15 +32,16 @@ typedef uint8_t  RIndx;
 #define iTypeUnsup 0
 #define iTypeAlu   1
 #define iTypeMul   2
-#define iTypeLd    3
-#define iTypeSt    4
-#define iTypeFork  5
-#define iTypeForkr 6
-#define iTypeJoin  7
-#define iTypeJ     8
-#define iTypeJr    9
-#define iTypeBr    10
-#define iTypeAuipc 11
+#define iTypeDiv   3
+#define iTypeLd    4
+#define iTypeSt    5
+#define iTypeFork  6
+#define iTypeForkr 7
+#define iTypeJoin  8
+#define iTypeJ     9
+#define iTypeJr    10
+#define iTypeBr    11
+#define iTypeAuipc 12
 
 typedef struct {
 	Data    cycle;
