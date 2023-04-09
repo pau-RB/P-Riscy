@@ -174,7 +174,7 @@ function DecodedInst decode(Instruction inst);
 				end
 				fnJoin: begin
 					dInst.iType = (funct3 == '0) ? Join:Unsupported;
-					dInst.aluFunc = Add;
+					dInst.aluFunc = ?;
 					dInst.src1 = tagged Valid rs1;
 					dInst.imm = tagged Valid immI;
 				end
@@ -234,7 +234,7 @@ function DecodedInst decode(Instruction inst);
 
 		opLoad: begin
 			dInst.iType = Ld;
-			dInst.aluFunc = Add; // calc effective addr
+			dInst.aluFunc = ?;
 			case(funct3)
 				fnLW:  dInst.ldFunc = LW;
 				fnLB:  dInst.ldFunc = LB;
@@ -254,7 +254,7 @@ function DecodedInst decode(Instruction inst);
 
 		opStore: begin
 			dInst.iType = St;
-			dInst.aluFunc = Add; // calc effective addr
+			dInst.aluFunc = ?;
 			case(funct3)
 				fnSW:  dInst.stFunc = SW;
 				fnSB:  dInst.stFunc = SB;

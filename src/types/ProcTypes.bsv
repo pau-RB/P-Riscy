@@ -64,20 +64,8 @@ typedef enum {
 	Remu
 } MulFunc deriving(Bits, Eq, FShow);
 
-typedef struct {
-    IType            iType;
-    AluFunc          aluFunc;
-    MulFunc          mulFunc;
-    BrFunc           brFunc;
-    LoadFunc         ldFunc;
-    StoreFunc        stFunc;
-    Maybe#(RIndx)    dst;
-    Maybe#(RIndx)    src1;
-    Maybe#(RIndx)    src2;
-    Maybe#(Data)     imm;
-} DecodedInst deriving(Bits, Eq, FShow);
 
-//////////// BACKEND ////////////
+//////////// STAGES ////////////
 
 typedef struct {
     IType            iType;
@@ -87,9 +75,11 @@ typedef struct {
     Maybe#(RIndx)    dst;
     Data             data;
     Addr             addr;
-    Bool             mispredict;
     Bool             brTaken;
 } ExecInst deriving(Bits, Eq, FShow);
+
+
+// DECODE
 
 typedef struct {
 	Maybe#(Data)inst;
@@ -98,20 +88,59 @@ typedef struct {
 } DecToken deriving(Bits, Eq);
 
 typedef struct {
-	DecodedInst inst;
-	Addr        pc;
-	Epoch       epoch;
-	Data        rawInst;
-} RFToken deriving (Bits, Eq, FShow);
+	// iType
+    IType         iType  ;
+    AluFunc       aluFunc;
+    MulFunc       mulFunc;
+    BrFunc        brFunc ;
+    LoadFunc      ldFunc ;
+    StoreFunc     stFunc ;
+    // Op
+    Maybe#(RIndx) dst    ;
+    Maybe#(RIndx) src1   ;
+    Maybe#(RIndx) src2   ;
+    Maybe#(Data)  imm    ;
+} DecodedInst deriving(Bits, Eq, FShow);
+
+// REGFETCH
 
 typedef struct {
-	DecodedInst inst;
-	Data        arg1;
-	Data        arg2;
-	Addr        pc;
-	FrontID     feID;
-	Epoch       epoch;
-	Data        rawInst;
+	Addr          pc     ;
+	Epoch         epoch  ;
+	Data          rawInst;
+	// iType
+	IType         iType  ;
+	AluFunc       aluFunc;
+	MulFunc       mulFunc;
+	BrFunc        brFunc ;
+	LoadFunc      ldFunc ;
+	StoreFunc     stFunc ;
+	// Op
+	Maybe#(RIndx) dst    ;
+	Maybe#(RIndx) src1   ;
+	Maybe#(RIndx) src2   ;
+	Maybe#(Data)  imm    ;
+} RFToken deriving (Bits, Eq, FShow);
+
+// EXECUTE
+
+typedef struct {
+	FrontID       feID   ;
+	Addr          pc     ;
+	Epoch         epoch  ;
+	Data          rawInst;
+	// iType
+	IType         iType  ;
+	AluFunc       aluFunc;
+	MulFunc       mulFunc;
+	BrFunc        brFunc ;
+	LoadFunc      ldFunc ;
+	StoreFunc     stFunc ;
+	// Op
+	Data          arg1   ;
+	Data          arg2   ;
+	Maybe#(Data)  imm    ;
+	Maybe#(RIndx) dst    ;
 } ExecToken deriving (Bits, Eq, FShow);
 
 typedef struct {
@@ -144,28 +173,29 @@ typedef struct {
 	Data        res;
 } RFwb deriving (Bits, Eq, FShow);
 
+//////////// SPECULATION INDICATIONS ////////////
+
 function Bool isMemInst(ExecToken inst);
-	return (inst.inst.iType == Ld          || inst.inst.iType == St    ||
-	        inst.inst.iType == Fork        || inst.inst.iType == Forkr ||
-	        inst.inst.iType == Join        || inst.inst.iType == Ghost );
+	return (inst.iType == Ld          || inst.iType == St    ||
+	        inst.iType == Fork        || inst.iType == Forkr ||
+	        inst.iType == Join        || inst.iType == Ghost );
 endfunction
 
 function Bool isArithInst(ExecToken inst);
-	return (inst.inst.iType == Unsupported || inst.inst.iType == Alu   ||
-	        inst.inst.iType == Mul         || inst.inst.iType == J     ||
-	        inst.inst.iType == Jr          || inst.inst.iType == Br    ||
-	        inst.inst.iType == Auipc );
+	return (inst.iType == Unsupported || inst.iType == Alu   ||
+	        inst.iType == Mul         || inst.iType == J     ||
+	        inst.iType == Jr          || inst.iType == Br    ||
+	        inst.iType == Auipc );
 endfunction
 
 function Bool isSpecInst(ExecToken inst);
-	return (inst.inst.iType == J           || inst.inst.iType == Jr    ||
-	        inst.inst.iType == Fork        || inst.inst.iType == Forkr ||
-	        inst.inst.iType == Br          || inst.inst.iType == Ld    ||
-	        inst.inst.iType == St          || inst.inst.iType == Join  );
+	return (inst.iType == J           || inst.iType == Jr    ||
+	        inst.iType == Fork        || inst.iType == Forkr ||
+	        inst.iType == Br          || inst.iType == Ld    ||
+	        inst.iType == St          || inst.iType == Join  );
 endfunction
 
 function Bool isFlowInst(ExecToken inst);
-	return (inst.inst.iType == J           || inst.inst.iType == Jr    ||
-	        inst.inst.iType == Br);
+	return (inst.iType == J           || inst.iType == Jr    ||
+	        inst.iType == Br);
 endfunction
-

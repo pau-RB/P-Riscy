@@ -152,12 +152,23 @@ module mkBackend (Backend ifc);
 
 		// Mem lane
 		if(toExec[0] matches tagged Valid .eToken) begin
-			let execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
-			let mToken   = MemToken{ inst   : execInst,
-				                     pc     : eToken.pc,
-				                     feID   : eToken.feID,
-				                     epoch  : eToken.epoch,
-				                     rawInst: eToken.rawInst};
+			// Alu and branch, mem pass through
+			ExecInst execInst = addr(eToken.iType  ,
+			                         eToken.aluFunc,
+			                         eToken.mulFunc,
+			                         eToken.brFunc ,
+			                         eToken.ldFunc ,
+			                         eToken.stFunc ,
+			                         eToken.arg1   ,
+			                         eToken.arg2   ,
+			                         eToken.imm    ,
+			                         eToken.dst    ,
+			                         eToken.pc     );
+			let mToken   = MemToken{ inst   : execInst      ,
+			                         pc     : eToken.pc     ,
+			                         feID   : eToken.feID   ,
+			                         epoch  : eToken.epoch  ,
+			                         rawInst: eToken.rawInst};
 			toMem[0] = tagged Valid mToken;
 		end
 
@@ -165,10 +176,22 @@ module mkBackend (Backend ifc);
 		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
 			if(toExec[i] matches tagged Valid .eToken) begin
 
-				ExecInst execInst = exec(eToken.inst, eToken.arg1, eToken.arg2, eToken.pc, eToken.pc+4);
+				// Alu and branch, mem pass through
+				ExecInst execInst = exec(eToken.iType  ,
+				                         eToken.aluFunc,
+				                         eToken.mulFunc,
+				                         eToken.brFunc ,
+				                         eToken.ldFunc ,
+				                         eToken.stFunc ,
+				                         eToken.arg1   ,
+				                         eToken.arg2   ,
+				                         eToken.imm    ,
+				                         eToken.dst    ,
+				                         eToken.pc     );
 
-				if(eToken.inst.iType == Mul) begin
-					case(eToken.inst.mulFunc)
+				// Mul/Div
+				if(eToken.iType == Mul) begin
+					case(eToken.mulFunc)
 					Mul   : mulArray[i-1].req(eToken.arg1, eToken.arg2, Signed        , ?);
 					Mulh  : mulArray[i-1].req(eToken.arg1, eToken.arg2, Signed        , ?);
 					Mulhsu: mulArray[i-1].req(eToken.arg1, eToken.arg2, SignedUnsigned, ?);
