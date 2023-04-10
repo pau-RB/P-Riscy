@@ -129,9 +129,9 @@ module mkBackend (Backend ifc);
 	MFifo#(CTHQ_LEN,BackWidth,CommitReport)        commitReportQ   <- mkPipelineMFifo();
 	`endif
 	`ifdef MMIO
-	FIFOF#(Message)                                messageReportQ  <- mkSizedFIFOF(valueOf(CTHQ_LEN));
-	FIFOF#(Message)                                hexReportQ      <- mkSizedFIFOF(valueOf(CTHQ_LEN));
-	FIFOF#(MemStat)                                memStatReportQ  <- mkSizedFIFOF(valueOf(CTHQ_LEN));
+	FIFOF#(Message)                                messageReportQ  <- mkFIFOF();
+	FIFOF#(Message)                                hexReportQ      <- mkFIFOF();
+	FIFOF#(MemStat)                                memStatReportQ  <- mkFIFOF();
 	`endif
 
 	// Perf debug

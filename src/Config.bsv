@@ -1,8 +1,7 @@
 import Types::*;
 
 // MMIO
-typedef	512 MTHQ_LEN;
-typedef	8   CTHQ_LEN;
+typedef	16 MTHQ_LEN;
 
 `ifdef MMIO
 	Bool msg_ext_DEBUG = True;
