@@ -100,7 +100,9 @@ typedef struct {
 typedef struct {
 	Addr          pc     ;
 	Epoch         epoch  ;
+	`ifdef DEBUG_RAW_INST
 	Data          rawInst;
+	`endif
 	// iType
 	IType         iType  ;
 	AluFunc       aluFunc;
@@ -122,7 +124,9 @@ typedef struct {
 	FrontID       feID   ;
 	Addr          pc     ;
 	Epoch         epoch  ;
+	`ifdef DEBUG_RAW_INST
 	Data          rawInst;
+	`endif
 	// iType
 	IType         iType  ;
 	AluFunc       aluFunc;
@@ -144,7 +148,9 @@ typedef struct {
 	FrontID       feID   ;
 	Addr          pc     ;
 	Epoch         epoch  ;
+	`ifdef DEBUG_RAW_INST
 	Data          rawInst;
+	`endif
 	// iType
 	IType         iType  ;
 	MulFunc       mulFunc;
@@ -164,7 +170,9 @@ typedef struct {
 	FrontID       feID   ;
 	Addr          pc     ;
 	Epoch         epoch  ;
+	`ifdef DEBUG_RAW_INST
 	Data          rawInst;
+	`endif
 	// iType
 	IType         iType  ;
 	MulFunc       mulFunc;

@@ -155,7 +155,9 @@ interface LSU#(numeric type numHart);
 	method Action req(LSUReq#(Bit#(TLog#(numHart))) r);
 	method ActionValue#(LSUResp#(Bit#(TLog#(numHart)))) resp();
 	method ActionValue#(LSUResp#(Bit#(TLog#(numHart)))) oldResp();
+	`ifdef DEBUG_STATS
 	method LSUStat getStat();
+	`endif
 endinterface
 
 //////////// BARE DATA CACHE ////////////
@@ -433,6 +435,7 @@ module mkLSU (LSU#(numHart) ifc) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(h
 	FIFOF#(LSUResp       #(hartID)) respQ    <- mkBypassFIFOF();
 	FIFOF#(LSUResp       #(hartID)) oldRespQ <- mkBypassFIFOF();
 
+	`ifdef DEBUG_STATS
 	Ehr#(2,Data) hLd   <- mkEhr(0);
 	Ehr#(2,Data) hSt   <- mkEhr(0);
 	Ehr#(2,Data) hJoin <- mkEhr(0);
@@ -442,6 +445,7 @@ module mkLSU (LSU#(numHart) ifc) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(h
 	Ehr#(2,Data) dLd   <- mkEhr(0);
 	Ehr#(2,Data) dSt   <- mkEhr(0);
 	Ehr#(2,Data) dJoin <- mkEhr(0);
+	`endif
 
 	rule do_INREQ if(!isValid(retryMSHR[1]));
 
@@ -456,8 +460,12 @@ module mkLSU (LSU#(numHart) ifc) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(h
 
 	endrule
 
-	rule do_RESP if(respQ.notFull() && oldRespQ.notFull() || !cmr_ext_DEBUG);
+	`ifdef CMR_EXT_DEBUG
+	rule do_RESP if(respQ.notFull() && oldRespQ.notFull());
 	// If cmr_ext_DEBUG (verification), we must preserve the order
+	`else
+	rule do_RESP;
+	`endif
 
 		LSUReq#(hartID) req = dcReqQ.first().req; dcReqQ.deq();
 		DataCacheResp d <- dataCache.resp();
@@ -502,23 +510,23 @@ module mkLSU (LSU#(numHart) ifc) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(h
 
 		end
 
-		if(mem_ext_DEBUG) begin
-			if(!dcReqQ.first().isOld) begin
-				if (isValid(d)) begin // hit
-					case (req.op)
-						Ld:   hLd  [0] <= hLd  [0]+1;
-						St:   hSt  [0] <= hSt  [0]+1;
-						Join: hJoin[0] <= hJoin[0]+1;
-					endcase
-				end else begin
-					case (req.op)
-						Ld:   mLd  [0] <= mLd  [0]+1;
-						St:   mSt  [0] <= mSt  [0]+1;
-						Join: mJoin[0] <= mJoin[0]+1;
-					endcase
-				end
+		`ifdef DEBUG_STATS
+		if(!dcReqQ.first().isOld) begin
+			if (isValid(d)) begin // hit
+				case (req.op)
+					Ld:   hLd  [0] <= hLd  [0]+1;
+					St:   hSt  [0] <= hSt  [0]+1;
+					Join: hJoin[0] <= hJoin[0]+1;
+				endcase
+			end else begin
+				case (req.op)
+					Ld:   mLd  [0] <= mLd  [0]+1;
+					St:   mSt  [0] <= mSt  [0]+1;
+					Join: mJoin[0] <= mJoin[0]+1;
+				endcase
 			end
 		end
+		`endif
 
 	endrule
 
@@ -603,6 +611,7 @@ module mkLSU (LSU#(numHart) ifc) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(h
 		return oldRespQ.first();
 	endmethod
 
+	`ifdef DEBUG_STATS
 	method LSUStat getStat();
 		return LSUStat{ hLd      : hLd  [1],
 		                hSt      : hSt  [1],
@@ -614,5 +623,6 @@ module mkLSU (LSU#(numHart) ifc) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(h
 		                dSt      : dSt  [1],
 		                dJoin    : dJoin[1] };
 	endmethod
+	`endif
 
 endmodule

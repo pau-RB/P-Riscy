@@ -65,6 +65,7 @@ typedef struct{
 } MemStat deriving(Eq, Bits, FShow);
 
 // Construct CMR
+`ifdef DEBUG_CMR
 function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID childVerifID, ComToken cToken, Data lsuRes, Data muldivRes);
 
 	if(cToken.iType == J || cToken.iType == Jr || cToken.iType == Br) begin
@@ -151,6 +152,11 @@ function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID child
 	end
 
 endfunction
+`else
+function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID childVerifID, ComToken cToken, Data lsuRes, Data muldivRes);
+	return ?;
+endfunction
+`endif
 
 // pretty print instuction
 function Fmt showInst(Instruction inst);

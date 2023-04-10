@@ -30,12 +30,17 @@ interface SyncArbiter;
 	interface Vector#(FrontWidth,FifoDeq#(Redirect)) deqRedirect;
 
 	// Performance debug
+	`ifdef DEBUG_CYC
 	method Vector#(FrontWidth,Maybe#(ExecToken)) perf_get_inst;
 	method Vector#(FrontWidth,Bool) perf_get_taken;
+	`endif
 
 	// Stats
 	method Action startCore();
+
+	`ifdef DEBUG_STATS
 	method ArbiterStat getStat();
+	`endif
 
 endinterface
 
@@ -90,13 +95,17 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 	Vector#(FrontWidth,Reg#(SpecLvl))             specLvl <- replicateM(mkReg('0));
 
 	// Performance debug
+	`ifdef DEBUG_CYC
 	Ehr#(3,Vector#(FrontWidth,Maybe#(ExecToken))) perf_sel_inst  <- mkEhr(replicate(tagged Invalid));
 	Ehr#(3,Vector#(FrontWidth,Bool             )) perf_sel_taken <- mkEhr(replicate(False));
+	`endif
 
 	// Stats
+	`ifdef DEBUG_STATS
 	Reg#(Data) numMemOvb   <- mkReg(0);
 	Reg#(Data) numArithOvb <- mkReg(0);
 	Reg#(Data) numEmpty    <- mkReg(0);
+	`endif
 
 	//////////// COUNTERS ////////////
 
@@ -168,46 +177,42 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 			outputQueue.enq(instForward);
 
 
-		if(perf_DEBUG) begin
+		`ifdef DEBUG_CYC
+		Vector#(FrontWidth,Maybe#(ExecToken)) inst = replicate(tagged Invalid);
+		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1)
+			if(inputQueue[i].notEmpty)
+				inst[i] = tagged Valid inputQueue[i].first();
+		perf_sel_taken[0] <= instTaken;
+		perf_sel_inst [0] <= inst;
+		`endif
 
-			Vector#(FrontWidth,Maybe#(ExecToken)) inst = replicate(tagged Invalid);
-			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1)
-				if(inputQueue[i].notEmpty)
-					inst[i] = tagged Valid inputQueue[i].first();
+		`ifdef DEBUG_STATS
+		Vector#(FrontWidth,Maybe#(ExecToken)) inst = replicate(tagged Invalid);
+		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1)
+			if(inputQueue[i].notEmpty)
+				inst[i] = tagged Valid inputQueue[i].first();
 
-			perf_sel_taken[0] <= instTaken;
-			perf_sel_inst [0] <= inst;
+		Bool isMemOvb   = False;
+		Bool isArithOvb = False;
+		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1)
+			if(isValid(inst[i]) && !instTaken[i])
+				if(isMemInst(fromMaybe(?,inst[i])))
+					isMemOvb = True;
+				else
+					isArithOvb = True;
 
-		end
+		if(isMemOvb)
+			numMemOvb <= numMemOvb+1;
+		if(isArithOvb)
+			numArithOvb <= numArithOvb+1;
 
-		if(mem_ext_DEBUG) begin
-
-			Vector#(FrontWidth,Maybe#(ExecToken)) inst = replicate(tagged Invalid);
-			for (Integer i = 0; i < valueOf(FrontWidth); i=i+1)
-				if(inputQueue[i].notEmpty)
-					inst[i] = tagged Valid inputQueue[i].first();
-
-			Bool isMemOvb   = False;
-			Bool isArithOvb = False;
-			for(Integer i = 0; i < valueOf(FrontWidth); i=i+1)
-				if(isValid(inst[i]) && !instTaken[i])
-					if(isMemInst(fromMaybe(?,inst[i])))
-						isMemOvb = True;
-					else
-						isArithOvb = True;
-			if(isMemOvb)
-				numMemOvb <= numMemOvb+1;
-			if(isArithOvb)
-				numArithOvb <= numArithOvb+1;
-
-			Bool isEmpty = True;
-			for(Integer i = 0; i < valueOf(FrontWidth); i=i+1)
-				if(isValid(inst[i]))
-					isEmpty = False;
-			if(isEmpty)
-				numEmpty <= numEmpty+1;
-
-		end
+		Bool isEmpty = True;
+		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1)
+			if(isValid(inst[i]))
+				isEmpty = False;
+		if(isEmpty)
+			numEmpty <= numEmpty+1;
+		`endif
 
 	endrule
 
@@ -219,12 +224,12 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 		endrule
 	end
 
-	rule do_reset if(perf_DEBUG);
-
+	`ifdef DEBUG_CYC
+	rule do_reset;
 		perf_sel_inst [2] <= replicate(tagged Invalid);
 		perf_sel_taken[2] <= replicate(False);
-
 	endrule
+	`endif
 
 	//////////// INTERFACE ////////////
 
@@ -271,23 +276,26 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 	interface deqRedirect = deqRedirectIfc;
 
 	// Performance debug
+	`ifdef DEBUG_CYC
 	method Vector#(FrontWidth,Maybe#(ExecToken)) perf_get_inst();
 		return perf_sel_inst[2];
 	endmethod
-
 	method Vector#(FrontWidth,Bool) perf_get_taken();
 		return perf_sel_taken[2];
 	endmethod
+	`endif
 
 	// Stats
 	method Action startCore();
 		coreStarted <= True;
 	endmethod
 
+	`ifdef DEBUG_STATS
 	method ArbiterStat getStat();
-		return ArbiterStat{ memOvb   : numMemOvb,
-		                    arithOvb : numArithOvb,
-		                    empty    : numEmpty};
+		return ArbiterStat{ memOvb  : numMemOvb  ,
+		                    arithOvb: numArithOvb,
+		                    empty   : numEmpty   };
 	endmethod
+	`endif
 
 endmodule

@@ -82,7 +82,10 @@ interface Frontend;
 
 	// Stats
 	method Action startCore();
+
+	`ifdef DEBUG_STATS
 	method FetchStat getStat();
+	`endif
 
 endinterface
 
@@ -101,7 +104,9 @@ module mkFrontend (Frontend ifc);
 	Vector#(FrontWidth, RFile         ) regFileArray    <- replicateM(mkBypassRFile);
 
 	// Stats
+	`ifdef DEBUG_STATS
 	Reg#(Data) numEmpty <- mkReg(0);
+	`endif
 
 	//////////// COUNTERS ////////////
 
@@ -119,7 +124,8 @@ module mkFrontend (Frontend ifc);
 	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1)
 		mkConnection(stream[i].mem,l1I.port[i]);
 
-	rule do_EMPTYCNT if(mem_ext_DEBUG == True && coreStarted);
+	`ifdef DEBUG_STATS
+	rule do_EMPTYCNT if(coreStarted);
 
 		Bool empty = True;
 		for (Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
@@ -132,6 +138,7 @@ module mkFrontend (Frontend ifc);
 		end
 
 	endrule
+	`endif
 
 	//////////// DECODE ////////////
 
@@ -145,7 +152,9 @@ module mkFrontend (Frontend ifc);
 				DecodedInst dec = decode(inst);
 				regfetchQ[i].enq( RFToken { pc     : dToken.pc      ,
 				                            epoch  : dToken.epoch   ,
+				                            `ifdef DEBUG_RAW_INST
 				                            rawInst: inst           ,
+				                            `endif
 				                            // iType
 				                            iType  : dec.iType      ,
 				                            aluFunc: dec.aluFunc    ,
@@ -163,7 +172,9 @@ module mkFrontend (Frontend ifc);
 			end else begin
 				regfetchQ[i].enq( RFToken { pc     : dToken.pc      ,
 				                            epoch  : dToken.epoch   ,
+				                            `ifdef DEBUG_RAW_INST
 				                            rawInst: ?              ,
+				                            `endif
 				                            // iType
 				                            iType  : Ghost          ,
 				                            aluFunc: ?              ,
@@ -220,7 +231,9 @@ module mkFrontend (Frontend ifc);
 				arbiterQ[i].enq(ExecToken{ feID   : fromInteger(i) ,
 				                           pc     : rfToken.pc     ,
 				                           epoch  : rfToken.epoch  ,
+				                           `ifdef DEBUG_RAW_INST
 				                           rawInst: rfToken.rawInst,
+				                           `endif
 				                           // iType
 				                           iType  : rfToken.iType  ,
 				                           aluFunc: rfToken.aluFunc,
@@ -314,10 +327,12 @@ module mkFrontend (Frontend ifc);
 		coreStarted <= True;
 	endmethod
 
+	`ifdef DEBUG_STATS
 	method FetchStat getStat();
-		return FetchStat { hit  : l1I.getNumHit(),
+		return FetchStat { hit  : l1I.getNumHit() ,
 		                   miss : l1I.getNumMiss(),
-		                   empty: numEmpty };
+		                   empty: numEmpty        };
 	endmethod
+	`endif
 
 endmodule

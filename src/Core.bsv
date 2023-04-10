@@ -33,7 +33,9 @@ interface Core;
 	interface FIFO#(ContToken) toMTQ;
 
 	// CMR
+	`ifdef DEBUG_CMR
 	method ActionValue#(CommitReport) getCMR();
+	`endif
 	method ActionValue#(Message)      getMSG();
 	method ActionValue#(Message)      getHEX();
 	method ActionValue#(MemStat)      getMSR();
@@ -141,7 +143,8 @@ module mkCore7SS(Core ifc);
 
 	//////////// PERFORMANCE CNT ////////////
 
-	rule do_perf_DEBUG if(perf_DEBUG == True && coreStarted);
+	`ifdef DEBUG_CYC
+	rule do_DEBUG_CYC if(coreStarted);
 
 		Vector#(FrontWidth,Maybe#(ExecToken)) perf_sel_inst    = arbiter.perf_get_inst ();
 		Vector#(FrontWidth,Bool)              perf_sel_taken   = arbiter.perf_get_taken();
@@ -250,6 +253,7 @@ module mkCore7SS(Core ifc);
 		$write("---------------------------------------------------------------------------------------------------------------------------------------------\n");
 
 	endrule
+	`endif
 
 	//////////// INTERFACE ////////////
 
@@ -261,26 +265,28 @@ module mkCore7SS(Core ifc);
 	interface toMTQ = nttx.toMTQ;
 
 	// CMR
+	`ifdef DEBUG_CMR
 	method ActionValue#(CommitReport) getCMR();
 		let latest <- backend.getCMR();
 		return latest;
 	endmethod
+	`endif
 
+	`ifdef MMIO
 	method ActionValue#(Message) getMSG();
 		let latest <- backend.getMSG();
 		return latest;
 	endmethod
-
 	method ActionValue#(Message) getHEX();
 		let latest <- backend.getHEX();
 		return latest;
 	endmethod
-
 	method ActionValue#(MemStat) getMSR();
 		let latest <- backend.getMSR();
 		latest.fetch   = frontend.getStat();
 		latest.arbiter = arbiter.getStat();
 		return latest;
 	endmethod
+	`endif
 
 endmodule

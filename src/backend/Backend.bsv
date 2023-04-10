@@ -64,21 +64,27 @@ interface Backend;
 	method Action startCore();
 	method Action setVerifID(FrontID feID, VerifID verifID);
 	method VerifID getVerifID(FrontID feID);
+	`ifdef DEBUG_CMR
 	method ActionValue#(CommitReport) getCMR();
-	method ActionValue#(Message)      getMSG();
-	method ActionValue#(Message)      getHEX();
-	method ActionValue#(MemStat)      getMSR();
+	`endif
+
+	// MMIO
+	`ifdef DEBUG_STATS
+	method ActionValue#(Message) getMSG();
+	method ActionValue#(Message) getHEX();
+	method ActionValue#(MemStat) getMSR();
+	`endif
 
 	// Performance Debug
+	`ifdef DEBUG_CYC
 	method Vector#(BackWidth,Maybe#(ExecToken)) get_exec_inst  ();
 	method Vector#(BackWidth,Maybe#(MemToken) ) get_mem_inst   ();
 	method Vector#(BackWidth,Maybe#(ComToken) ) get_wb_inst    ();
 	method Vector#(BackWidth,Bool             ) get_wb_valid   ();
 	method Vector#(BackWidth,Bool             ) get_wb_miss    ();
-
 	method Data                                 get_wb_commit  ();
-
 	method Maybe#(ComToken)                     get_old_wb_inst();
+	`endif
 
 endinterface
 
@@ -119,17 +125,23 @@ module mkBackend (Backend ifc);
 	Vector#(FrontWidth, Reg#(VerifID))             mapID           <- replicateM(mkRegU());
 	Reg#(VerifID)                                  nextID          <- mkReg('d1);
 
+	`ifdef DEBUG_CMR
 	MFifo#(CTHQ_LEN,BackWidth,CommitReport)        commitReportQ   <- mkPipelineMFifo();
+	`endif
+	`ifdef MMIO
 	FIFOF#(Message)                                messageReportQ  <- mkSizedFIFOF(valueOf(CTHQ_LEN));
 	FIFOF#(Message)                                hexReportQ      <- mkSizedFIFOF(valueOf(CTHQ_LEN));
 	FIFOF#(MemStat)                                memStatReportQ  <- mkSizedFIFOF(valueOf(CTHQ_LEN));
+	`endif
 
 	// Perf debug
+	`ifdef DEBUG_CYC
 	Ehr#(2,Vector#(BackWidth,Maybe#(ExecToken)))   perf_exec_inst  <- mkEhr(replicate(tagged Invalid));
 	Ehr#(2,Vector#(BackWidth,Maybe#(MemToken) ))   perf_mem_inst   <- mkEhr(replicate(tagged Invalid));
 	Ehr#(2,Vector#(BackWidth,Maybe#(ComToken) ))   perf_wb_inst    <- mkEhr(replicate(tagged Invalid));
 	Ehr#(2,Vector#(BackWidth,Bool             ))   perf_wb_valid   <- mkEhr(replicate(       False  ));
 	Ehr#(2,Vector#(BackWidth,Bool             ))   perf_wb_miss    <- mkEhr(replicate(       False  ));
+	`endif
 
 	// Stats
 	Ehr#(3,Data)                                   numCommit       <- mkEhr(0);
@@ -162,7 +174,9 @@ module mkBackend (Backend ifc);
 			let mToken = MemToken{ feID   : eToken.feID   ,
 			                       pc     : eToken.pc     ,
 			                       epoch  : eToken.epoch  ,
+			                       `ifdef DEBUG_RAW_INST
 			                       rawInst: eToken.rawInst,
+			                       `endif
 			                       // iType
 			                       iType  : eToken.iType  ,
 			                       mulFunc: eToken.mulFunc,
@@ -194,7 +208,9 @@ module mkBackend (Backend ifc);
 			let mToken = MemToken{ feID   : eToken.feID   ,
 			                       pc     : eToken.pc     ,
 			                       epoch  : eToken.epoch  ,
+			                       `ifdef DEBUG_RAW_INST
 			                       rawInst: eToken.rawInst,
+			                       `endif
 			                       // iType
 			                       iType  : eToken.iType  ,
 			                       mulFunc: eToken.mulFunc,
@@ -232,9 +248,9 @@ module mkBackend (Backend ifc);
 
 		memoryQ.enq(toMem);
 
-		if(perf_DEBUG) begin
-			perf_exec_inst[0] <= toExec;
-		end
+		`ifdef DEBUG_CYC
+		perf_exec_inst[0] <= toExec;
+		`endif
 
 	endrule
 
@@ -250,7 +266,9 @@ module mkBackend (Backend ifc);
 			let cToken = ComToken { feID   : mToken.feID   ,
 			                        pc     : mToken.pc     ,
 			                        epoch  : mToken.epoch  ,
+			                        `ifdef DEBUG_RAW_INST
 			                        rawInst: mToken.rawInst,
+			                        `endif
 			                        // iType
 			                        iType  : mToken.iType  ,
 			                        mulFunc: mToken.mulFunc,
@@ -295,7 +313,9 @@ module mkBackend (Backend ifc);
 			let cToken = ComToken { feID   : mToken.feID   ,
 			                        pc     : mToken.pc     ,
 			                        epoch  : mToken.epoch  ,
+			                        `ifdef DEBUG_RAW_INST
 			                        rawInst: mToken.rawInst,
+			                        `endif
 			                        // iType
 			                        iType  : mToken.iType  ,
 			                        mulFunc: mToken.mulFunc,
@@ -311,9 +331,9 @@ module mkBackend (Backend ifc);
 
 		commitQ.enq(toCommit);
 
-		if(perf_DEBUG) begin
-			perf_mem_inst[0] <= toMem;
-		end
+		`ifdef DEBUG_CYC
+		perf_mem_inst[0] <= toMem;
+		`endif
 
 	endrule
 
@@ -354,8 +374,9 @@ module mkBackend (Backend ifc);
 					if(res.valid) begin
 						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe(?, cToken.dst), res: res.data};
 						numWB = numWB+1;
-						if(cmr_ext_DEBUG == True)
-							commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, res.data, ?));
+						`ifdef DEBUG_CMR
+						commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, res.data, ?));
+						`endif
 					end else begin
 						miata     [cToken.feID].enq(cToken);
 						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
@@ -365,8 +386,9 @@ module mkBackend (Backend ifc);
 						                                                 redirect: True,
 						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
 						                                                 nextPc  : cToken.pc+4 };
-						if(perf_DEBUG == True)
-							commit_miss [0] = True;
+						`ifdef DEBUG_CYC
+						commit_miss [0] = True;
+						`endif
 					end
 
 				end else if(cToken.iType == St) begin
@@ -374,8 +396,9 @@ module mkBackend (Backend ifc);
 					let res <- lsu.resp();
 					if(res.valid) begin
 						numWB = numWB+1;
-						if(cmr_ext_DEBUG == True)
-							commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, ?));
+						`ifdef DEBUG_CMR
+						commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, ?));
+						`endif
 					end else begin
 						miata     [cToken.feID].enq(cToken);
 						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
@@ -385,8 +408,9 @@ module mkBackend (Backend ifc);
 						                                                 redirect: True,
 						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
 						                                                 nextPc  : cToken.pc+4 };
-						if(perf_DEBUG == True)
-							commit_miss [0] = True;
+						`ifdef DEBUG_CYC
+						commit_miss [0] = True;
+						`endif
 					end
 
 				end else if(cToken.iType == Join) begin
@@ -403,8 +427,9 @@ module mkBackend (Backend ifc);
 							                                                 nextPc  : ? };
 						end
 						numWB = numWB+1;
-						if (cmr_ext_DEBUG == True)
-								commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, res.data, ?));
+						`ifdef DEBUG_CMR
+						commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, res.data, ?));
+						`endif
 					end else begin
 						miata     [cToken.feID].enq(cToken);
 						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
@@ -414,8 +439,9 @@ module mkBackend (Backend ifc);
 						                                                 redirect: True,
 						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
 						                                                 nextPc  : cToken.pc+4 };
-						if(perf_DEBUG == True)
-							commit_miss [0] = True;
+						`ifdef DEBUG_CYC
+						commit_miss [0] = True;
+						`endif
 					end
 
 				end else if(cToken.iType == Fork || cToken.iType == Forkr) begin
@@ -436,11 +462,12 @@ module mkBackend (Backend ifc);
 					                                                 nextPc  : cToken.pc+4 };
 
 					numWB = numWB+1;
-					if (cmr_ext_DEBUG == True)
-						commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], nextID, cToken, ?, ?));
-
+					`ifdef DEBUG_CMR
+					commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], nextID, cToken, ?, ?));
+					`endif
 				end
 
+				`ifdef MMIO
 				if (msg_ext_DEBUG == True) begin
 					if(cToken.iType == St && cToken.addr == msg_ADDR) begin
 						messageReportQ.enq(Message { verifID: mapID[cToken.feID],
@@ -449,7 +476,6 @@ module mkBackend (Backend ifc);
 						                             data   : cToken.res });
 					end
 				end
-
 				if (hex_ext_DEBUG == True) begin
 					if(cToken.iType == St && cToken.addr == hex_ADDR) begin
 						hexReportQ.enq(Message { verifID: mapID[cToken.feID],
@@ -458,7 +484,6 @@ module mkBackend (Backend ifc);
 						                         data   : cToken.res });
 					end
 				end
-
 				if (mem_ext_DEBUG == True) begin
 					if(cToken.iType == St && cToken.addr == msr_ADDR) begin
 						LSUStat   lsr = lsu.getStat();
@@ -472,10 +497,11 @@ module mkBackend (Backend ifc);
 						memStatReportQ.enq(msr);
 					end
 				end
+				`endif
 
-				if(perf_DEBUG == True) begin
-					commit_valid[0] = True;
-				end
+				`ifdef DEBUG_CYC
+				commit_valid[0] = True;
+				`endif
 
 			end
 
@@ -526,16 +552,16 @@ module mkBackend (Backend ifc);
 
 					numWB = numWB+1;
 
-					if (cmr_ext_DEBUG == True) begin
-						if(cToken.iType == J || cToken.iType == Jr)
-							commitReportQ.port[i].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, cToken.pc+4));
-						else
-							commitReportQ.port[i].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, muldivRes));
-					end
+					`ifdef DEBUG_CMR
+					if(cToken.iType == J || cToken.iType == Jr)
+						commitReportQ.port[i].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, cToken.pc+4));
+					else
+						commitReportQ.port[i].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, muldivRes));
+					`endif
 
-					if(perf_DEBUG == True) begin
-						commit_valid[i] = True;
-					end
+					`ifdef DEBUG_CYC
+					commit_valid[i] = True;
+					`endif
 
 				end
 
@@ -555,11 +581,11 @@ module mkBackend (Backend ifc);
 		numCommit[1] <= numCommit[1]+numWB;
 
 		// Perf debug
-		if(perf_DEBUG == True) begin
-			perf_wb_inst [0] <= toCommit;
-			perf_wb_valid[0] <= commit_valid;
-			perf_wb_miss [0] <= commit_miss;
-		end
+		`ifdef DEBUG_CYC
+		perf_wb_inst [0] <= toCommit;
+		perf_wb_valid[0] <= commit_valid;
+		perf_wb_miss [0] <= commit_miss;
+		`endif
 
 	endrule
 
@@ -619,13 +645,13 @@ module mkBackend (Backend ifc);
 
 		numCommit[0] <= numCommit[0]+1;
 
-		if (cmr_ext_DEBUG == True) begin
-			commitReportQ.port[0].enq(generateCMR(numCycles, mapID[feID], ?, cToken, loadRes, ?));
-		end
+		`ifdef DEBUG_CMR
+		commitReportQ.port[0].enq(generateCMR(numCycles, mapID[feID], ?, cToken, loadRes, ?));
+		`endif
 
-		if(perf_DEBUG == True) begin
-			perf_old_wb_inst[0] <= tagged Valid cToken;
-		end
+		`ifdef DEBUG_CYC
+		perf_old_wb_inst[0] <= tagged Valid cToken;
+		`endif
 
 	endrule
 
@@ -654,7 +680,8 @@ module mkBackend (Backend ifc);
 
 	//////////// PERF DEBUG ////////////
 
-	rule do_perf_DEBUG;
+	`ifdef DEBUG_CYC
+	rule do_DEBUG_CYC;
 
 		perf_exec_inst  [1] <= replicate(tagged Invalid);
 		perf_mem_inst   [1] <= replicate(tagged Invalid);
@@ -664,6 +691,7 @@ module mkBackend (Backend ifc);
 		perf_old_wb_inst[1] <= tagged Invalid;
 
 	endrule
+	`endif
 
 
 	//////////// INTERFACE ////////////
@@ -734,28 +762,31 @@ module mkBackend (Backend ifc);
 		return mapID[feID];
 	endmethod
 
-
+	`ifdef DEBUG_CMR
 	method ActionValue#(CommitReport) getCMR();
 		let latest = commitReportQ.first(); commitReportQ.deq();
 		return latest;
 	endmethod
+	`endif
 
+	`ifdef MMIO
 	method ActionValue#(Message) getMSG();
 		let latest = messageReportQ.first(); messageReportQ.deq();
 		return latest;
 	endmethod
-
 	method ActionValue#(Message) getHEX();
 		let latest = hexReportQ.first(); hexReportQ.deq();
 		return latest;
 	endmethod
-
 	method ActionValue#(MemStat) getMSR();
 		let latest = memStatReportQ.first(); memStatReportQ.deq();
 		return latest;
 	endmethod
+	`endif
 
 	// Performance Debug
+	`ifdef DEBUG_CYC
+
 	method Vector#(BackWidth,Maybe#(ExecToken)) get_exec_inst();
 		return perf_exec_inst[1];
 	endmethod
@@ -783,5 +814,7 @@ module mkBackend (Backend ifc);
 	method Maybe#(ComToken) get_old_wb_inst();
 		return perf_old_wb_inst[1];
 	endmethod
+
+	`endif
 
 endmodule

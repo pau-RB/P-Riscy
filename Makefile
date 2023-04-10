@@ -29,7 +29,7 @@ CPPFILES +=                          \
 XILINX_INT_MUL_LATENCY = 2
 XILINX_INT_DIV_LATENCY = 8
 
-# Xilinx DDR4
+######### Xilinx DDR4 #########
 
 CONNECTALFLAGS += -D IMPORT_HOSTIF -D XILINX_SYS_CLK
 
@@ -62,7 +62,7 @@ $(SYNCFIFO_640_32): src/DDR4/core-scripts/synth_sync_bram_fifo.tcl
 
 endif
 
-# Xilinx int mul/div
+######### Xilinx int mul/div #########
 
 CONNECTALFLAGS += -D XILINX_INT_MUL_LATENCY=$(XILINX_INT_MUL_LATENCY)
 
@@ -92,7 +92,11 @@ $(INT_DIV_UNSIGNED_XCI): src/MulDiv/core-scripts/synth_int_div.tcl
 
 endif
 
-# connectal project
+######### connectal project #########
+
+ CONNECTALFLAGS += -D MMIO      -D DEBUG_STATS    # FPGA and simulation - Report MMIO messages to host server through Connectal
+#CONNECTALFLAGS += -D DEBUG_CMR -D DEBUG_RAW_INST # FPGA and simulation - Report commits to host server through Connectal for tandem verification
+#CONNECTALFLAGS += -D DEBUG_CYC -D DEBUG_RAW_INST # simulation only     - Report cycle-accurate status of the pipeline 
 
 CONNECTALFLAGS += --mainclockperiod=18
 CONNECTALFLAGS += --bscflags="-show-schedule"
@@ -121,7 +125,7 @@ clean:
 	rm -rf ./connectal/out
 
 slow:
-	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-mxm-ikj-f 1 2000 --color=always | less -r
+	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-c-matmul 1 2000 --color=always | less -r
 
 fast:
 	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-c-matmul 1 600
