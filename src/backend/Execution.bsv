@@ -46,9 +46,9 @@ function Addr aluBrA(Data arg1, Data imm, Addr pc, Bool taken, IType iType);
 
     Addr pcPlus4 = pc + 4;
     Addr targetAddr = case (iType)
-        J   : (pc + imm);
-        Jr  : {truncateLSB(arg1 + imm), 1'b0};
-        Br  : (taken ? pc + imm : pcPlus4);
+        J      : (pc + imm);
+        Jr     : {truncateLSB(arg1 + imm), 1'b0};
+        Br     : (taken ? pc + imm : pcPlus4);
         default: pcPlus4;
     endcase;
 
@@ -59,6 +59,7 @@ endfunction
 typedef struct{
     Data res;
     Addr add;
+    Addr npc;
     Bool brt;
 } Exec deriving(Bits);
 
@@ -82,7 +83,7 @@ function Exec execari(IType        iType  ,
                 default: (aluRes               );
                 endcase);
 
-    return Exec{res: res, add: add, brt: brTaken};
+    return Exec{res: res, add: add, npc: add, brt: brTaken};
 
 endfunction
 
@@ -108,6 +109,8 @@ function Exec execmem(IType        iType,
                 default: '0;
                 endcase);
 
-    return Exec{res: res, add: add, brt: False};
+    Addr npc = (iType == Ghost ? pc : pc+4);
+
+    return Exec{res: res, add: add, npc: npc, brt: False};
 
 endfunction

@@ -172,9 +172,9 @@ module mkBackend (Backend ifc);
 			                    eToken.pc     );
 
 			let mToken = MemToken{ feID   : eToken.feID   ,
-			                       pc     : eToken.pc     ,
 			                       epoch  : eToken.epoch  ,
 			                       `ifdef DEBUG_RAW_INST
+			                       pc     : eToken.pc     ,
 			                       rawInst: eToken.rawInst,
 			                       `endif
 			                       // iType
@@ -186,6 +186,7 @@ module mkBackend (Backend ifc);
 			                       // Op
 			                       res    : exec.res      ,
 			                       addr   : exec.add      ,
+			                       nextpc : exec.npc      ,
 			                       brTaken: exec.brt      ,
 			                       dst    : eToken.dst    };
 
@@ -206,9 +207,9 @@ module mkBackend (Backend ifc);
 			                    eToken.pc     );
 
 			let mToken = MemToken{ feID   : eToken.feID   ,
-			                       pc     : eToken.pc     ,
 			                       epoch  : eToken.epoch  ,
 			                       `ifdef DEBUG_RAW_INST
+			                       pc     : eToken.pc     ,
 			                       rawInst: eToken.rawInst,
 			                       `endif
 			                       // iType
@@ -220,6 +221,7 @@ module mkBackend (Backend ifc);
 			                       // Op
 			                       res    : exec.res      ,
 			                       addr   : exec.add      ,
+			                       nextpc : exec.npc      ,
 			                       brTaken: exec.brt      ,
 			                       dst    : eToken.dst    };
 
@@ -264,9 +266,9 @@ module mkBackend (Backend ifc);
 		// Mem lane
 		if(toMem[0] matches tagged Valid .mToken) begin
 			let cToken = ComToken { feID   : mToken.feID   ,
-			                        pc     : mToken.pc     ,
 			                        epoch  : mToken.epoch  ,
 			                        `ifdef DEBUG_RAW_INST
+			                        pc     : mToken.pc     ,
 			                        rawInst: mToken.rawInst,
 			                        `endif
 			                        // iType
@@ -276,6 +278,7 @@ module mkBackend (Backend ifc);
 			                        // Op
 			                        res    : mToken.res    ,
 			                        addr   : mToken.addr   ,
+			                        nextpc : mToken.nextpc ,
 			                        brTaken: mToken.brTaken,
 			                        dst    : mToken.dst    };
 			toCommit[0] = tagged Valid cToken;
@@ -311,9 +314,9 @@ module mkBackend (Backend ifc);
 		for(Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
 		if(toMem[i] matches tagged Valid .mToken) begin
 			let cToken = ComToken { feID   : mToken.feID   ,
-			                        pc     : mToken.pc     ,
 			                        epoch  : mToken.epoch  ,
 			                        `ifdef DEBUG_RAW_INST
+			                        pc     : mToken.pc     ,
 			                        rawInst: mToken.rawInst,
 			                        `endif
 			                        // iType
@@ -323,6 +326,7 @@ module mkBackend (Backend ifc);
 			                        // Op
 			                        res    : mToken.res    ,
 			                        addr   : mToken.addr   ,
+			                        nextpc : mToken.nextpc ,
 			                        brTaken: mToken.brTaken,
 			                        dst    : mToken.dst    };
 			toCommit[i] = tagged Valid cToken;
@@ -365,7 +369,7 @@ module mkBackend (Backend ifc);
 
 					eforkQ.enq(NTTXreq { frontID: cToken.feID,
 					                     verifID: mapID[cToken.feID],
-					                     nextpc : cToken.pc,
+					                     nextpc : cToken.nextpc,
 					                     evict  : True });
 
 				end else if(cToken.iType == Ld) begin
@@ -398,7 +402,7 @@ module mkBackend (Backend ifc);
 						                                                 kill    : False,
 						                                                 redirect: True,
 						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
-						                                                 nextPc  : cToken.pc+4 };
+						                                                 nextPc  : cToken.nextpc };
 						`ifdef DEBUG_CYC
 						commit_miss [0] = True;
 						`endif
@@ -433,7 +437,7 @@ module mkBackend (Backend ifc);
 						                                                 kill    : False,
 						                                                 redirect: True,
 						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
-						                                                 nextPc  : cToken.pc+4 };
+						                                                 nextPc  : cToken.nextpc };
 						`ifdef DEBUG_CYC
 						commit_miss [0] = True;
 						`endif
@@ -477,7 +481,7 @@ module mkBackend (Backend ifc);
 						                                                 kill    : False,
 						                                                 redirect: True,
 						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
-						                                                 nextPc  : cToken.pc+4 };
+						                                                 nextPc  : cToken.nextpc };
 						`ifdef DEBUG_CYC
 						commit_miss [0] = True;
 						`endif
@@ -498,7 +502,7 @@ module mkBackend (Backend ifc);
 					                                                 kill    : False,
 					                                                 redirect: True,
 					                                                 epoch   : commitEpoch[cToken.feID][0]+1,
-					                                                 nextPc  : cToken.pc+4 };
+					                                                 nextPc  : cToken.nextpc };
 
 					numWB = numWB+1;
 					`ifdef DEBUG_CMR
@@ -593,7 +597,7 @@ module mkBackend (Backend ifc);
 
 					`ifdef DEBUG_CMR
 					if(cToken.iType == J || cToken.iType == Jr)
-						commitReportQ.port[i].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, cToken.pc+4));
+						commitReportQ.port[i].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, cToken.nextpc));
 					else
 						commitReportQ.port[i].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, muldivRes));
 					`endif

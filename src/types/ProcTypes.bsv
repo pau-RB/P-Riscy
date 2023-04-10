@@ -146,9 +146,9 @@ typedef struct {
 
 typedef struct {
 	FrontID       feID   ;
-	Addr          pc     ;
 	Epoch         epoch  ;
 	`ifdef DEBUG_RAW_INST
+	Addr          pc     ;
 	Data          rawInst;
 	`endif
 	// iType
@@ -160,6 +160,7 @@ typedef struct {
 	// Op
 	Data          res    ;
 	Addr          addr   ;
+	Addr          nextpc ;
 	Bool          brTaken;
 	Maybe#(RIndx) dst    ;
 } MemToken deriving (Bits, Eq, FShow);
@@ -168,9 +169,9 @@ typedef struct {
 
 typedef struct {
 	FrontID       feID   ;
-	Addr          pc     ;
 	Epoch         epoch  ;
 	`ifdef DEBUG_RAW_INST
+	Addr          pc     ;
 	Data          rawInst;
 	`endif
 	// iType
@@ -180,6 +181,7 @@ typedef struct {
 	// Op
 	Data          res    ;
 	Data          addr   ;
+	Addr          nextpc ;
 	Bool          brTaken;
 	Maybe#(RIndx) dst    ;
 } ComToken deriving (Bits, Eq, FShow);
