@@ -83,7 +83,7 @@ interface Backend;
 	method Vector#(BackWidth,Bool             ) get_wb_valid   ();
 	method Vector#(BackWidth,Bool             ) get_wb_miss    ();
 	method Data                                 get_wb_commit  ();
-	method Maybe#(ComToken)                     get_old_wb_inst();
+	method Maybe#(OldToken)                     get_old_wb_inst();
 	`endif
 
 endinterface
@@ -94,7 +94,7 @@ module mkBackend (Backend ifc);
 	LSU#(FrontWidth) lsu <- mkLSU();
 
 	// Missed access table
-	Vector#(FrontWidth, FIFOF#(ComToken)) miata <- replicateM(mkPipelineFIFOF());
+	Vector#(FrontWidth, FIFOF#(OldToken)) miata <- replicateM(mkPipelineFIFOF());
 
 	// Epoch
 	Vector#(FrontWidth, Ehr#(2,Epoch) ) commitEpoch <- replicateM(mkEhr('0));
@@ -378,7 +378,20 @@ module mkBackend (Backend ifc);
 						commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, res.data, ?));
 						`endif
 					end else begin
-						miata     [cToken.feID].enq(cToken);
+						miata     [cToken.feID].enq(OldToken{`ifdef DEBUG_CYC
+						                                     feID   : cToken.feID              ,
+						                                     `endif
+						                                     `ifdef DEBUG_CMR
+						                                     pc     : cToken.pc                ,
+						                                     `endif
+						                                     `ifdef  DEBUG_RAW_INST
+						                                     rawInst: cToken.rawInst           ,
+						                                     `endif
+						                                     iType  : Ld                       ,
+						                                     `ifdef  DEBUG_CMR
+						                                     addr   : cToken.addr              ,
+						                                     `endif
+						                                     dst    : fromMaybe('0,cToken.dst) });
 						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
 						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
@@ -400,7 +413,20 @@ module mkBackend (Backend ifc);
 						commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, ?));
 						`endif
 					end else begin
-						miata     [cToken.feID].enq(cToken);
+						miata     [cToken.feID].enq(OldToken{`ifdef DEBUG_CYC
+						                                     feID   : cToken.feID              ,
+						                                     `endif
+						                                     `ifdef DEBUG_CMR
+						                                     pc     : cToken.pc                ,
+						                                     `endif
+						                                     `ifdef  DEBUG_RAW_INST
+						                                     rawInst: cToken.rawInst           ,
+						                                     `endif
+						                                     iType  : St                       ,
+						                                     `ifdef  DEBUG_CMR
+						                                     addr   : cToken.addr              ,
+						                                     `endif
+						                                     dst    : fromMaybe('0,cToken.dst) });
 						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
 						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
@@ -431,7 +457,20 @@ module mkBackend (Backend ifc);
 						commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, res.data, ?));
 						`endif
 					end else begin
-						miata     [cToken.feID].enq(cToken);
+						miata     [cToken.feID].enq(OldToken{`ifdef DEBUG_CYC
+						                                     feID   : cToken.feID              ,
+						                                     `endif
+						                                     `ifdef DEBUG_CMR
+						                                     pc     : cToken.pc                ,
+						                                     `endif
+						                                     `ifdef  DEBUG_RAW_INST
+						                                     rawInst: cToken.rawInst           ,
+						                                     `endif
+						                                     iType  : Join                       ,
+						                                     `ifdef  DEBUG_CMR
+						                                     addr   : cToken.addr              ,
+						                                     `endif
+						                                     dst    : fromMaybe('0,cToken.dst) });
 						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
 						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
 						                                                 dry     : False,
@@ -592,53 +631,53 @@ module mkBackend (Backend ifc);
 
 	//////////// OLD COMMIT ////////////
 
-	Ehr#(2,Maybe#(ComToken)) perf_old_wb_inst  <- mkEhr(tagged Invalid);
+	Ehr#(2,Maybe#(OldToken)) perf_old_wb_inst  <- mkEhr(tagged Invalid);
 
 	rule do_old_commit;
 
 		LSUResp#(FrontID) resp   <- lsu.oldResp();
-		ComToken          cToken  = miata[resp.transId].first; miata[resp.transId].deq();
-		FrontID           feID    = cToken.feID;
+		OldToken          cToken  = miata[resp.transId].first; miata[resp.transId].deq();
+		FrontID           feID    = resp.transId;
 		Data              loadRes = 'hdeadbeef;
 
 		if(cToken.iType == Ld) begin
 
 			loadRes = resp.data;
-			toWBrfWriteBack[1][cToken.feID].enq(RFwb{dst: fromMaybe(?, cToken.dst), res: loadRes});
-			toWBstRedirect [1][cToken.feID].enq(Redirect{ lock    : False,
-			                                              dry     : False,
-			                                              kill    : False,
-			                                              redirect: False,
-			                                              epoch   : ?    ,
-			                                              nextPc  : ?    });
+			toWBrfWriteBack[1][feID].enq(RFwb{dst: cToken.dst, res: loadRes});
+			toWBstRedirect [1][feID].enq(Redirect{ lock    : False,
+			                                       dry     : False,
+			                                       kill    : False,
+			                                       redirect: False,
+			                                       epoch   : ?    ,
+			                                       nextPc  : ?    });
 
 		end else if(cToken.iType == St) begin
 
-			toWBstRedirect [1][cToken.feID].enq(Redirect{ lock    : False,
-			                                              dry     : False,
-			                                              kill    : False,
-			                                              redirect: False,
-			                                              epoch   : ?    ,
-			                                              nextPc  : ?    });
+			toWBstRedirect [1][feID].enq(Redirect{ lock    : False,
+			                                       dry     : False,
+			                                       kill    : False,
+			                                       redirect: False,
+			                                       epoch   : ?    ,
+			                                       nextPc  : ?    });
 
 		end else if(cToken.iType == Join) begin
 
 			loadRes = resp.data;
 			if(resp.data == '0) begin
-				toWBstEpoch    [1][cToken.feID].enq(commitEpoch[feID][0]+1);
-				toWBstRedirect [1][cToken.feID].enq(Redirect{ lock    : False                 ,
-				                                              dry     : False                 ,
-				                                              kill    : True                  ,
-				                                              redirect: False                 ,
-				                                              epoch   : commitEpoch[feID][0]+1,
-				                                              nextPc  : ?                     });
+				toWBstEpoch    [1][feID].enq(commitEpoch[feID][0]+1);
+				toWBstRedirect [1][feID].enq(Redirect{ lock    : False                 ,
+				                                       dry     : False                 ,
+				                                       kill    : True                  ,
+				                                       redirect: False                 ,
+				                                       epoch   : commitEpoch[feID][0]+1,
+				                                       nextPc  : ?                     });
 			end else begin
-				toWBstRedirect [1][cToken.feID].enq(Redirect{ lock    : False,
-				                                              dry     : False,
-				                                              kill    : False,
-				                                              redirect: False,
-				                                              epoch   : ?    ,
-				                                              nextPc  : ?    });
+				toWBstRedirect [1][feID].enq(Redirect{ lock    : False,
+				                                       dry     : False,
+				                                       kill    : False,
+				                                       redirect: False,
+				                                       epoch   : ?    ,
+				                                       nextPc  : ?    });
 			end
 
 		end
@@ -646,7 +685,7 @@ module mkBackend (Backend ifc);
 		numCommit[0] <= numCommit[0]+1;
 
 		`ifdef DEBUG_CMR
-		commitReportQ.port[0].enq(generateCMR(numCycles, mapID[feID], ?, cToken, loadRes, ?));
+		commitReportQ.port[0].enq(generateOldCMR(numCycles, mapID[feID], cToken, loadRes));
 		`endif
 
 		`ifdef DEBUG_CYC
@@ -811,7 +850,7 @@ module mkBackend (Backend ifc);
 		return numCommit[2];
 	endmethod
 
-	method Maybe#(ComToken) get_old_wb_inst();
+	method Maybe#(OldToken) get_old_wb_inst();
 		return perf_old_wb_inst[1];
 	endmethod
 

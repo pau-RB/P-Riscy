@@ -155,7 +155,7 @@ module mkCore7SS(Core ifc);
 		Vector#(BackWidth, Bool             ) perf_wb_valid    = backend.get_wb_valid   ();
 		Vector#(BackWidth, Bool             ) perf_wb_miss     = backend.get_wb_miss    ();
 
-		Maybe#(ComToken)                      perf_old_wb_inst = backend.get_old_wb_inst();
+		Maybe#(OldToken)                      perf_old_wb_inst = backend.get_old_wb_inst();
 
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 

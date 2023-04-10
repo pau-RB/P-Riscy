@@ -184,6 +184,27 @@ typedef struct {
 	Maybe#(RIndx) dst    ;
 } ComToken deriving (Bits, Eq, FShow);
 
+// OLD COMMIT
+
+typedef struct {
+	`ifdef DEBUG_CYC
+	FrontID       feID   ;
+	`endif
+	`ifdef DEBUG_CMR
+	Addr          pc     ;
+	`endif
+	`ifdef  DEBUG_RAW_INST
+	Data          rawInst;
+	`endif
+	// iType
+	IType         iType  ;
+	// Op
+	`ifdef DEBUG_CMR
+	Data          addr   ;
+	`endif
+	RIndx         dst    ;
+} OldToken deriving (Bits, Eq, FShow);
+
 // REDIRECT
 
 typedef struct {
