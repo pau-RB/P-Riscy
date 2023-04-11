@@ -20,9 +20,10 @@ endinterface
 
 //////////////////
 // Pipeline MFifo 
-module mkPipelineMFifo( MFifo#(n, e, t) ) provisos (Bits#(t,tSz), FShow#(t));
-    // n is size of fifo
-    // t is data type of fifo
+module mkPipelineMFifo( MFifo#(n, e, t) ) provisos (Bits#(t,tSz), Add#(a__,TAdd#(e,1),n));
+    // n is the size of the fifo
+    // e is the number of ports
+    // t is the data type
     Vector#(n, Ehr#(e,t))            data     <- replicateM(mkEhrU());
     Ehr#(TAdd#(e,1), Bit#(TLog#(n))) enqP     <- mkEhr(0);
     Ehr#(TAdd#(e,1), Bit#(TLog#(n))) ovfP     <- mkEhr(fromInteger(valueOf(e)));

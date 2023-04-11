@@ -80,6 +80,7 @@ endfunction
 	return inst;
 endfunction
 
+(*synthesize*)
 module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 
 	// Queues

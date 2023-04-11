@@ -132,7 +132,7 @@ module mkBackend (Backend ifc);
 	Reg#(VerifID)                                  nextID          <- mkReg('d1);
 
 	`ifdef DEBUG_CMR
-	MFifo#(8,BackWidth,CommitReport)               commitReportQ   <- mkPipelineMFifo();
+	MFifo#(TAdd#(BackWidth,1),BackWidth,CommitReport) commitReportQ   <- mkPipelineMFifo();
 	`endif
 	`ifdef MMIO
 	FIFOF#(Message)                                messageReportQ  <- mkFIFOF();
@@ -619,10 +619,7 @@ module mkBackend (Backend ifc);
 					numWB = numWB+1;
 
 					`ifdef DEBUG_CMR
-					if(cToken.iType == J || cToken.iType == Jr)
-						commitReportQ.port[i].enq(generateCMR(numCycles, mapVerifID[cToken.feID], ?, cToken, ?, cToken.nextpc));
-					else
-						commitReportQ.port[i].enq(generateCMR(numCycles, mapVerifID[cToken.feID], ?, cToken, ?, muldivRes));
+					commitReportQ.port[i].enq(generateCMR(numCycles, mapVerifID[cToken.feID], ?, cToken, ?, muldivRes));
 					`endif
 
 					`ifdef DEBUG_CYC

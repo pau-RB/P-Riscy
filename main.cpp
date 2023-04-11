@@ -23,7 +23,7 @@
 #include "Interpreter.h"
 
 
-#define PRINT_COMMIT true
+#define PRINT_COMMIT false
 #define ERROR_THRESHOLD  4
 
 using namespace std;
@@ -90,7 +90,7 @@ class ToHost: public ToHostWrapper {
             }
 
             // Print
-            if (PRINT_COMMIT) {
+            if (PRINT_COMMIT || error_detected > 0) {
                 inter->print_CMR_spk(cmrSpike);
                 inter->print_CMR_dut(cmrDut);
                 printf("\n");
