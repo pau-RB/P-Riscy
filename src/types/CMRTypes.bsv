@@ -65,81 +65,152 @@ typedef struct{
 } MemStat deriving(Eq, Bits, FShow);
 
 // Construct CMR
-function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID childVerifID, WBToken wToken, Data lsuRes, Data mulRes);
+`ifdef DEBUG_CMR
+function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID childVerifID, ComToken cToken, Data lsuRes, Data muldivRes);
 
-	if(wToken.inst.iType == J || wToken.inst.iType == Jr || wToken.inst.iType == Br) begin
-		return CommitReport{cycle  : numCycles,
-		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
-		                    wbDst  : '0,
-		                    wbRes  : '0,
-		                    addr:    wToken.inst.addr};
-
-	end else if(wToken.inst.iType == Fork || wToken.inst.iType == Forkr) begin
-		return CommitReport{cycle  : numCycles,
-		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
-		                    wbDst  : '0,
-		                    wbRes  : childVerifID,
-		                    addr   : wToken.inst.addr};
-
-	end else if(wToken.inst.iType == Join) begin
-		return CommitReport{cycle  : numCycles,
-		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
-		                    wbDst  : '0,
-		                    wbRes  : lsuRes,
-		                    addr   : wToken.inst.addr};
-
-	end else if(wToken.inst.iType == Ld) begin
-		return CommitReport{cycle  : numCycles,
-		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
-		                    wbDst  : fromMaybe('0,wToken.inst.dst),
-		                    wbRes  : lsuRes,
-		                    addr   : wToken.inst.addr};
-
-	end else if(wToken.inst.iType == St) begin
-		return CommitReport{cycle  : numCycles,
-		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
-		                    wbDst  : '0,
-		                    wbRes  : '0,
-		                    addr   : wToken.inst.addr};
-
-	end else if(wToken.inst.iType == Mul) begin
-		return CommitReport{cycle  : numCycles,
-		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
-		                    wbDst  : fromMaybe('0,wToken.inst.dst),
-		                    wbRes  : mulRes,
-		                    addr   : '0};
-
-	end else begin
-		return CommitReport{cycle  : numCycles,
-		                    verifID: verifID,
-		                    pc     : wToken.pc,
-		                    rawInst: wToken.rawInst,
-		                    iType  : wToken.inst.iType,
-		                    wbDst  : fromMaybe('0,wToken.inst.dst),
-		                    wbRes  : wToken.inst.data,
-		                    addr   : '0};
-
-	end
+	return (case(cToken.iType)
+		J      : CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : '0                      ,
+		                      wbRes  : '0                      ,
+		                      addr:    cToken.addr             };
+		Jr     : CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : '0                      ,
+		                      wbRes  : '0                      ,
+		                      addr:    cToken.addr             };
+		Br     : CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : '0                      ,
+		                      wbRes  : '0                      ,
+		                      addr:    cToken.addr             };
+		Fork   : CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : '0                      ,
+		                      wbRes  : childVerifID            ,
+		                      addr   : cToken.addr             };
+		Forkr  : CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : '0                      ,
+		                      wbRes  : childVerifID            ,
+		                      addr   : cToken.addr             };
+		Join   : CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : '0                      ,
+		                      wbRes  : lsuRes                  ,
+		                      addr   : cToken.addr             };
+		Ld     : CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : fromMaybe('0,cToken.dst),
+		                      wbRes  : lsuRes                  ,
+		                      addr   : cToken.addr             };
+		St     : CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : '0                      ,
+		                      wbRes  : '0                      ,
+		                      addr   : cToken.addr             };
+		Mul    : CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : fromMaybe('0,cToken.dst),
+		                      wbRes  : muldivRes               ,
+		                      addr   : '0                      };
+		Div    : CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : fromMaybe('0,cToken.dst),
+		                      wbRes  : muldivRes               ,
+		                      addr   : '0                      };
+		default: CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : fromMaybe('0,cToken.dst),
+		                      wbRes  : cToken.res              ,
+		                      addr   : '0                      };
+	endcase);
 
 endfunction
+`else
+function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID childVerifID, ComToken cToken, Data lsuRes, Data muldivRes);
+	return ?;
+endfunction
+`endif
+
+// Construct CMR
+`ifdef DEBUG_CMR
+function CommitReport generateOldCMR(Data numCycles, VerifID verifID, OldToken cToken, Data lsuRes);
+
+	return (case(cToken.iType)
+		Join   : CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : '0                      ,
+		                      wbRes  : lsuRes                  ,
+		                      addr   : cToken.addr             };
+		Ld     : CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : cToken.dst              ,
+		                      wbRes  : lsuRes                  ,
+		                      addr   : cToken.addr             };
+		St     : CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : '0                      ,
+		                      wbRes  : '0                      ,
+		                      addr   : cToken.addr             };
+		default: CommitReport{cycle  : numCycles               ,
+		                      verifID: verifID                 ,
+		                      pc     : cToken.pc               ,
+		                      rawInst: cToken.rawInst          ,
+		                      iType  : cToken.iType            ,
+		                      wbDst  : cToken.dst              ,
+		                      wbRes  : '0                      ,
+		                      addr   : '0                      };
+	endcase);
+
+endfunction
+`else
+function CommitReport generateOldCMR(Data numCycles, VerifID verifID, OldToken cToken, Data lsuRes);
+	return ?;
+endfunction
+`endif
 
 // pretty print instuction
 function Fmt showInst(Instruction inst);

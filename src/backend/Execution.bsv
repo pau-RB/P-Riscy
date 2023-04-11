@@ -1,41 +1,116 @@
 import Types::*;
 import ProcTypes::*;
-import Alu::*;
 import Vector::*;
 
 (* noinline *)
-function ExecInst exec(DecodedInst dInst, Data arg1, Data arg2, Addr pc, Addr ppc);
+function Data aluAri(Data a, Data b, AluFunc func);
 
-    ExecInst eInst = ?;
+    Data res = case(func)
+        Add   : (a + b);
+        Sub   : (a - b);
+        And   : (a & b);
+        Or    : (a | b);
+        Xor   : (a ^ b);
+        Slt   : zeroExtend( pack( signedLT(a, b) ) );
+        Sltu  : zeroExtend( pack( a < b ) );
+        // 5-bit shift width for 32-bit data
+        Sll   : (a << b[4:0]);
+        Srl   : (a >> b[4:0]);
+        Sra   : signedShiftRight(a, b[4:0]);
+    endcase;
 
-    // do ALU operation: use imm instead of rs2 if imm is valid (consider LW and SW)
-    Data aluRes = alu(arg1, isValid(dInst.imm) ? fromMaybe(?, dInst.imm) : arg2, dInst.aluFunc);
+    return res;
 
-    // set eInst
-    eInst.iType   = dInst.iType;
-    eInst.mulFunc = dInst.mulFunc;
-    eInst.ldFunc  = dInst.ldFunc;
-    eInst.stFunc  = dInst.stFunc;
-    eInst.dst     = dInst.dst;
+endfunction
 
-    eInst.data    = (case(dInst.iType)
-                    St   : arg2;
-                    J    : (pc+4);
-                    Jr   : (pc+4);
-                    Fork : (pc+4);
-                    Forkr: (pc+4);
-                    Auipc: (pc + fromMaybe(?, dInst.imm));
-                    Join : 'd1;
-                    default: aluRes;
-                    endcase);
+(* noinline *)
+function Bool aluBrT(Data a, Data b, BrFunc brFunc);
 
-    let brTaken = aluBr(arg1, arg2, dInst.brFunc);
-    let brAddr  = brAddrCalc(pc, arg1, dInst.iType, fromMaybe(?, dInst.imm), brTaken);
+    Bool brTaken = case(brFunc)
+        Eq  : (a == b);
+        Neq : (a != b);
+        Lt  : signedLT(a, b);
+        Ltu : (a < b);
+        Ge  : signedGE(a, b);
+        Geu : (a >= b);
+        AT  : True;
+        NT  : False;
+    endcase;
 
-    eInst.addr = (dInst.iType == Ld || dInst.iType == St || dInst.iType == Join) ? aluRes : brAddr;
-    eInst.mispredict = brAddr != ppc;
-    eInst.brTaken = brTaken;
+    return brTaken;
 
-    return eInst;
+endfunction
+
+(* noinline *)
+function Addr aluBrA(Data arg1, Data imm, Addr pc, Bool taken, IType iType);
+
+    Addr pcPlus4 = pc + 4;
+    Addr targetAddr = case (iType)
+        J      : (pc + imm);
+        Jr     : {truncateLSB(arg1 + imm), 1'b0};
+        Br     : (taken ? pc + imm : pcPlus4);
+        default: pcPlus4;
+    endcase;
+
+    return targetAddr;
+
+endfunction
+
+typedef struct{
+    Data res;
+    Addr add;
+    Addr npc;
+    Bool brt;
+} Exec deriving(Bits);
+
+(* noinline *)
+function Exec execari(IType        iType  ,
+                      AluFunc      aluFunc,
+                      BrFunc       brFunc ,
+                      Data         arg1   ,
+                      Data         arg2   ,
+                      Maybe#(Data) imm    ,
+                      Addr         pc     );
+
+    Data aluRes  = aluAri(arg1, fromMaybe(arg2, imm), aluFunc);
+    Bool brTaken = aluBrT(arg1, arg2                , brFunc );
+    Addr add     = aluBrA(arg1, fromMaybe('0  , imm), pc, brTaken, iType);
+
+    Data res = (case(iType)
+                J      : (pc+4                 );
+                Jr     : (pc+4                 );
+                Auipc  : (pc+fromMaybe('0, imm));
+                default: (aluRes               );
+                endcase);
+
+    return Exec{res: res, add: add, npc: add, brt: brTaken};
+
+endfunction
+
+(* noinline *)
+function Exec execmem(IType        iType,
+                      Data         arg1 ,
+                      Data         arg2 ,
+                      Maybe#(Data) imm  ,
+                      Addr         pc   );
+
+    Data res = (case(iType)
+                St     : (arg2);
+                Join   : ('d1 );
+                default: '0;
+                endcase);
+
+    Addr add = (case (iType)
+                Ld     : (arg1+fromMaybe('0, imm));
+                St     : (arg1+fromMaybe('0, imm));
+                Fork   : (pc  +fromMaybe('0, imm));
+                Forkr  : {truncateLSB(arg1 + fromMaybe('0, imm)), 1'b0};
+                Join   : (arg1+fromMaybe('0, imm));
+                default: '0;
+                endcase);
+
+    Addr npc = (iType == Ghost ? pc : pc+4);
+
+    return Exec{res: res, add: add, npc: npc, brt: False};
 
 endfunction

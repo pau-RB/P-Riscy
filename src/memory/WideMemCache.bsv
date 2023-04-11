@@ -1,7 +1,6 @@
 import Types::*;
 import WideMemTypes::*;
 import ClientServer::*;
-import Config::*;
 import CMRTypes::*;
 import BRAM::*;
 import FIFOF::*;
@@ -37,7 +36,9 @@ typedef struct{
 interface WideMemCache#(numeric type cacheRows, numeric type cacheColumns, numeric type cacheHash, type tagT);
 	interface WideMemClient#(tagT) mem;
 	interface WideMemServer#(tagT) portA;
+	`ifdef DEBUG_STATS
 	method WMCStat getStat();
+	`endif
 endinterface
 
 module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) ifc) provisos(Log#(cacheRows, b__),
@@ -106,11 +107,13 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 
 	//////////// STATS ////////////
 
+	`ifdef DEBUG_STATS
 	Ehr#(2,Data) hWR <- mkEhr(0); // Total hits on write
 	Ehr#(2,Data) mWR <- mkEhr(0); // Total miss on write
 	Ehr#(2,Data) hRD <- mkEhr(0); // Total hits on read
 	Ehr#(2,Data) mRD <- mkEhr(0); // Total miss on read
 	Ehr#(3,Data) tWB <- mkEhr(0); // Total writebacks
+	`endif
 
 	//////////// INVALIDATE ON START ////////////
 
@@ -310,8 +313,9 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 			WideMemReq#(tagT) req = colWBQ[i].first(); colWBQ[i].deq();
 			memreq.enq(req);
 
-			if (mem_ext_DEBUG)
-				tWB[1] <= tWB[1]+1;
+			`ifdef DEBUG_STATS
+			tWB[1] <= tWB[1]+1;
+			`endif
 
 		endrule
 
@@ -351,22 +355,22 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 			end
 		end
 
-		if (mem_ext_DEBUG) begin
-			if(req.op == WR) begin
-				if (val) begin
-					hWR[0] <= hWR[0]+1;
-				end else begin
-					mWR[0] <= mWR[0]+1;
-					tWB[0] <= tWB[0]+1;
-				end
-			end else if(req.op == RD) begin
-				if (val) begin
-					hRD[0] <= hRD[0]+1;
-				end else begin
-					mRD[0] <= mRD[0]+1;
-				end
+		`ifdef DEBUG_STATS
+		if(req.op == WR) begin
+			if (val) begin
+				hWR[0] <= hWR[0]+1;
+			end else begin
+				mWR[0] <= mWR[0]+1;
+				tWB[0] <= tWB[0]+1;
+			end
+		end else if(req.op == RD) begin
+			if (val) begin
+				hRD[0] <= hRD[0]+1;
+			end else begin
+				mRD[0] <= mRD[0]+1;
 			end
 		end
+		`endif
 
 	endrule
 
@@ -418,6 +422,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 		endinterface);
 	endinterface
 
+	`ifdef DEBUG_STATS
 	method WMCStat getStat();
 		return WMCStat{ hWR: hWR[1],
 		                mWR: mWR[1],
@@ -425,5 +430,6 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 		                mRD: mRD[1],
 		                tWB: tWB[2]};
 	endmethod
+	`endif
 
 endmodule

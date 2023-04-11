@@ -1,27 +1,24 @@
 import Types::*;
 
-// Connectal (FPGA)
-Bool cmr_ext_DEBUG = False;
-Bool msg_ext_DEBUG = True;
-Bool hex_ext_DEBUG = True;
-Bool mem_ext_DEBUG = True;
+// MMIO
+typedef	16 MTHQ_LEN;
 
-// Verilog (SIM)
-Bool perf_DEBUG    = False;
+`ifdef MMIO
+	Bool msg_ext_DEBUG = True;
+	Bool hex_ext_DEBUG = True;
+	Bool mem_ext_DEBUG = True;
+	Addr msg_ADDR      = 32'h7ffff000;
+	Addr hex_ADDR      = 32'h7ffff004;
+	Addr msr_ADDR      = 32'h7ffff008;
+`endif
 
-// MSG relay
-typedef	512 MTHQ_LEN;
-typedef	8   CTHQ_LEN;
-Addr	msg_ADDR  = 32'h7ffff000;
-Addr	hex_ADDR  = 32'h7ffff004;
-Addr	msr_ADDR  = 32'h7ffff008;
-Addr	max_ADDR  = 32'h80000000;
+Addr max_ADDR  = 32'h80000000;
 
 // Main Token Queue
 typedef 512 MTQ_LEN;
 
 // Core harts
-typedef 32 NumHart;
+typedef 16 NumHart;
 typedef Bit#(TLog#(NumHart)) HartID;
 HartID lastHartID = fromInteger(valueOf(NumHart)-1);
 

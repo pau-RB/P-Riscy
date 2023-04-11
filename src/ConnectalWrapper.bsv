@@ -55,10 +55,14 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 	FIFOF#(ContToken) mainTokenQ <- mkSizedBRAMFIFOF(valueOf(MTQ_LEN));
 
-	FIFOF#(CommitReport) mainCMRQ <- mkSizedBRAMFIFOF(cmr_ext_DEBUG?valueOf(MTHQ_LEN):4);
-	FIFOF#(Message)      mainMSGQ <- mkSizedBRAMFIFOF(msg_ext_DEBUG?valueOf(MTHQ_LEN):4);
-	FIFOF#(Message)      mainHEXQ <- mkSizedBRAMFIFOF(hex_ext_DEBUG?valueOf(MTHQ_LEN):4);
-	FIFOF#(MemStat)      mainMSRQ <- mkSizedBRAMFIFOF(mem_ext_DEBUG?valueOf(MTHQ_LEN):4);
+	`ifdef DEBUG_CMR
+	FIFOF#(CommitReport) mainCMRQ <- mkSizedBRAMFIFOF(valueOf(MTHQ_LEN));
+	`endif
+	`ifdef MMIO
+	FIFOF#(Message)      mainMSGQ <- mkSizedBRAMFIFOF(valueOf(MTHQ_LEN));
+	FIFOF#(Message)      mainHEXQ <- mkSizedBRAMFIFOF(valueOf(MTHQ_LEN));
+	FIFOF#(MemStat)      mainMSRQ <- mkSizedBRAMFIFOF(valueOf(MTHQ_LEN));
+	`endif
 
 	//////////// MTQ ////////////
 
@@ -72,44 +76,47 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 	//////////// RELAY REPORTS ////////////
 
-	rule getCMR if(cmr_ext_DEBUG);
+	`ifdef DEBUG_CMR
+	rule getCMR;
 		let latest <- core.getCMR();
 		mainCMRQ.enq(latest);
 	endrule
+	`endif
 
+	`ifdef MMIO
 	rule getMSG if(msg_ext_DEBUG);
 		let latest <- core.getMSG();
 		mainMSGQ.enq(latest);
 	endrule
-
 	rule getHEX if(hex_ext_DEBUG);
 		let latest <- core.getHEX();
 		mainHEXQ.enq(latest);
 	endrule
-
 	rule getMSR if(mem_ext_DEBUG);
 		let latest <- core.getMSR();
 		latest.l2s = mainL2SC.getStat();
 		mainMSRQ.enq(latest);
 	endrule
+	`endif
 
-	rule relayCMR if(cmr_ext_DEBUG);
+	`ifdef DEBUG_CMR
+	rule relayCMR;
 		CommitReport cmr = mainCMRQ.first(); mainCMRQ.deq();
 		Bit#(8) iType = zeroExtend(pack(cmr.iType));
 		Bit#(8) wbDst = zeroExtend(pack(cmr.wbDst));
 		ind.reportCMR(cmr.cycle, cmr.verifID, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
 	endrule
+	`endif
 
+	`ifdef MMIO
 	rule relayMSG if(msg_ext_DEBUG);
 		Message msg = mainMSGQ.first(); mainMSGQ.deq();
 		ind.reportMSG(msg.verifID, msg.cycle, msg.commit, msg.data);
 	endrule
-
 	rule relayHEX if(hex_ext_DEBUG);
 		Message msg = mainHEXQ.first(); mainHEXQ.deq();
 		ind.reportHEX(msg.verifID, msg.cycle, msg.commit, msg.data);
 	endrule
-
 	rule relayMSR if(mem_ext_DEBUG);
 		MemStat msr = mainMSRQ.first(); mainMSRQ.deq();
 		ind.reportMSR(msr.verifID,
@@ -123,6 +130,7 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 		              msr.l2s.hRD,        msr.l2s.mRD,
 		              msr.l2s.tWB );
 	endrule
+	`endif
 
 	//////////// INTERFACE ////////////
 

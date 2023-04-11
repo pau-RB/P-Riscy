@@ -82,7 +82,10 @@ interface Frontend;
 
 	// Stats
 	method Action startCore();
+
+	`ifdef DEBUG_STATS
 	method FetchStat getStat();
+	`endif
 
 endinterface
 
@@ -101,7 +104,9 @@ module mkFrontend (Frontend ifc);
 	Vector#(FrontWidth, RFile         ) regFileArray    <- replicateM(mkBypassRFile);
 
 	// Stats
+	`ifdef DEBUG_STATS
 	Reg#(Data) numEmpty <- mkReg(0);
+	`endif
 
 	//////////// COUNTERS ////////////
 
@@ -119,7 +124,8 @@ module mkFrontend (Frontend ifc);
 	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1)
 		mkConnection(stream[i].mem,l1I.port[i]);
 
-	rule do_EMPTYCNT if(mem_ext_DEBUG == True && coreStarted);
+	`ifdef DEBUG_STATS
+	rule do_EMPTYCNT if(coreStarted);
 
 		Bool empty = True;
 		for (Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
@@ -132,6 +138,7 @@ module mkFrontend (Frontend ifc);
 		end
 
 	endrule
+	`endif
 
 	//////////// DECODE ////////////
 
@@ -141,24 +148,47 @@ module mkFrontend (Frontend ifc);
 
 			DecToken dToken <- stream[i].fetch();
 
-			DecodedInst decInst = (isValid(dToken.inst) ? decode(fromMaybe('hdeadbeef, dToken.inst)) :
-			                                              DecodedInst{ iType  : Ghost,
-			                                                           aluFunc: ?,
-			                                                           mulFunc: ?,
-			                                                           ldFunc : ?,
-			                                                           stFunc : ?,
-			                                                           brFunc : NT,
-			                                                           dst    : tagged Invalid,
-			                                                           src1   : tagged Invalid,
-			                                                           src2   : tagged Invalid,
-			                                                           imm    : tagged Invalid } );
+			if(dToken.inst matches tagged Valid .inst) begin
+				DecodedInst dec = decode(inst);
+				regfetchQ[i].enq( RFToken { pc     : dToken.pc      ,
+				                            epoch  : dToken.epoch   ,
+				                            `ifdef DEBUG_RAW_INST
+				                            rawInst: inst           ,
+				                            `endif
+				                            // iType
+				                            iType  : dec.iType      ,
+				                            aluFunc: dec.aluFunc    ,
+				                            mulFunc: dec.mulFunc    ,
+				                            divFunc: dec.divFunc    ,
+				                            brFunc : dec.brFunc     ,
+				                            ldFunc : dec.ldFunc     ,
+				                            stFunc : dec.stFunc     ,
+				                            // Op
+				                            dst    : dec.dst        ,
+				                            src1   : dec.src1       ,
+				                            src2   : dec.src2       ,
+				                            imm    : dec.imm        });
 
-			RFToken rfToken = RFToken{ inst   : decInst,
-			                           pc     : dToken.pc,
-			                           epoch  : dToken.epoch,
-			                           rawInst: fromMaybe('hdeadbeef, dToken.inst) };
-
-			regfetchQ[i].enq(rfToken);
+			end else begin
+				regfetchQ[i].enq( RFToken { pc     : dToken.pc      ,
+				                            epoch  : dToken.epoch   ,
+				                            `ifdef DEBUG_RAW_INST
+				                            rawInst: ?              ,
+				                            `endif
+				                            // iType
+				                            iType  : Ghost          ,
+				                            aluFunc: ?              ,
+				                            mulFunc: ?              ,
+				                            divFunc: ?              ,
+				                            brFunc : ?              ,
+				                            ldFunc : ?              ,
+				                            stFunc : ?              ,
+				                            // Op
+				                            dst    : tagged Invalid ,
+				                            src1   : tagged Invalid ,
+				                            src2   : tagged Invalid ,
+				                            imm    : tagged Invalid });
+			end
 
 		endrule
 
@@ -188,24 +218,35 @@ module mkFrontend (Frontend ifc);
 
 				regfetchQ[i].deq();
 
-			end else if(!regfetchLock[i] && !scoreboardArray[i].search1(regfetchQ[i].first.inst.src1)
-			                             && !scoreboardArray[i].search2(regfetchQ[i].first.inst.src2)) begin
+			end else if(!regfetchLock[i] && !scoreboardArray[i].search1(regfetchQ[i].first.src1)
+			                             && !scoreboardArray[i].search2(regfetchQ[i].first.src2)) begin
 
 				let rfToken = regfetchQ[i].first(); regfetchQ[i].deq();
 
-				let arg1    = regFileArray[i].rd1(fromMaybe(?, rfToken.inst.src1));
-				let arg2    = regFileArray[i].rd2(fromMaybe(?, rfToken.inst.src2));
-				let eToken  = ExecToken{ inst   : rfToken.inst,
-				                         arg1   : arg1,
-				                         arg2   : arg2,
-				                         pc     : rfToken.pc,
-				                         feID   : fromInteger(i),
-				                         epoch  : rfToken.epoch,
-				                         rawInst: rfToken.rawInst};
+				let arg1    = regFileArray[i].rd1(fromMaybe('0, rfToken.src1));
+				let arg2    = regFileArray[i].rd2(fromMaybe('0, rfToken.src2));
 
-				scoreboardArray[i].insert(rfToken.inst.dst);
+				scoreboardArray[i].insert(rfToken.dst);
 
-				arbiterQ[i].enq(eToken);
+				arbiterQ[i].enq(ExecToken{ feID   : fromInteger(i) ,
+				                           pc     : rfToken.pc     ,
+				                           epoch  : rfToken.epoch  ,
+				                           `ifdef DEBUG_RAW_INST
+				                           rawInst: rfToken.rawInst,
+				                           `endif
+				                           // iType
+				                           iType  : rfToken.iType  ,
+				                           aluFunc: rfToken.aluFunc,
+				                           mulFunc: rfToken.mulFunc,
+				                           divFunc: rfToken.divFunc,
+				                           brFunc : rfToken.brFunc ,
+				                           ldFunc : rfToken.ldFunc ,
+				                           stFunc : rfToken.stFunc ,
+				                           // Op
+				                           arg1   : arg1           ,
+				                           arg2   : arg2           ,
+				                           imm    : rfToken.imm    ,
+				                           dst    : rfToken.dst    });
 
 			end
 
@@ -288,10 +329,12 @@ module mkFrontend (Frontend ifc);
 		coreStarted <= True;
 	endmethod
 
+	`ifdef DEBUG_STATS
 	method FetchStat getStat();
-		return FetchStat { hit  : l1I.getNumHit(),
+		return FetchStat { hit  : l1I.getNumHit() ,
 		                   miss : l1I.getNumMiss(),
-		                   empty: numEmpty };
+		                   empty: numEmpty        };
 	endmethod
+	`endif
 
 endmodule
