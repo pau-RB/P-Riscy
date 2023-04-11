@@ -596,10 +596,7 @@ module mkBackend (Backend ifc);
 					numWB = numWB+1;
 
 					`ifdef DEBUG_CMR
-					if(cToken.iType == J || cToken.iType == Jr)
-						commitReportQ.port[i].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, cToken.nextpc));
-					else
-						commitReportQ.port[i].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, muldivRes));
+					commitReportQ.port[i].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, ?, muldivRes));
 					`endif
 
 					`ifdef DEBUG_CYC
