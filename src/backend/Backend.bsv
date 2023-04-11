@@ -126,7 +126,7 @@ module mkBackend (Backend ifc);
 	Reg#(VerifID)                                  nextID          <- mkReg('d1);
 
 	`ifdef DEBUG_CMR
-	MFifo#(CTHQ_LEN,BackWidth,CommitReport)        commitReportQ   <- mkPipelineMFifo();
+	MFifo#(TAdd#(BackWidth,1),BackWidth,CommitReport) commitReportQ   <- mkPipelineMFifo();
 	`endif
 	`ifdef MMIO
 	FIFOF#(Message)                                messageReportQ  <- mkFIFOF();
