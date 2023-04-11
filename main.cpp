@@ -90,7 +90,7 @@ class ToHost: public ToHostWrapper {
             }
 
             // Print
-            if (PRINT_COMMIT || error_detected >= 0) {
+            if (PRINT_COMMIT || error_detected > 0) {
                 inter->print_CMR_spk(cmrSpike);
                 inter->print_CMR_dut(cmrDut);
                 printf("\n");
