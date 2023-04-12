@@ -105,13 +105,13 @@ module mkFrontend (Frontend ifc);
 
 	// Stats
 	`ifdef DEBUG_STATS
-	Reg#(Data) numEmpty <- mkReg(0);
+	Reg#(PerfCnt) numEmpty <- mkReg(0);
 	`endif
 
 	//////////// COUNTERS ////////////
 
-	Reg#(Bool) coreStarted <- mkReg(False);
-	Reg#(Data) numCycles   <- mkReg('0);
+	Reg#(Bool)    coreStarted <- mkReg(False);
+	Reg#(PerfCnt) numCycles   <- mkReg('0);
 
 	rule do_cnt_cycles if(coreStarted);
 		numCycles <= numCycles+1;

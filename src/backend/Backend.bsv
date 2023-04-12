@@ -58,7 +58,7 @@ interface Backend;
 	method ActionValue#(NTTXreq) getFork();
 
 	// To sched
-	method Data getNumCommit();
+	method PerfCnt getNumCommit();
 
 	// CMR
 	method Action startCore();
@@ -82,7 +82,7 @@ interface Backend;
 	method Vector#(BackWidth,Maybe#(ComToken) ) get_wb_inst    ();
 	method Vector#(BackWidth,Bool             ) get_wb_valid   ();
 	method Vector#(BackWidth,Bool             ) get_wb_miss    ();
-	method Data                                 get_wb_commit  ();
+	method PerfCnt                              get_wb_commit  ();
 	method Maybe#(OldToken)                     get_old_wb_inst();
 	`endif
 
@@ -144,12 +144,12 @@ module mkBackend (Backend ifc);
 	`endif
 
 	// Stats
-	Ehr#(3,Data)                                   numCommit       <- mkEhr(0);
+	Ehr#(3,PerfCnt)                                numCommit       <- mkEhr(0);
 
 	//////////// COUNTERS ////////////
 
-	Reg#(Bool) coreStarted <- mkReg(False);
-	Reg#(Data) numCycles   <- mkReg('0);
+	Reg#(Bool)    coreStarted <- mkReg(False);
+	Reg#(PerfCnt) numCycles   <- mkReg('0);
 
 	rule do_cnt_cycles if(coreStarted);
 		numCycles <= numCycles+1;
@@ -355,7 +355,7 @@ module mkBackend (Backend ifc);
 		Vector#(BackWidth, Maybe#(ComToken))  toCommit     = commitQ.first(); commitQ.deq();
 		Vector#(BackWidth,Bool             )  commit_valid = replicate(False);
 		Vector#(BackWidth,Bool             )  commit_miss  = replicate(False);
-		Data numWB = 0;
+		PerfCnt numWB = 0;
 
 
 		// Mem lane
@@ -785,7 +785,7 @@ module mkBackend (Backend ifc);
 	endmethod
 
 	// To sched
-	method Data getNumCommit();
+	method PerfCnt getNumCommit();
 		return numCommit[0];
 	endmethod
 
@@ -847,7 +847,7 @@ module mkBackend (Backend ifc);
 		return perf_wb_miss[1];
 	endmethod
 
-	method Data get_wb_commit();
+	method PerfCnt get_wb_commit();
 		return numCommit[2];
 	endmethod
 

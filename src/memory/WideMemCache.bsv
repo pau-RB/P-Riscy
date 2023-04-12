@@ -108,11 +108,11 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 	//////////// STATS ////////////
 
 	`ifdef DEBUG_STATS
-	Ehr#(2,Data) hWR <- mkEhr(0); // Total hits on write
-	Ehr#(2,Data) mWR <- mkEhr(0); // Total miss on write
-	Ehr#(2,Data) hRD <- mkEhr(0); // Total hits on read
-	Ehr#(2,Data) mRD <- mkEhr(0); // Total miss on read
-	Ehr#(3,Data) tWB <- mkEhr(0); // Total writebacks
+	Ehr#(2,PerfCnt) hWR <- mkEhr(0); // Total hits on write
+	Ehr#(2,PerfCnt) mWR <- mkEhr(0); // Total miss on write
+	Ehr#(2,PerfCnt) hRD <- mkEhr(0); // Total hits on read
+	Ehr#(2,PerfCnt) mRD <- mkEhr(0); // Total miss on read
+	Ehr#(3,PerfCnt) tWB <- mkEhr(0); // Total writebacks
 	`endif
 
 	//////////// INVALIDATE ON START ////////////

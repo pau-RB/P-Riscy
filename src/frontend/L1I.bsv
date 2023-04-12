@@ -47,8 +47,8 @@ interface L1I#(numeric type numHart, numeric type cacheRows);
     interface WideMemClient#(Bit#(TLog#(numHart))) mem;
     interface Vector#(numHart, WideMemServer#(void)) port;
     `ifdef DEBUG_STATS
-    method Data getNumHit();
-    method Data getNumMiss();
+    method PerfCnt getNumHit();
+    method PerfCnt getNumMiss();
     `endif
 endinterface
 
@@ -215,8 +215,8 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
     //////////// STATS ////////////
 
     `ifdef DEBUG_STATS
-    Reg#(Data) numHit  <- mkReg(0);
-    Reg#(Data) numMiss <- mkReg(0);
+    Reg#(PerfCnt) numHit  <- mkReg(0);
+    Reg#(PerfCnt) numMiss <- mkReg(0);
     `endif
 
     //////////// RULES ////////////
@@ -311,10 +311,10 @@ module mkDirectL1I(L1I#(numHart, cacheRows) ifc) provisos(Add#(a__, TLog#(cacheR
     interface port = wideMemIfcs;
 
     `ifdef DEBUG_STATS
-    method Data getNumHit();
+    method PerfCnt getNumHit();
         return numHit;
     endmethod
-    method Data getNumMiss();
+    method PerfCnt getNumMiss();
         return numMiss;
     endmethod
     `endif

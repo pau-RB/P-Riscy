@@ -125,15 +125,15 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns) ifc) provisos(Add#(a__, 1, 
 	FIFOF#(L1DResp       #(hartID)) oldRespQ <- mkBypassFIFOF();
 
 	`ifdef DEBUG_STATS
-	Ehr#(2,Data) hLd   <- mkEhr(0);
-	Ehr#(2,Data) hSt   <- mkEhr(0);
-	Ehr#(2,Data) hJoin <- mkEhr(0);
-	Ehr#(2,Data) mLd   <- mkEhr(0);
-	Ehr#(2,Data) mSt   <- mkEhr(0);
-	Ehr#(2,Data) mJoin <- mkEhr(0);
-	Ehr#(2,Data) dLd   <- mkEhr(0);
-	Ehr#(2,Data) dSt   <- mkEhr(0);
-	Ehr#(2,Data) dJoin <- mkEhr(0);
+	Ehr#(2,PerfCnt) hLd   <- mkEhr(0);
+	Ehr#(2,PerfCnt) hSt   <- mkEhr(0);
+	Ehr#(2,PerfCnt) hJoin <- mkEhr(0);
+	Ehr#(2,PerfCnt) mLd   <- mkEhr(0);
+	Ehr#(2,PerfCnt) mSt   <- mkEhr(0);
+	Ehr#(2,PerfCnt) mJoin <- mkEhr(0);
+	Ehr#(2,PerfCnt) dLd   <- mkEhr(0);
+	Ehr#(2,PerfCnt) dSt   <- mkEhr(0);
+	Ehr#(2,PerfCnt) dJoin <- mkEhr(0);
 	`endif
 
 	rule do_INREQ if(!isValid(retryMSHR[1]));

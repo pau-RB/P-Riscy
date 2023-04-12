@@ -4,7 +4,7 @@ import ProcTypes::*;
 import Config::*;
 
 typedef struct {
-	Data    cycle;
+	PerfCnt cycle;
 	VerifID verifID;
 	Addr    pc;
 	Data    rawInst;
@@ -16,47 +16,47 @@ typedef struct {
 
 typedef struct {
 	VerifID verifID;
-	Data    cycle;
-	Data    commit;
+	PerfCnt cycle;
+	PerfCnt commit;
 	Data    data;
 } Message deriving (Bits, Eq);
 
 typedef struct{
-	Data    hit;
-	Data    miss;
-	Data    empty;
+	PerfCnt hit;
+	PerfCnt miss;
+	PerfCnt empty;
 } FetchStat deriving(Eq, Bits, FShow);
 
 typedef struct{
-	Data    memOvb;
-	Data    arithOvb;
-	Data    empty;
+	PerfCnt memOvb;
+	PerfCnt arithOvb;
+	PerfCnt empty;
 } ArbiterStat deriving(Eq, Bits, FShow);
 
 typedef struct{
-	Data    hLd;
-	Data    hSt;
-	Data    hJoin;
-	Data    mLd;
-	Data    mSt;
-	Data    mJoin;
-	Data    dLd;
-	Data    dSt;
-	Data    dJoin;
+	PerfCnt hLd;
+	PerfCnt hSt;
+	PerfCnt hJoin;
+	PerfCnt mLd;
+	PerfCnt mSt;
+	PerfCnt mJoin;
+	PerfCnt dLd;
+	PerfCnt dSt;
+	PerfCnt dJoin;
 } LSUStat deriving(Eq, Bits, FShow);
 
 typedef struct{
-	Data hWR; // Total hits on read
-	Data mWR; // Total miss on read
-	Data hRD; // Total hits on read
-	Data mRD; // Total miss on read
-	Data tWB; // Total writebacks
+	PerfCnt hWR; // Total hits on read
+	PerfCnt mWR; // Total miss on read
+	PerfCnt hRD; // Total hits on read
+	PerfCnt mRD; // Total miss on read
+	PerfCnt tWB; // Total writebacks
 } WMCStat deriving(Eq, Bits, FShow);
 
 typedef struct{
 	VerifID     verifID;
-	Data        cycle;
-	Data        commit;
+	PerfCnt     cycle;
+	PerfCnt     commit;
 	Data        data;
 	FetchStat   fetch;
 	ArbiterStat arbiter;
@@ -66,7 +66,7 @@ typedef struct{
 
 // Construct CMR
 `ifdef DEBUG_CMR
-function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID childVerifID, ComToken cToken, Data lsuRes, Data muldivRes);
+function CommitReport generateCMR(PerfCnt numCycles, VerifID verifID, VerifID childVerifID, ComToken cToken, Data lsuRes, Data muldivRes);
 
 	return (case(cToken.iType)
 		J      : CommitReport{cycle  : numCycles               ,
@@ -161,14 +161,14 @@ function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID child
 
 endfunction
 `else
-function CommitReport generateCMR(Data numCycles, VerifID verifID, VerifID childVerifID, ComToken cToken, Data lsuRes, Data muldivRes);
+function CommitReport generateCMR(PerfCnt numCycles, VerifID verifID, VerifID childVerifID, ComToken cToken, Data lsuRes, Data muldivRes);
 	return ?;
 endfunction
 `endif
 
 // Construct CMR
 `ifdef DEBUG_CMR
-function CommitReport generateOldCMR(Data numCycles, VerifID verifID, OldToken cToken, Data lsuRes);
+function CommitReport generateOldCMR(PerfCnt numCycles, VerifID verifID, OldToken cToken, Data lsuRes);
 
 	return (case(cToken.iType)
 		Join   : CommitReport{cycle  : numCycles               ,
@@ -207,7 +207,7 @@ function CommitReport generateOldCMR(Data numCycles, VerifID verifID, OldToken c
 
 endfunction
 `else
-function CommitReport generateOldCMR(Data numCycles, VerifID verifID, OldToken cToken, Data lsuRes);
+function CommitReport generateOldCMR(PerfCnt numCycles, VerifID verifID, OldToken cToken, Data lsuRes);
 	return ?;
 endfunction
 `endif

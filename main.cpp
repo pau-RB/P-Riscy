@@ -40,7 +40,7 @@ class ToHost: public ToHostWrapper {
 
     public:
 
-        virtual void reportCMR (const uint32_t cycle,   const uint32_t verifID, const uint32_t pc,
+        virtual void reportCMR (const uint64_t cycle,   const uint32_t verifID, const uint32_t pc,
                                 const uint32_t rawInst, const uint8_t  iType,   const uint8_t  wbDst,
                                 const uint32_t wbRes,   const uint32_t addr) {
 
@@ -104,8 +104,8 @@ class ToHost: public ToHostWrapper {
 
         }
 
-        virtual void reportMSG ( const uint32_t verifID, const uint32_t cycle,
-                                 const uint32_t commit,  const uint32_t data ){
+        virtual void reportMSG ( const uint32_t verifID, const uint64_t cycle,
+                                 const uint64_t commit,  const uint32_t data ){
 
             if(error_detected >= ERROR_THRESHOLD)
                 return;
@@ -120,8 +120,8 @@ class ToHost: public ToHostWrapper {
 
         }
 
-        virtual void reportHEX ( const uint32_t verifID, const uint32_t cycle,
-                                 const uint32_t commit,  const uint32_t data ){
+        virtual void reportHEX ( const uint32_t verifID, const uint64_t cycle,
+                                 const uint64_t commit,  const uint32_t data ){
 
             if(error_detected >= ERROR_THRESHOLD)
                 return;
@@ -137,15 +137,15 @@ class ToHost: public ToHostWrapper {
         }
 
         virtual void reportMSR ( const uint32_t verifID,
-                                 const uint32_t cycle,   const uint32_t commit,    const uint32_t data,
-                                 const uint32_t fHit,    const uint32_t fMiss,     const uint32_t fEmpty, 
-                                 const uint32_t aMemOvb, const uint32_t aArithOvb, const uint32_t aEmpty, 
-                                 const uint32_t hLd,     const uint32_t hSt,       const uint32_t hJoin,
-                                 const uint32_t mLd,     const uint32_t mSt,       const uint32_t mJoin,
-                                 const uint32_t dLd,     const uint32_t dSt,       const uint32_t dJoin,
-                                 const uint32_t l2hWR,   const uint32_t l2mWR,     
-                                 const uint32_t l2hRD,   const uint32_t l2mRD,
-                                 const uint32_t l2tWB){
+                                 const uint64_t cycle,   const uint64_t commit,    const uint32_t data,
+                                 const uint64_t fHit,    const uint64_t fMiss,     const uint64_t fEmpty, 
+                                 const uint64_t aMemOvb, const uint64_t aArithOvb, const uint64_t aEmpty, 
+                                 const uint64_t hLd,     const uint64_t hSt,       const uint64_t hJoin,
+                                 const uint64_t mLd,     const uint64_t mSt,       const uint64_t mJoin,
+                                 const uint64_t dLd,     const uint64_t dSt,       const uint64_t dJoin,
+                                 const uint64_t l2hWR,   const uint64_t l2mWR,     
+                                 const uint64_t l2hRD,   const uint64_t l2mRD,
+                                 const uint64_t l2tWB){
 
             if(error_detected >= ERROR_THRESHOLD)
                 return;

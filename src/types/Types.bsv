@@ -10,6 +10,9 @@ typedef Bit#(TAdd#(DataSz,DataSz)) Long;
 typedef 32 InstSz;
 typedef Bit#(InstSz) Instruction;
 
+typedef 64 PerfSz;
+typedef Bit#(64) PerfCnt;
+
 typedef Bit#(2) Epoch;
 
 //////////// Verification ////////////

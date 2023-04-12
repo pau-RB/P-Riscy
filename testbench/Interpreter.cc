@@ -10,7 +10,7 @@ Interpreter::~Interpreter() {
 
 void Interpreter::print_CMR_spk(const CommitReport cmr) {
 
-    std::string phrase = " [id:     ] cycle:             | pc: 0x         | iType:          | res: 0x        ";
+    std::string phrase = " [id:        ] cycle:                | pc: 0x         | iType:          | res: 0x        ";
     std::string res;
 
     if (cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
@@ -18,11 +18,11 @@ void Interpreter::print_CMR_spk(const CommitReport cmr) {
     else
     	res = uint_to_hex(cmr.wbRes);
 
-    overwrite(phrase, std::to_string(cmr.verifID ),  6,  3 );
-    overwrite(phrase, std::to_string(cmr.cycle   ), 19, 12 );
-    overwrite(phrase,    uint_to_hex(cmr.pc      ), 39,  8 );
-    overwrite(phrase,    print_itype(cmr.iType   ), 56,  8 );
-    overwrite(phrase,                res          , 75,  8 );
+    overwrite(phrase, std::to_string(cmr.verifID ),  6,  6 );
+    overwrite(phrase, std::to_string(cmr.cycle   ), 22, 14 );
+    overwrite(phrase,    uint_to_hex(cmr.pc      ), 45,  8 );
+    overwrite(phrase,    print_itype(cmr.iType   ), 63,  8 );
+    overwrite(phrase,                res          , 81,  8 );
 
     printf("\033[1;33m");
     printf("%s | %s\n", phrase.c_str(), print_disasm(cmr.rawInst).c_str());
@@ -33,7 +33,7 @@ void Interpreter::print_CMR_spk(const CommitReport cmr) {
 
 void Interpreter::print_CMR_dut(const CommitReport cmr) {
 
-    std::string phrase = "            cycle:             | pc: 0x         | iType:          | res: 0x        ";
+    std::string phrase = "               cycle:                | pc: 0x         | iType:          | res: 0x        ";
     std::string res;
 
     if (cmr.iType == iTypeBr || cmr.iType == iTypeJ || cmr.iType == iTypeJr)
@@ -41,10 +41,10 @@ void Interpreter::print_CMR_dut(const CommitReport cmr) {
     else
     	res = uint_to_hex(cmr.wbRes);
 
-    overwrite(phrase, std::to_string(cmr.cycle), 19, 12 );
-    overwrite(phrase,    uint_to_hex(cmr.pc   ), 39,  8 );
-    overwrite(phrase,    print_itype(cmr.iType), 56,  8 );
-    overwrite(phrase,                res       , 75,  8 );
+    overwrite(phrase, std::to_string(cmr.cycle), 22, 14 );
+    overwrite(phrase,    uint_to_hex(cmr.pc   ), 45,  8 );
+    overwrite(phrase,    print_itype(cmr.iType), 63,  8 );
+    overwrite(phrase,                res       , 81,  8 );
 
     printf("%s | %s\n", phrase.c_str(), print_disasm(cmr.rawInst).c_str());
     fflush(stdout);
@@ -55,17 +55,17 @@ void Interpreter::print_MSG_dut(const Message msg) {
 
     std::string phrase;
 
-    phrase = "------------------------------------------------------------------------------------------------";
+    phrase = "---------------------------------------------------------------------------------------------------";
     printf("%s \n", phrase.c_str());
 
-	phrase = " [id:     ] MESSAGE | cycle :                | commit:                |                        |";
-	overwrite(phrase, std::to_string(msg.verifID),  6,  3 );
-    overwrite(phrase, std::to_string(msg.cycle  ), 30, 14 );
-    overwrite(phrase, std::to_string(msg.commit ), 55, 14 );
-    overwrite(phrase, std::string(1,(char)msg.data), 80, 14 );
+	phrase = " [id:        ] MESSAGE | cycle :                | commit:                |                        |";
+	overwrite(phrase, std::to_string(msg.verifID)  ,  6,  6 );
+    overwrite(phrase, std::to_string(msg.cycle  )  , 33, 14 );
+    overwrite(phrase, std::to_string(msg.commit )  , 58, 14 );
+    overwrite(phrase, std::string(1,(char)msg.data), 83, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "------------------------------------------------------------------------------------------------";
+    phrase = "---------------------------------------------------------------------------------------------------";
     printf("%s \n", phrase.c_str());
 
     fflush(stdout);
@@ -76,17 +76,17 @@ void Interpreter::print_HEX_dut(const Message msg) {
 
     std::string phrase;
 
-    phrase = "------------------------------------------------------------------------------------------------";
+    phrase = "---------------------------------------------------------------------------------------------------";
     printf("%s \n", phrase.c_str());
 
-    phrase = " [id:     ] MESSAGE | cycle :                | commit:                |                        |";
-    overwrite(phrase, std::to_string(msg.verifID),  6,  3 );
-    overwrite(phrase, std::to_string(msg.cycle  ), 30, 14 );
-    overwrite(phrase, std::to_string(msg.commit ), 55, 14 );
-    overwrite(phrase, "0x"+int_to_hex((int32_t) msg.data), 80, 14 );
+    phrase = " [id:        ] MESSAGE | cycle :                | commit:                |                        |";
+    overwrite(phrase, std::to_string(msg.verifID)        ,  6,  6 );
+    overwrite(phrase, std::to_string(msg.cycle  )        , 33, 14 );
+    overwrite(phrase, std::to_string(msg.commit )        , 58, 14 );
+    overwrite(phrase, "0x"+int_to_hex((int32_t) msg.data), 83, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "------------------------------------------------------------------------------------------------";
+    phrase = "---------------------------------------------------------------------------------------------------";
     printf("%s \n", phrase.c_str());
 
     fflush(stdout);
@@ -102,91 +102,91 @@ void Interpreter::print_MSR_dut(const MemStat msr) {
 
     std::string phrase;
 
-    phrase = "------------------------------------------------------------------------------------------------";
+    phrase = "---------------------------------------------------------------------------------------------------";
     printf("%s \n", phrase.c_str());
 
     std::string data(1, (char)msr.data);
 
-    phrase = " [id:     ] MSR     | cycle :                | commit:                | data  :                |";
-    overwrite(phrase, std::to_string(msr.verifID   ),  6,  3 );
-    overwrite(phrase, std::to_string(msr.cycle     ), 30, 14 );
-    overwrite(phrase, std::to_string(msr.commit    ), 55, 14 );
-    overwrite(phrase,                    data       , 80, 14 );
+    phrase = " [id:        ] MSR     | cycle :                | commit:                | data  :                |";
+    overwrite(phrase, std::to_string(msr.verifID   ),  6,  6 );
+    overwrite(phrase, std::to_string(msr.cycle     ), 33, 14 );
+    overwrite(phrase, std::to_string(msr.commit    ), 58, 14 );
+    overwrite(phrase,                    data       , 83, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "                    |------------------------|------------------------|------------------------|";
+    phrase = "                       |------------------------|------------------------|------------------------|";
     printf("%s \n", phrase.c_str());
 
-    phrase = "            Fetch   | hit   :                | miss  :                | empty :                |";
-    overwrite(phrase, std::to_string(fetch.hit     ), 30, 14 );
-    overwrite(phrase, std::to_string(fetch.miss    ), 55, 14 );
-    overwrite(phrase, std::to_string(fetch.empty   ), 80, 14 );
+    phrase = "               Fetch   | hit   :                | miss  :                | empty :                |";
+    overwrite(phrase, std::to_string(fetch.hit     ), 33, 14 );
+    overwrite(phrase, std::to_string(fetch.miss    ), 58, 14 );
+    overwrite(phrase, std::to_string(fetch.empty   ), 83, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "                    |------------------------|------------------------|------------------------|";
+    phrase = "                       |------------------------|------------------------|------------------------|";
     printf("%s \n", phrase.c_str());
 
-    phrase = "            Arbiter | memOvb:                | ariOvb:                | empty :                |";
-    overwrite(phrase, std::to_string(arbiter.memOvb  ), 30, 14 );
-    overwrite(phrase, std::to_string(arbiter.arithOvb), 55, 14 );
-    overwrite(phrase, std::to_string(arbiter.empty   ), 80, 14 );
+    phrase = "               Arbiter | memOvb:                | ariOvb:                | empty :                |";
+    overwrite(phrase, std::to_string(arbiter.memOvb  ), 33, 14 );
+    overwrite(phrase, std::to_string(arbiter.arithOvb), 58, 14 );
+    overwrite(phrase, std::to_string(arbiter.empty   ), 83, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "                    |------------------------|------------------------|------------------------|";
+    phrase = "                       |------------------------|------------------------|------------------------|";
     printf("%s \n", phrase.c_str());
 
-    phrase = "            LSU     | tLd   :                | tSt   :                | tJoin :                |";
-    overwrite(phrase, std::to_string(lsu.hLd  +lsu.mLd  +lsu.dLd  ),  30, 14 );
-    overwrite(phrase, std::to_string(lsu.hSt  +lsu.mSt  +lsu.dSt  ),  55, 14 );
-    overwrite(phrase, std::to_string(lsu.hJoin+lsu.mJoin+lsu.dJoin),  80, 14 );
+    phrase = "               LSU     | tLd   :                | tSt   :                | tJoin :                |";
+    overwrite(phrase, std::to_string(lsu.hLd  +lsu.mLd  +lsu.dLd  ),  33, 14 );
+    overwrite(phrase, std::to_string(lsu.hSt  +lsu.mSt  +lsu.dSt  ),  58, 14 );
+    overwrite(phrase, std::to_string(lsu.hJoin+lsu.mJoin+lsu.dJoin),  83, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "                    | hLd   :                | hSt   :                | hJoin :                |";
-    overwrite(phrase, std::to_string(lsu.hLd  ),  30, 14 );
-    overwrite(phrase, std::to_string(lsu.hSt  ),  55, 14 );
-    overwrite(phrase, std::to_string(lsu.hJoin),  80, 14 );
+    phrase = "                       | hLd   :                | hSt   :                | hJoin :                |";
+    overwrite(phrase, std::to_string(lsu.hLd  ),  33, 14 );
+    overwrite(phrase, std::to_string(lsu.hSt  ),  58, 14 );
+    overwrite(phrase, std::to_string(lsu.hJoin),  83, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "                    | mLd   :                | mSt   :                | mJoin :                |";
-    overwrite(phrase, std::to_string(lsu.mLd  ),  30, 14 );
-    overwrite(phrase, std::to_string(lsu.mSt  ),  55, 14 );
-    overwrite(phrase, std::to_string(lsu.mJoin),  80, 14 );
+    phrase = "                       | mLd   :                | mSt   :                | mJoin :                |";
+    overwrite(phrase, std::to_string(lsu.mLd  ),  33, 14 );
+    overwrite(phrase, std::to_string(lsu.mSt  ),  58, 14 );
+    overwrite(phrase, std::to_string(lsu.mJoin),  83, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "                    | dLd   :                | dSt   :                | dJoin :                |";
-    overwrite(phrase, std::to_string(lsu.dLd  ),  30, 14 );
-    overwrite(phrase, std::to_string(lsu.dSt  ),  55, 14 );
-    overwrite(phrase, std::to_string(lsu.dJoin),  80, 14 );
+    phrase = "                       | dLd   :                | dSt   :                | dJoin :                |";
+    overwrite(phrase, std::to_string(lsu.dLd  ),  33, 14 );
+    overwrite(phrase, std::to_string(lsu.dSt  ),  58, 14 );
+    overwrite(phrase, std::to_string(lsu.dJoin),  83, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "                    |------------------------|------------------------|------------------------|";
+    phrase = "                       |------------------------|------------------------|------------------------|";
     printf("%s \n", phrase.c_str());
 
-    phrase = "            L2S     | tRD   :                | tWR   :                | tWB   :                |";
-    overwrite(phrase, std::to_string(l2s.hRD + l2s.mRD),  30, 14 );
-    overwrite(phrase, std::to_string(l2s.hWR + l2s.mWR),  55, 14 );
-    overwrite(phrase, std::to_string(l2s.tWB          ),  80, 14 );
+    phrase = "               L2S     | tRD   :                | tWR   :                | tWB   :                |";
+    overwrite(phrase, std::to_string(l2s.hRD + l2s.mRD),  33, 14 );
+    overwrite(phrase, std::to_string(l2s.hWR + l2s.mWR),  58, 14 );
+    overwrite(phrase, std::to_string(l2s.tWB          ),  83, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "                    | hRD   :                | hWR   :                |                        |";
-    overwrite(phrase, std::to_string(l2s.hRD          ),  30, 14 );
-    overwrite(phrase, std::to_string(l2s.hWR          ),  55, 14 );
+    phrase = "                       | hRD   :                | hWR   :                |                        |";
+    overwrite(phrase, std::to_string(l2s.hRD          ),  33, 14 );
+    overwrite(phrase, std::to_string(l2s.hWR          ),  58, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "                    | mRD   :                | mWR   :                |                        |";
-    overwrite(phrase, std::to_string(l2s.mRD          ),  30, 14 );
-    overwrite(phrase, std::to_string(l2s.mWR          ),  55, 14 );
+    phrase = "                       | mRD   :                | mWR   :                |                        |";
+    overwrite(phrase, std::to_string(l2s.mRD          ),  33, 14 );
+    overwrite(phrase, std::to_string(l2s.mWR          ),  58, 14 );
     printf("%s \n", phrase.c_str());
 
 
-    phrase = "------------------------------------------------------------------------------------------------";
+    phrase = "---------------------------------------------------------------------------------------------------";
     printf("%s \n", phrase.c_str());
 
     fflush(stdout);
 
 }
 
-void Interpreter::print_stats(const std::map<VerifID, uint32_t> commit_thread) {
+void Interpreter::print_stats(const std::map<VerifID, PerfCnt> commit_thread) {
 
 	uint32_t total = 0;
 
@@ -194,17 +194,17 @@ void Interpreter::print_stats(const std::map<VerifID, uint32_t> commit_thread) {
 	printf("\n\n----------- STATS -----------\n\n");
 	for(auto p: commit_thread) {
 
-        std::string phrase = " [id:     ] commits:            ";
-		overwrite(phrase, std::to_string(p.first ),  6, 3 );
-	    overwrite(phrase, std::to_string(p.second), 21, 11 );
+        std::string phrase = " [id:        ] commits:               ";
+		overwrite(phrase, std::to_string(p.first ),  6, 6 );
+	    overwrite(phrase, std::to_string(p.second), 24, 14 );
 	    printf("%s\n", phrase.c_str());
 
 	    total+=p.second;
 
     }
 
-    std::string phrase = "\n      total commits:            \n";
-	overwrite(phrase, std::to_string(total), 22, 11 );
+    std::string phrase = "\n         total commits:               \n";
+	overwrite(phrase, std::to_string(total), 25, 14 );
 	printf("%s\n", phrase.c_str());
 
 	printf("-----------------------------\n\n");

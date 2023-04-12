@@ -134,7 +134,7 @@ void CustomSpike::join(VerifID verifID, Data res) {
 
 }
 
-std::map<VerifID, uint32_t> CustomSpike::get_stats() {
+std::map<VerifID, PerfCnt> CustomSpike::get_stats() {
     return commit_thread;
 }
 
@@ -201,7 +201,7 @@ void CustomSpike::add_proc(VerifID verifID) {
     new_proc->get_mmu()->register_memtracer(&(this->st));
 
     active_thread.insert ( std::pair<VerifID,processor_t*>(verifID, new_proc) );
-    commit_thread.insert ( std::pair<VerifID,uint32_t>(verifID, 0) );
+    commit_thread.insert ( std::pair<VerifID,PerfCnt>(verifID, 0) );
 
 }
 

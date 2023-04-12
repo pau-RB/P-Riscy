@@ -10,6 +10,7 @@
 typedef uint32_t Data;
 typedef uint32_t Addr;
 typedef uint32_t VerifID;
+typedef uint64_t PerfCnt;
 typedef uint8_t  IType;
 typedef uint8_t  RIndx;
 
@@ -44,7 +45,7 @@ typedef uint8_t  RIndx;
 #define iTypeAuipc 12
 
 typedef struct {
-	Data    cycle;
+	PerfCnt cycle;
 	VerifID verifID;
 	Addr    pc;
 	Data    rawInst;
@@ -56,47 +57,47 @@ typedef struct {
 
 typedef struct {
 	VerifID verifID;
-	Data    cycle;
-	Data    commit;
+	PerfCnt cycle;
+	PerfCnt commit;
 	Data	data;
 } Message;
 
 typedef struct {
-	Data    hit;
-    Data    miss;
-    Data    empty;
+	PerfCnt hit;
+    PerfCnt miss;
+    PerfCnt empty;
 } FetchStat;
 
 typedef struct {
-	Data    memOvb;
-	Data    arithOvb;
-	Data    empty;
+	PerfCnt memOvb;
+	PerfCnt arithOvb;
+	PerfCnt empty;
 } ArbiterStat;
 
 typedef struct {
-	Data    hLd;
-    Data    hSt;
-    Data    hJoin;
-    Data    mLd;
-    Data    mSt;
-    Data    mJoin;
-    Data    dLd;
-    Data    dSt;
-    Data    dJoin;
+	PerfCnt hLd;
+    PerfCnt hSt;
+    PerfCnt hJoin;
+    PerfCnt mLd;
+    PerfCnt mSt;
+    PerfCnt mJoin;
+    PerfCnt dLd;
+    PerfCnt dSt;
+    PerfCnt dJoin;
 } LSUStat;
 
 typedef struct {
-	Data hWR; // Total hits on read
-	Data mWR; // Total miss on read
-	Data hRD; // Total hits on read
-	Data mRD; // Total miss on read
-	Data tWB; // Total writebacks
+	PerfCnt hWR; // Total hits on read
+	PerfCnt mWR; // Total miss on read
+	PerfCnt hRD; // Total hits on read
+	PerfCnt mRD; // Total miss on read
+	PerfCnt tWB; // Total writebacks
 } WMCStat;
 
 typedef struct {
 	VerifID     verifID;
-	Data        cycle;
-	Data        commit;
+	PerfCnt     cycle;
+	PerfCnt     commit;
 	Data	    data;
 	FetchStat   fetch;
 	ArbiterStat arbiter;

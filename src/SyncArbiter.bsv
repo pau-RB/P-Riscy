@@ -103,9 +103,9 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 
 	// Stats
 	`ifdef DEBUG_STATS
-	Reg#(Data) numMemOvb   <- mkReg(0);
-	Reg#(Data) numArithOvb <- mkReg(0);
-	Reg#(Data) numEmpty    <- mkReg(0);
+	Reg#(PerfCnt) numMemOvb   <- mkReg(0);
+	Reg#(PerfCnt) numArithOvb <- mkReg(0);
+	Reg#(PerfCnt) numEmpty    <- mkReg(0);
 	`endif
 
 	//////////// COUNTERS ////////////

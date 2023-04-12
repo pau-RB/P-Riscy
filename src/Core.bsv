@@ -47,8 +47,8 @@ module mkCore7SS(Core ifc);
 
 	//////////// COUNTERS ////////////
 
-	Reg#(Bool)   coreStarted <- mkReg(False);
-	Ehr#(2,Data) numCycles   <- mkEhr(0);
+	Reg#(Bool)      coreStarted <- mkReg(False);
+	Ehr#(2,PerfCnt) numCycles   <- mkEhr(0);
 
 	rule do_cnt_cycles if(coreStarted);
 		numCycles[0] <= numCycles[0]+1;
@@ -162,7 +162,7 @@ module mkCore7SS(Core ifc);
 
 			     if(i == 0) $write("%d ", numCycles[1]);
 			else if(i == 1) $write("%d ", backend.get_wb_commit());
-			else            $write("           ");
+			else            $write("                     ");
 
 			//////////// FETCH ////////////
 
@@ -251,7 +251,7 @@ module mkCore7SS(Core ifc);
 
 		end
 
-		$write("---------------------------------------------------------------------------------------------------------------------------------------------\n");
+		$write("-------------------------------------------------------------------------------------------------------------------------------------------------------\n");
 
 	endrule
 	`endif
