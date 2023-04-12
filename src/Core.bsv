@@ -42,6 +42,7 @@ interface Core;
 
 endinterface
 
+(*synthesize*)
 module mkCore7SS(Core ifc);
 
 	//////////// COUNTERS ////////////
