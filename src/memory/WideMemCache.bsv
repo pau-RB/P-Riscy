@@ -60,16 +60,16 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 		return truncateLSB(num);
 	endfunction
 
-	function cacheRowIdx indexOf(CacheLineNum num);
+	function cacheRowIdx indexOf(Integer offset, CacheLineNum num);
 		cacheRowIdx idx = '0;
 		for (Integer i = 0; i < valueOf(TLog#(cacheRows)); i=i+1)
 			for (Integer j = i; j < valueOf(CacheLineNumSz); j=j+valueOf(TLog#(cacheRows)))
-				idx[i] = idx[i]^num[j];
+				idx[i] = idx[i]^num[(j+offset)%valueOf(CacheLineNumSz)];
 		return idx;
 	endfunction
 
-	function cacheRowHash hashOf(CacheLineNum num);
-		return truncate(indexOf(num));
+	function cacheRowHash hashOf(Integer offset, CacheLineNum num);
+		return truncate(indexOf(offset, num));
 	endfunction
 
 	//////////// BRAM ////////////
@@ -176,10 +176,10 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 
 	for (Integer i = 0; i < valueOf(cacheColumns); i=i+1) begin
 
-		rule do_COLREQ if(!isValid(invIndex) && !colWBQ[i].notEmpty() && (!isValid(writePortHash[i][1]) || fromMaybe(?,writePortHash[i][1]) != hashOf(colReqQ[i].first.num)));
+		rule do_COLREQ if(!isValid(invIndex) && !colWBQ[i].notEmpty() && (!isValid(writePortHash[i][1]) || fromMaybe(?,writePortHash[i][1]) != hashOf(i,colReqQ[i].first.num)));
 
 			WMCReq#(void) req = colReqQ[i].first(); colReqQ[i].deq();
-			cacheRowIdx index = indexOf(req.num);
+			cacheRowIdx index = indexOf(i,req.num);
 
 			colBRMQ[i].enq(req);
 
@@ -210,7 +210,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 			cacheTag  tag  <- tagsArray[i].portA.response.get;
 			CacheMeta meta <- metaArray[i].portA.response.get;
 
-			cacheRowIdx index = indexOf(req.num);
+			cacheRowIdx index = indexOf(i,req.num);
 
 
 			case (req.op)
@@ -239,7 +239,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 				                                             address        : index,
 				                                             datain         : newMeta } );
 
-				writePortHash[i][0] <= tagged Valid (hashOf(req.num));
+				writePortHash[i][0] <= tagged Valid (hashOf(i,req.num));
 
 			end
 			INV: begin
@@ -253,7 +253,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 					                                             datain         : newMeta } );
 				end
 
-				writePortHash[i][0] <= tagged Valid (hashOf(req.num));
+				writePortHash[i][0] <= tagged Valid (hashOf(i,req.num));
 				end
 
 			WR : begin
@@ -276,7 +276,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 					                                             address        : index,
 					                                             datain         : newMeta } );
 
-					writePortHash[i][0] <= tagged Valid (hashOf(req.num));
+					writePortHash[i][0] <= tagged Valid (hashOf(i,req.num));
 
 					colResQ[i].enq(tagged Valid (?));
 
