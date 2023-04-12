@@ -97,9 +97,9 @@ module mkBackend (Backend ifc);
 
 	// Missed access table
 	Vector#(NumHart, FIFOF#(OldToken)) miata    <- replicateM(mkPipelineFIFOF());
-	Vector#(NumHart, Ehr#(2,MiataAge)) miataAge <- replicateM(mkEhr('0  ));
-	Vector#(NumHart, Ehr#(2,Bool    )) miataEvi <- replicateM(mkEhr(True));
-	Vector#(NumHart, Ehr#(2,VerifID )) miataVer <- replicateM(mkEhr(?   ));
+	Vector#(NumHart, Ehr#(3,MiataAge)) miataAge <- replicateM(mkEhr('0  ));
+	Vector#(NumHart, Ehr#(3,Bool    )) miataEvi <- replicateM(mkEhr(True));
+	Vector#(NumHart, Ehr#(3,VerifID )) miataVer <- replicateM(mkEhr(?   ));
 
 	// Epoch
 	Vector#(FrontWidth, Ehr#(2,Epoch) ) commitEpoch <- replicateM(mkEhr('0));
@@ -109,13 +109,13 @@ module mkBackend (Backend ifc);
 	FIFOF#(Vector#(BackWidth,Maybe#(MemToken)))     memoryQ         <- mkPipelineFIFOF();
 	FIFOF#(Vector#(BackWidth,Maybe#(ComToken)))     commitQ         <- mkPipelineFIFOF();
 
-	Vector#(2,Vector#(FrontWidth, FIFOF#(void    ))) toWBsbRemove    <- replicateM(replicateM(mkBypassFIFOF));
-	Vector#(2,Vector#(FrontWidth, FIFOF#(RFwb    ))) toWBrfWriteBack <- replicateM(replicateM(mkBypassFIFOF));
-	Vector#(2,Vector#(FrontWidth, FIFOF#(Epoch   ))) toWBstEpoch     <- replicateM(replicateM(mkBypassFIFOF));
-	Vector#(2,Vector#(FrontWidth, FIFOF#(Redirect))) toWBstRedirect  <- replicateM(replicateM(mkBypassFIFOF));
+	Vector#(3,Vector#(FrontWidth, FIFOF#(void    ))) toWBsbRemove    <- replicateM(replicateM(mkBypassFIFOF));
+	Vector#(3,Vector#(FrontWidth, FIFOF#(RFwb    ))) toWBrfWriteBack <- replicateM(replicateM(mkBypassFIFOF));
+	Vector#(3,Vector#(FrontWidth, FIFOF#(Epoch   ))) toWBstEpoch     <- replicateM(replicateM(mkBypassFIFOF));
+	Vector#(3,Vector#(FrontWidth, FIFOF#(Redirect))) toWBstRedirect  <- replicateM(replicateM(mkBypassFIFOF));
 
 	// To NTTX
-	FIFOF#(NTTXreq)                                eforkQ          <- mkFIFOF();
+	Vector#(3,FIFOF#(NTTXreq))                     tonttx          <- replicateM(mkFIFOF());
 	Vector#(FrontWidth, Reg#(HartID))              mapHartID       <- replicateM(mkRegU());
 
 	// MulDiv
@@ -373,11 +373,11 @@ module mkBackend (Backend ifc);
 
 				if(cToken.iType == Ghost) begin
 
-					eforkQ.enq(NTTXreq { frontID: cToken.feID            ,
-					                     hartID : mapHartID [cToken.feID],
-					                     verifID: mapVerifID[cToken.feID],
-					                     nextpc : cToken.nextpc          ,
-					                     reqtype: EVICT                  });
+					tonttx[2].enq(NTTXreq { frontID: cToken.feID            ,
+					                        hartID : mapHartID [cToken.feID],
+					                        verifID: mapVerifID[cToken.feID],
+					                        nextpc : cToken.nextpc          ,
+					                        reqtype: EVICT                  });
 
 				end else if(cToken.iType == Ld) begin
 
@@ -402,9 +402,9 @@ module mkBackend (Backend ifc);
 						                                                 `endif
 						                                                 nextpc : cToken.nextpc            ,
 						                                                 dst    : fromMaybe('0,cToken.dst) });
-						miataAge  [mapHartID[cToken.feID]][0] <= '0;
-						miataEvi  [mapHartID[cToken.feID]][0] <= False;
-						miataVer  [mapHartID[cToken.feID]][0] <= mapVerifID[cToken.feID];
+						miataAge  [mapHartID[cToken.feID]][2] <= '0;
+						miataEvi  [mapHartID[cToken.feID]][2] <= False;
+						miataVer  [mapHartID[cToken.feID]][2] <= mapVerifID[cToken.feID];
 
 						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
 						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
@@ -440,9 +440,9 @@ module mkBackend (Backend ifc);
 						                                                `endif
 						                                                nextpc : cToken.nextpc            ,
 						                                                dst    : fromMaybe('0,cToken.dst) });
-						miataAge  [mapHartID[cToken.feID]][0] <= '0;
-						miataEvi  [mapHartID[cToken.feID]][0] <= False;
-						miataVer  [mapHartID[cToken.feID]][0] <= mapVerifID[cToken.feID];
+						miataAge  [mapHartID[cToken.feID]][2] <= '0;
+						miataEvi  [mapHartID[cToken.feID]][2] <= False;
+						miataVer  [mapHartID[cToken.feID]][2] <= mapVerifID[cToken.feID];
 
 						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
 						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
@@ -468,11 +468,11 @@ module mkBackend (Backend ifc);
 							                                                 redirect: False,
 							                                                 epoch   : commitEpoch[cToken.feID][0]+1,
 							                                                 nextPc  : ? };
-							eforkQ.enq(NTTXreq { frontID: cToken.feID            ,
-							                     hartID : mapHartID [cToken.feID],
-							                     verifID: mapVerifID[cToken.feID],
-							                     nextpc : cToken.nextpc          ,
-							                     reqtype: JOIN                   });
+							tonttx[2].enq(NTTXreq { frontID: cToken.feID            ,
+							                        hartID : mapHartID [cToken.feID],
+							                        verifID: mapVerifID[cToken.feID],
+							                        nextpc : cToken.nextpc          ,
+							                        reqtype: JOIN                   });
 						end
 						numWB = numWB+1;
 						`ifdef DEBUG_CMR
@@ -492,9 +492,9 @@ module mkBackend (Backend ifc);
 						                                                `endif
 						                                                nextpc : cToken.nextpc            ,
 						                                                dst    : fromMaybe('0,cToken.dst) });
-						miataAge  [mapHartID[cToken.feID]][0] <= '0;
-						miataEvi  [mapHartID[cToken.feID]][0] <= False;
-						miataVer  [mapHartID[cToken.feID]][0] <= mapVerifID[cToken.feID];
+						miataAge  [mapHartID[cToken.feID]][2] <= '0;
+						miataEvi  [mapHartID[cToken.feID]][2] <= False;
+						miataVer  [mapHartID[cToken.feID]][2] <= mapVerifID[cToken.feID];
 
 						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
 						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
@@ -512,11 +512,11 @@ module mkBackend (Backend ifc);
 
 					nextID <= nextID+1;
 
-					eforkQ.enq(NTTXreq { frontID: cToken.feID           ,
-					                     hartID : mapHartID[cToken.feID],
-					                     verifID: nextID                ,
-					                     nextpc : cToken.addr           ,
-					                     reqtype: FORK                  });
+					tonttx[2].enq(NTTXreq { frontID: cToken.feID           ,
+					                        hartID : mapHartID[cToken.feID],
+					                        verifID: nextID                ,
+					                        nextpc : cToken.addr           ,
+					                        reqtype: FORK                  });
 
 					stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
 					stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
@@ -634,10 +634,10 @@ module mkBackend (Backend ifc);
 
 		// To WB
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(sbRemove   [i] matches tagged Valid .lat) toWBsbRemove   [0][i].enq(lat);
-			if(rfWriteBack[i] matches tagged Valid .lat) toWBrfWriteBack[0][i].enq(lat);
-			if(stEpoch    [i] matches tagged Valid .lat) toWBstEpoch    [0][i].enq(lat);
-			if(stRedirect [i] matches tagged Valid .lat) toWBstRedirect [0][i].enq(lat);
+			if(sbRemove   [i] matches tagged Valid .lat) toWBsbRemove   [2][i].enq(lat);
+			if(rfWriteBack[i] matches tagged Valid .lat) toWBrfWriteBack[2][i].enq(lat);
+			if(stEpoch    [i] matches tagged Valid .lat) toWBstEpoch    [2][i].enq(lat);
+			if(stRedirect [i] matches tagged Valid .lat) toWBstRedirect [2][i].enq(lat);
 		end
 
 		// Num  commit
@@ -664,7 +664,7 @@ module mkBackend (Backend ifc);
 		FrontID          feID    = cToken.feID;
 		Data             loadRes = 'hdeadbeef;
 
-		if(!miataEvi[resp.transId][0]) begin
+		if(!miataEvi[resp.transId][1]) begin
 			// The stream has not yet been evicted, can commit and resume execution as usual
 
 			if(cToken.iType == Ld) begin
@@ -715,18 +715,18 @@ module mkBackend (Backend ifc);
 			// The stream has been evicted, cannot commit Ld or trust any feID-indexed field
 
 			if(cToken.iType == Ld) begin
-				eforkQ.enq(NTTXreq { frontID: ?           ,
-				                     hartID : resp.transId,
-				                     verifID: ?           ,
-				                     nextpc : ?           ,
-				                     reqtype: MKRD        });
+				tonttx[1].enq(NTTXreq { frontID: ?           ,
+				                        hartID : resp.transId,
+				                        verifID: ?           ,
+				                        nextpc : ?           ,
+				                        reqtype: MKRD        });
 
 			end else if(cToken.iType == St) begin
-				eforkQ.enq(NTTXreq { frontID: ?           ,
-				                     hartID : resp.transId,
-				                     verifID: ?           ,
-				                     nextpc : ?           ,
-				                     reqtype: MKRD        });
+				tonttx[1].enq(NTTXreq { frontID: ?           ,
+				                        hartID : resp.transId,
+				                        verifID: ?           ,
+				                        nextpc : ?           ,
+				                        reqtype: MKRD        });
 
 				numCommit[0] <= numCommit[0]+1;
 
@@ -735,7 +735,7 @@ module mkBackend (Backend ifc);
 		end
 
 		`ifdef DEBUG_CMR
-		if(!miataEvi[resp.transId][0] || cToken.iType == St)
+		if(!miataEvi[resp.transId][1] || cToken.iType == St)
 			commitReportQ.port[0].enq(generateOldCMR(numCycles, miataVer[resp.transId][0], cToken, loadRes));
 		`endif
 
@@ -746,40 +746,40 @@ module mkBackend (Backend ifc);
 	endrule
 
 	for(Integer i = 0; i < valueOf(NumHart); i=i+1) begin
-		rule do_miata_evi if(miataAge[i][1] == fromInteger(valueOf(MiataThresh)) && !miataEvi[i][1]);
+		rule do_miata_evi if(miataAge[i][0] == fromInteger(valueOf(MiataThresh)) && !miataEvi[i][0]);
 
 				OldToken cToken = miata[i].first;
 				if(cToken.iType == Ld) begin
 
-					miataEvi[i][1] <= True;
-					toWBstEpoch   [1][cToken.feID].enq(commitEpoch[cToken.feID][0]+1);
-					toWBstRedirect[1][cToken.feID].enq(Redirect{lock    : True                         ,
+					miataEvi   [i][0] <= True;
+					toWBstEpoch   [0][cToken.feID].enq(commitEpoch[cToken.feID][0]+1);
+					toWBstRedirect[0][cToken.feID].enq(Redirect{lock    : True                         ,
 					                                            dry     : False                        ,
 					                                            kill    : True                         ,
 					                                            redirect: False                        ,
 					                                            epoch   : commitEpoch[cToken.feID][0]+1,
 					                                            nextPc  : ?                            });
-					eforkQ.enq(NTTXreq { frontID: cToken.feID    ,
-					                     hartID : fromInteger(i) ,
-					                     verifID: miataVer[i][1] ,
-					                     nextpc : cToken.nextpc-4,
-					                     reqtype: STALL          });
+					tonttx[0].enq(NTTXreq { frontID: cToken.feID    ,
+					                        hartID : fromInteger(i) ,
+					                        verifID: miataVer[i][1] ,
+					                        nextpc : cToken.nextpc-4,
+					                        reqtype: STALL          });
 
 				end else if(cToken.iType == St) begin
 
-					miataEvi[i][1] <= True;
-					toWBstEpoch   [1][cToken.feID].enq(commitEpoch[cToken.feID][0]+1);
-					toWBstRedirect[1][cToken.feID].enq(Redirect{lock    : True                         ,
+					miataEvi   [i][0] <= True;
+					toWBstEpoch   [0][cToken.feID].enq(commitEpoch[cToken.feID][0]+1);
+					toWBstRedirect[0][cToken.feID].enq(Redirect{lock    : True                         ,
 					                                            dry     : False                        ,
 					                                            kill    : True                         ,
 					                                            redirect: False                        ,
 					                                            epoch   : commitEpoch[cToken.feID][0]+1,
 					                                            nextPc  : ?                            });
-					eforkQ.enq(NTTXreq { frontID: cToken.feID   ,
-					                     hartID : fromInteger(i),
-					                     verifID: miataVer[i][1],
-					                     nextpc : cToken.nextpc ,
-					                     reqtype: STALL         });
+					tonttx[0].enq(NTTXreq { frontID: cToken.feID   ,
+					                        hartID : fromInteger(i),
+					                        verifID: miataVer[i][1],
+					                        nextpc : cToken.nextpc ,
+					                        reqtype: STALL         });
 
 				end
 
@@ -787,8 +787,8 @@ module mkBackend (Backend ifc);
 	end
 
 	for(Integer i = 0; i < valueOf(NumHart); i=i+1) begin
-		rule do_miata_age if(miataAge[i][1] != fromInteger(valueOf(MiataThresh)) && !miataEvi[i][1]);
-				miataAge[i][1] <= (miataAge[i][1]+1);
+		rule do_miata_age if(miataAge[i][0] != fromInteger(valueOf(MiataThresh)) && !miataEvi[i][0]);
+				miataAge[i][0] <= (miataAge[i][0]+1);
 		endrule
 	end
 
@@ -797,17 +797,21 @@ module mkBackend (Backend ifc);
 
 		rule do_wb;
 
-			     if(toWBsbRemove   [0][i].notEmpty) begin sbRemoveQ   [i].enq(toWBsbRemove   [0][i].first); toWBsbRemove   [0][i].deq(); end
+			     if(toWBsbRemove   [2][i].notEmpty) begin sbRemoveQ   [i].enq(toWBsbRemove   [2][i].first); toWBsbRemove   [2][i].deq(); end
 			else if(toWBsbRemove   [1][i].notEmpty) begin sbRemoveQ   [i].enq(toWBsbRemove   [1][i].first); toWBsbRemove   [1][i].deq(); end
+			else if(toWBsbRemove   [0][i].notEmpty) begin sbRemoveQ   [i].enq(toWBsbRemove   [0][i].first); toWBsbRemove   [0][i].deq(); end
 
-			     if(toWBrfWriteBack[0][i].notEmpty) begin rfWriteBackQ[i].enq(toWBrfWriteBack[0][i].first); toWBrfWriteBack[0][i].deq(); end
+			     if(toWBrfWriteBack[2][i].notEmpty) begin rfWriteBackQ[i].enq(toWBrfWriteBack[2][i].first); toWBrfWriteBack[2][i].deq(); end
 			else if(toWBrfWriteBack[1][i].notEmpty) begin rfWriteBackQ[i].enq(toWBrfWriteBack[1][i].first); toWBrfWriteBack[1][i].deq(); end
+			else if(toWBrfWriteBack[0][i].notEmpty) begin rfWriteBackQ[i].enq(toWBrfWriteBack[0][i].first); toWBrfWriteBack[0][i].deq(); end
 
-			     if(toWBstEpoch    [0][i].notEmpty) begin commitEpoch [i][0] <= toWBstEpoch  [0][i].first ; toWBstEpoch    [0][i].deq(); end
+			     if(toWBstEpoch    [2][i].notEmpty) begin commitEpoch [i][0] <= toWBstEpoch  [2][i].first ; toWBstEpoch    [2][i].deq(); end
 			else if(toWBstEpoch    [1][i].notEmpty) begin commitEpoch [i][0] <= toWBstEpoch  [1][i].first ; toWBstEpoch    [1][i].deq(); end
+			else if(toWBstEpoch    [0][i].notEmpty) begin commitEpoch [i][0] <= toWBstEpoch  [0][i].first ; toWBstEpoch    [0][i].deq(); end
 
-			     if(toWBstRedirect [0][i].notEmpty) begin redirectQ   [i].enq(toWBstRedirect [0][i].first); toWBstRedirect [0][i].deq(); end
+			     if(toWBstRedirect [2][i].notEmpty) begin redirectQ   [i].enq(toWBstRedirect [2][i].first); toWBstRedirect [2][i].deq(); end
 			else if(toWBstRedirect [1][i].notEmpty) begin redirectQ   [i].enq(toWBstRedirect [1][i].first); toWBstRedirect [1][i].deq(); end
+			else if(toWBstRedirect [0][i].notEmpty) begin redirectQ   [i].enq(toWBstRedirect [0][i].first); toWBstRedirect [0][i].deq(); end
 
 		endrule
 
@@ -877,7 +881,9 @@ module mkBackend (Backend ifc);
 
 	// To NTTX
 	method ActionValue#(NTTXreq) getFork();
-		eforkQ.deq(); return eforkQ.first();
+		     if(tonttx[2].notEmpty) begin tonttx[2].deq; return tonttx[2].first; end
+		else if(tonttx[1].notEmpty) begin tonttx[1].deq; return tonttx[1].first; end
+		else                        begin tonttx[0].deq; return tonttx[0].first; end
 	endmethod
 
 	method Action setHartID(FrontID feID, HartID hartID);
