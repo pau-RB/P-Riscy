@@ -19,7 +19,7 @@ import XilinxIntMul::*;
 import XilinxIntDiv::*;
 import Scoreboard::*;
 import RFile::*;
-import LSU::*;
+import L1D::*;
 import Execution::*;
 import NTTX::*;
 
@@ -90,8 +90,8 @@ endinterface
 
 module mkBackend (Backend ifc);
 
-	// LSU
-	LSU#(FrontWidth) lsu <- mkLSU();
+	// L1D
+	L1D#(FrontWidth, L1DCacheRows, L1DCacheColumns) l1D <- mkL1D();
 
 	// Missed access table
 	Vector#(FrontWidth, FIFOF#(OldToken)) miata <- replicateM(mkPipelineFIFOF());
@@ -283,24 +283,24 @@ module mkBackend (Backend ifc);
 			                        dst    : mToken.dst    };
 			toCommit[0] = tagged Valid cToken;
 
-			// Send LSU req, if the instruction is valid
+			// Send L1D req, if the instruction is valid
 			if (mToken.epoch == commitEpoch[mToken.feID][1]) begin
 				if (mToken.iType == Ld) begin
-					lsu.req(LSUReq{ op     : Ld           ,
+					l1D.req(L1DReq{ op     : Ld           ,
 					                ldFunc : mToken.ldFunc,
 					                stFunc : mToken.stFunc,
 					                addr   : mToken.addr  ,
 					                data   : mToken.res   ,
 					                transId: mToken.feID  });
 				end else if (mToken.iType == St) begin
-					lsu.req(LSUReq{ op     : St           ,
+					l1D.req(L1DReq{ op     : St           ,
 					                ldFunc : mToken.ldFunc,
 					                stFunc : mToken.stFunc,
 					                addr   : mToken.addr  ,
 					                data   : mToken.res   ,
 					                transId: mToken.feID  });
 				end else if(mToken.iType == Join) begin
-					lsu.req(LSUReq{ op     : Join         ,
+					l1D.req(L1DReq{ op     : Join         ,
 					                ldFunc : mToken.ldFunc,
 					                stFunc : mToken.stFunc,
 					                addr   : mToken.addr  ,
@@ -374,7 +374,7 @@ module mkBackend (Backend ifc);
 
 				end else if(cToken.iType == Ld) begin
 
-					let res <- lsu.resp();
+					let res <- l1D.resp();
 					if(res.valid) begin
 						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe(?, cToken.dst), res: res.data};
 						numWB = numWB+1;
@@ -410,7 +410,7 @@ module mkBackend (Backend ifc);
 
 				end else if(cToken.iType == St) begin
 
-					let res <- lsu.resp();
+					let res <- l1D.resp();
 					if(res.valid) begin
 						numWB = numWB+1;
 						`ifdef DEBUG_CMR
@@ -445,7 +445,7 @@ module mkBackend (Backend ifc);
 
 				end else if(cToken.iType == Join) begin
 
-					let res <- lsu.resp();
+					let res <- l1D.resp();
 					if(res.valid) begin
 						if(res.data == '0) begin
 							stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
@@ -529,7 +529,7 @@ module mkBackend (Backend ifc);
 				end
 				if (mem_ext_DEBUG == True) begin
 					if(cToken.iType == St && cToken.addr == msr_ADDR) begin
-						LSUStat   lsr = lsu.getStat();
+						LSUStat   lsr = l1D.getStat();
 						MemStat   msr = MemStat{ verifID: mapID[cToken.feID],
 						                         cycle  : numCycles,
 						                         commit : numCommit[1],
@@ -636,7 +636,7 @@ module mkBackend (Backend ifc);
 
 	rule do_old_commit;
 
-		LSUResp#(FrontID) resp   <- lsu.oldResp();
+		L1DResp#(FrontID) resp   <- l1D.oldResp();
 		OldToken          cToken  = miata[resp.transId].first; miata[resp.transId].deq();
 		FrontID           feID    = resp.transId;
 		Data              loadRes = 'hdeadbeef;
@@ -767,7 +767,7 @@ module mkBackend (Backend ifc);
 	end
 
 	// DMEM
-	interface mem = lsu.mem;
+	interface mem = l1D.mem;
 
 	// Execute
 	method Action enq(Vector#(BackWidth, Maybe#(ExecToken)) inst);

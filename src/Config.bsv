@@ -30,9 +30,8 @@ typedef 2   L1ICacheColumns; // Must be power of 2
 Bool l1IAssociative = False;
 
 // LSU
-typedef 256 LSUCacheRows;    // Must be power of 2
-typedef 2   LSUCacheColumns; // Must be power of 2
-Bool lsuAssociative = False;
+typedef 256 L1DCacheRows;    // Must be power of 2
+typedef 1   L1DCacheColumns; // Must be power of 2
 
 // L2
 `ifdef L2SC
