@@ -43,13 +43,20 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	Reg#(Bool) cpuInit <- mkReg(False);
 
 	WideMemDDR4#(RAMLatency, Tuple2#(Bit#(TLog#(2)),FrontID))                                      mainDDR4 <- mkWideMemDDR4(host);
+	`ifdef L2SC
 	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, Tuple2#(Bit#(TLog#(2)),FrontID)) mainL2SC <- mkWideMemCache();
+	`endif
 	WideMemSplit#(2,TMul#(2,FrontWidth), FrontID)                                                  mainL2SB <- mkSplitWideMem();
 
 	Core core <- mkCore7SS();
 
+	`ifdef L2SC
 	mkConnection(mainL2SC.mem, mainDDR4.portA  );
 	mkConnection(mainL2SB.mem, mainL2SC.portA  );
+	`else
+	mkConnection(mainL2SB.mem, mainDDR4.portA  );
+	`endif
+
 	mkConnection(core.instMem, mainL2SB.port[0]);
 	mkConnection(core.dataMem, mainL2SB.port[1]);
 
@@ -94,7 +101,11 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	endrule
 	rule getMSR if(mem_ext_DEBUG);
 		let latest <- core.getMSR();
+		`ifdef L2SC
 		latest.l2s = mainL2SC.getStat();
+		`else
+		latest.l2s = unpack('0);
+		`endif
 		mainMSRQ.enq(latest);
 	endrule
 	`endif

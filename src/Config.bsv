@@ -35,9 +35,11 @@ typedef 2   LSUCacheColumns; // Must be power of 2
 Bool lsuAssociative = False;
 
 // L2
-typedef 256 L2CacheRows;       // Must be power of 2
-typedef 4   L2CacheColumns;    // Must be power of 2
-typedef 16  L2CacheHashBlocks; // Must be power of 2
+`ifdef L2SC
+typedef 256  L2CacheRows;       // Must be power of 2
+typedef 4    L2CacheColumns;    // Must be power of 2
+typedef 16   L2CacheHashBlocks; // Must be power of 2
+`endif
 
 // Main Mem
 typedef 100 RAMLatency;
