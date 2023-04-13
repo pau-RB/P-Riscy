@@ -32,14 +32,18 @@ endinterface
 
 interface WideMemDDR4#(numeric type simLatency, type tagT);
 	interface WideMemServer#(tagT) portA;
+	interface WideMemServer#(tagT) portB;
 	interface Top_Pins pins;
 endinterface
 
 module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency, tagT) ifc) provisos(Add#(a__, 2, simLatency), Bits#(tagT, t__));
 
-	FIFO#(WideMemReq#(tagT)) reqQ <- mkFIFO();
-	FIFO#(tagT             ) memQ <- mkFIFO();
-	FIFO#(WideMemRes#(tagT)) resQ <- mkFIFO();
+	FIFO#(WideMemReq#(tagT)) reqAQ <- mkFIFO();
+	FIFO#(WideMemReq#(tagT)) reqBQ <- mkFIFO();
+	FIFO#(tagT             ) tagQ  <- mkFIFO();
+	FIFO#(Bool             ) porQ  <- mkFIFO();
+	FIFO#(WideMemRes#(tagT)) resAQ <- mkFIFO();
+	FIFO#(WideMemRes#(tagT)) resBQ <- mkFIFO();
 
 	Vector#(2,FIFO#(DDRRequest )) ddr4_req <- replicateM(mkFIFO());
 	Vector#(2,FIFO#(DDRResponse)) ddr4_res <- replicateM(mkFIFO());
@@ -81,10 +85,24 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency, tagT) ifc) pro
 
 	`endif
 
-	rule do_ddr4_req;
-		WideMemReq#(tagT) req = reqQ.first(); reqQ.deq();
-		if(!req.write)
-			memQ.enq(req.tag);
+	rule do_ddr4_reqA;
+		WideMemReq#(tagT) req = reqAQ.first(); reqAQ.deq();
+		if(!req.write) begin
+			tagQ.enq(req.tag);
+			porQ.enq(True   );
+		end
+		if(req.write)
+			ddr4_req[0].enq(DDRRequest{address: extend(req.num<<3), writeen: {16'b0,-1}, datain: {?,pack(req.line)} });
+		else
+			ddr4_req[0].enq(DDRRequest{address: extend(req.num<<3), writeen: 80'b0, datain:?});
+	endrule
+
+	rule do_ddr4_reqB;
+		WideMemReq#(tagT) req = reqBQ.first(); reqBQ.deq();
+		if(!req.write) begin
+			tagQ.enq(req.tag);
+			porQ.enq(False  );
+		end
 		if(req.write)
 			ddr4_req[0].enq(DDRRequest{address: extend(req.num<<3), writeen: {16'b0,-1}, datain: {?,pack(req.line)} });
 		else
@@ -93,29 +111,54 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency, tagT) ifc) pro
 
 	rule do_ddr4_res;
 		DDRResponse res = ddr4_res[0].first(); ddr4_res[0].deq();
-		tagT tag = memQ.first(); memQ.deq();
-		resQ.enq(WideMemRes{ tag: tag, line: unpack(truncate(res)) });
+		tagT tag = tagQ.first(); tagQ.deq();
+		Bool por = porQ.first(); porQ.deq();
+		if(por) begin
+			resAQ.enq(WideMemRes{ tag: tag, line: unpack(truncate(res)) });
+		end else begin
+			resBQ.enq(WideMemRes{ tag: tag, line: unpack(truncate(res)) });
+		end
 	endrule
 
-	WideMemServer#(tagT) wmifc = (interface WideMemServer#(tagT);
+	WideMemServer#(tagT) wmifcA = (interface WideMemServer#(tagT);
 				interface request = (interface Put#(WideMemReq);
 					method Action put(WideMemReq#(tagT) r);
-						reqQ.enq(r);
+						reqAQ.enq(r);
 					endmethod
 				endinterface);
 				interface response = (interface Get#(WideMemRes);
 					method ActionValue#(WideMemRes#(tagT)) get();
-						resQ.deq(); return resQ.first();
+						resAQ.deq(); return resAQ.first();
+					endmethod
+				endinterface);
+			 endinterface);
+
+	WideMemServer#(tagT) wmifcB = (interface WideMemServer#(tagT);
+				interface request = (interface Put#(WideMemReq);
+					method Action put(WideMemReq#(tagT) r);
+						reqBQ.enq(r);
+					endmethod
+				endinterface);
+				interface response = (interface Get#(WideMemRes);
+					method ActionValue#(WideMemRes#(tagT)) get();
+						resBQ.deq(); return resBQ.first();
 					endmethod
 				endinterface);
 			 endinterface);
 
 	`ifdef SIMULATION
-		WideMemDelay#(TSub#(simLatency,2), tagT) simIfc <- mkWideMemDelay();
-		mkConnection(simIfc.mem,wmifc);
-		interface WideMemServer portA = simIfc.portA;
+		WideMemDelay#(TSub#(simLatency,2), tagT) simIfcA <- mkWideMemDelay();
+		WideMemDelay#(TSub#(simLatency,2), tagT) simIfcB <- mkWideMemDelay();
+		mkConnection(simIfcA.mem,wmifcA);
+		mkConnection(simIfcB.mem,wmifcB);
+	`endif
+
+	`ifdef SIMULATION
+		interface WideMemServer portA = simIfcA.portA;
+		interface WideMemServer portB = simIfcB.portA;
 	`else
-		interface WideMemServer portA = wmifc;
+		interface WideMemServer portA = wmifcA;
+		interface WideMemServer portB = wmifcB;
 	`endif
 
 	interface Top_Pins pins;

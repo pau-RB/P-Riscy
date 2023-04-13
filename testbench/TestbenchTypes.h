@@ -13,6 +13,7 @@ typedef uint32_t VerifID;
 typedef uint64_t PerfCnt;
 typedef uint8_t  IType;
 typedef uint8_t  RIndx;
+typedef uint8_t  TestType;
 
 // opcode
 #define opLoad    0b0000011
@@ -43,6 +44,23 @@ typedef uint8_t  RIndx;
 #define iTypeJr    10
 #define iTypeBr    11
 #define iTypeAuipc 12
+
+// Mem test
+#define RDLAT 0
+#define MXLAT 1
+#define RDTHP 2
+#define WRTHP 3
+#define MXTHP 4
+#define TTEND 5
+
+typedef struct {
+	PerfCnt  testlen; // Length of the test
+	TestType testtyp; // Type of the test
+	Addr     teststr; // Test stride
+	PerfCnt  latency; // Sum of latencies
+	PerfCnt  delayTX; // Send delay
+	PerfCnt  delayRX; // Recieve delay
+} TestRes;
 
 typedef struct {
 	PerfCnt cycle;

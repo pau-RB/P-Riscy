@@ -19,6 +19,7 @@ class Interpreter {
 		static std::string uint_to_hex(uint32_t w);
 		static std::string int_to_hex(int32_t w);
 
+		void print_TST_dut(const TestRes tst);
 		void print_CMR_spk(const CommitReport cmr);
 		void print_CMR_dut(const CommitReport cmr);
 		void print_MSG_dut(const Message msg);
@@ -32,6 +33,7 @@ class Interpreter {
 
 		static void overwrite(std::string &base, const std::string &text, int position, int max);
 
+		std::string print_testType(const TestType tType);
 		std::string print_itype(const IType iType);
 		std::string print_disasm(const Data uinst);
 

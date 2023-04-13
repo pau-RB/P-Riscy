@@ -15,6 +15,7 @@ import WideMemDDR4::*;
 import WideMemBRAM::*;
 import WideMemCache::*;
 import WideMemSplit::*;
+import WideMemTester::*;
 import FIFOF::*;
 import FIFO::*;
 import BRAMFIFO::*;
@@ -39,6 +40,9 @@ endinterface
 
 module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
+	`ifdef MEMTEST
+	Reg#(Bool) tstInit <- mkReg(False);
+	`endif
 	Reg#(Bool) memInit <- mkReg(False);
 	Reg#(Bool) cpuInit <- mkReg(False);
 
@@ -47,6 +51,10 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, Tuple2#(Bit#(TLog#(2)),FrontID)) mainL2SC <- mkWideMemCache();
 	`endif
 	WideMemSplit#(2,TMul#(2,FrontWidth), FrontID)                                                  mainL2SB <- mkSplitWideMem();
+
+	`ifdef MEMTEST
+	WideMemTester#(Tuple2#(Bit#(TLog#(2)),FrontID))                                                memTest  <- mkWideMemTester();
+	`endif
 
 	Core core <- mkCore7SS();
 
@@ -60,8 +68,15 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	mkConnection(core.instMem, mainL2SB.port[0]);
 	mkConnection(core.dataMem, mainL2SB.port[1]);
 
+	`ifdef MEMTEST
+	mkConnection(memTest.mem, mainDDR4.portB);
+	`endif
+
 	FIFOF#(ContToken) mainTokenQ <- mkSizedBRAMFIFOF(valueOf(MTQ_LEN));
 
+	`ifdef MEMTEST
+	FIFOF#(TestRes)      mainTSTQ <- mkSizedBRAMFIFOF(valueOf(MTHQ_LEN));
+	`endif
 	`ifdef DEBUG_CMR
 	FIFOF#(CommitReport) mainCMRQ <- mkSizedBRAMFIFOF(valueOf(MTHQ_LEN));
 	`endif
@@ -82,6 +97,16 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	endrule
 
 	//////////// RELAY REPORTS ////////////
+
+	`ifdef MEMTEST
+	rule getTST;
+		memTest.deq();
+		if(memTest.first.testtyp == TTEND)
+			tstInit <= True;
+		else
+			mainTSTQ.enq(memTest.first());
+	endrule
+	`endif
 
 	`ifdef DEBUG_CMR
 	rule getCMR;
@@ -107,6 +132,15 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 		latest.l2s = unpack('0);
 		`endif
 		mainMSRQ.enq(latest);
+	endrule
+	`endif
+
+	`ifdef MEMTEST
+	rule relayTST;
+		TestRes latest = mainTSTQ.first(); mainTSTQ.deq();
+		Bit#(8)  testtyp = zeroExtend(pack(latest.testtyp));
+		Bit#(32) teststr = zeroExtend(pack(latest.teststr));
+		ind.testMem(latest.testlen, testtyp, teststr,latest.latency, latest.delayTX, latest.delayRX);
 	endrule
 	`endif
 
@@ -149,7 +183,19 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 	interface FromHost connectProc;
 
+		method Action tstMem (Bit#(64) testlen, Bit#(8) testtyp, Bit#(32) teststr);
+
+			`ifdef MEMTEST
+				memTest.enq(TestReq{testlen: testlen, testtyp: unpack(truncate(testtyp)), teststr: truncate(teststr)});
+			`endif
+
+		endmethod
+
+		`ifdef MEMTEST
+		method Action setMem (Bit#(32) addr, Bit#(32) word) if(tstInit);
+		`else
 		method Action setMem (Bit#(32) addr, Bit#(32) word);
+		`endif
 
 			CacheLine line = lineSend;
 			line[offsetOf(addr)] = word;
@@ -166,7 +212,11 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 		endmethod
 
+		`ifdef MEMTEST
+		method Action startPC(Bit#(32) startpc) if(tstInit && memInit && !cpuInit);
+		`else
 		method Action startPC(Bit#(32) startpc) if(memInit && !cpuInit);
+		`endif
 
 			cpuInit <= True;
 

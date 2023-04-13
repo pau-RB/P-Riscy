@@ -40,6 +40,22 @@ class ToHost: public ToHostWrapper {
 
     public:
 
+        virtual void testMem   (const uint64_t testlen, const uint8_t  testtyp, const uint32_t teststr,
+                                const uint64_t latency, const uint64_t delayTX, const uint64_t delayRX) {
+
+            TestRes tst;
+
+            tst.testlen = testlen;
+            tst.testtyp = testtyp;
+            tst.teststr = teststr;
+            tst.latency = latency;
+            tst.delayTX = delayTX;
+            tst.delayRX = delayRX;
+
+            inter->print_TST_dut(tst);
+
+        }
+
         virtual void reportCMR (const uint64_t cycle,   const uint32_t verifID, const uint32_t pc,
                                 const uint32_t rawInst, const uint8_t  iType,   const uint8_t  wbDst,
                                 const uint32_t wbRes,   const uint32_t addr) {
@@ -202,6 +218,32 @@ class ToHost: public ToHostWrapper {
 static FromHostProxy *connectalProc=0;
 static ToHost        *connectalHost=0;
 
+void testMem() {
+
+    connectalProc->tstMem(100, RDLAT, 0);
+    connectalProc->tstMem(100, RDLAT, 1);
+    connectalProc->tstMem(100, RDLAT, 5);
+
+    connectalProc->tstMem(100, MXLAT, 0);
+    connectalProc->tstMem(100, MXLAT, 1);
+    connectalProc->tstMem(100, MXLAT, 5);
+
+    connectalProc->tstMem(100, RDTHP, 0);
+    connectalProc->tstMem(100, RDTHP, 1);
+    connectalProc->tstMem(100, RDTHP, 5);
+
+    connectalProc->tstMem(100, WRTHP, 0);
+    connectalProc->tstMem(100, WRTHP, 1);
+    connectalProc->tstMem(100, WRTHP, 5);
+
+    connectalProc->tstMem(100, MXTHP, 0);
+    connectalProc->tstMem(100, MXTHP, 1);
+    connectalProc->tstMem(100, MXTHP, 5);
+
+    connectalProc->tstMem(100, TTEND, 0);
+
+}
+
 void initMemOBJ(string path) {
 
     std::ifstream input( path, std::ios::binary );
@@ -232,20 +274,25 @@ int main(int argc, char * const *argv) {
       all_args.assign(argv + 1, argv + argc);
     }
 
-    printf("------ Start testbench ------\n"); fflush(stdout);
+    printf("------------ Start testbench     ------------\n"); fflush(stdout);
         connectalProc = new FromHostProxy(IfcNames_FromHostS2H);
         connectalHost = new ToHost(IfcNames_ToHostH2S);
 
-    printf("------ Initializing memory ------\n"); fflush(stdout);
+    #ifdef MEMTEST
+    printf("------------ Testing memory    ------------\n"); fflush(stdout);
+        testMem();
+    #endif
+
+    printf("------------ Initializing memory ------------\n"); fflush(stdout);
         string test = all_args[0];
         initMemOBJ(test);
 
-    printf("------ Setup Spike ------\n"); fflush(stdout);
+    printf("------------ Setup Spike         ------------\n"); fflush(stdout);
         isa   = new isa_parser_t("RV32IM", "m");
         spike = new CustomSpike(isa, test, MEM_MAX_ADDR);
         inter = new Interpreter(isa);
 
-    printf("------ Start core ------\n"); fflush(stdout);
+    printf("------------ Start core          ------------\n"); fflush(stdout);
     int sim_threads = std::stoi(all_args[1]);
         for(int i = 0; i < sim_threads; ++i)
             connectalProc->startPC(StartPC);

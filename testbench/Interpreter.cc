@@ -8,6 +8,33 @@ Interpreter::~Interpreter() {
 	delete disasm;
 }
 
+void Interpreter::print_TST_dut(const TestRes tst) {
+
+    std::string phrase;
+
+    phrase = "---------------------------------------------------------------------------------------------------";
+    printf("%s \n", phrase.c_str());
+
+    phrase = "               TST     | type :                 | len  :                 | str  :                 |";
+    overwrite(phrase, print_testType(tst.testtyp), 33, 14 );
+    overwrite(phrase, std::to_string(tst.testlen), 58, 14 );
+    overwrite(phrase, std::to_string(tst.teststr), 83, 14 );
+    printf("%s \n", phrase.c_str());
+
+    phrase = "                       |------------------------|------------------------|------------------------|";
+    printf("%s \n", phrase.c_str());
+
+    phrase = "                       | lat  :                 | delTX:                 | delRX:                 |";
+    overwrite(phrase, std::to_string(tst.latency), 33, 14 );
+    overwrite(phrase, std::to_string(tst.delayTX), 58, 14 );
+    overwrite(phrase, std::to_string(tst.delayRX), 83, 14 );
+    printf("%s \n", phrase.c_str());
+
+    phrase = "---------------------------------------------------------------------------------------------------";
+    printf("%s \n", phrase.c_str());
+
+}
+
 void Interpreter::print_CMR_spk(const CommitReport cmr) {
 
     std::string phrase = " [id:        ] cycle:                | pc: 0x         | iType:          | res: 0x        ";
@@ -240,6 +267,25 @@ void Interpreter::overwrite (std::string &base, const std::string &text, int pos
         for (int i = 0; i < text_size; ++i)
             if (position+max-text_size+i < base_size)
                 base[position+max-text_size+i] = text[i];
+    }
+}
+
+std::string Interpreter::print_testType(const TestType tType) {
+    switch (tType) {
+        case RDLAT:
+            return "RDLAT";
+        case MXLAT:
+            return "MXLAT";
+        case RDTHP:
+            return "RDTHP";
+        case WRTHP:
+            return "WRTHP";
+        case MXTHP:
+            return "MXTHP";
+        case TTEND:
+            return "TTEND";
+        default:
+            return "???";
     }
 }
 
