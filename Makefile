@@ -100,7 +100,7 @@ endif
 
  CONNECTALFLAGS += -D L2SC                        # FPGA and simulation - Add L2 cache to the memory hierarchy
 
-CONNECTALFLAGS += --mainclockperiod=18
+CONNECTALFLAGS += --mainclockperiod=16
 CONNECTALFLAGS += --bscflags="-show-schedule"
 CONNECTALFLAGS += --bscflags="-aggressive-conditions"
 CONNECTALFLAGS += --bscflags="-steps-warn-interval 1000000"
