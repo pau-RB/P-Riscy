@@ -6,6 +6,7 @@ import SpecialFIFOs::*;
 import CMRTypes::*;
 import Vector::*;
 import Ehr::*;
+import BitonicSort::*;
 
 interface FifoEnq#(type t);
 	method Bool notFull;
@@ -53,31 +54,20 @@ typedef struct {
 	ExecToken inst;
 } ASNinst deriving(Bits);
 
-(*noinline*) function Vector#(FrontWidth,ASNinst) evenLayer (Vector#(FrontWidth,ASNinst) in) provisos(Add#(a__,a__,FrontWidth));
-	Vector#(FrontWidth,ASNinst) out;
-	for (Integer i = 0; i+1 < valueOf(FrontWidth); i=i+2) begin
-		Bool switch = !in[i].valid || (in[i+1].valid && in[i+1].specLvl[2:1] < in[i].specLvl[2:1]);
-		out[i  ] = switch ? in[i+1] : in[i  ];
-		out[i+1] = switch ? in[i  ] : in[i+1];
-	end
-	return out;
-endfunction
+(*noinline*) function Vector#(FrontWidth,ASNinst) arbSortNet(Vector#(FrontWidth,ASNinst) inst) provisos(NumAlias#(virtFrontWidth,TExp#(TLog#(FrontWidth))));
 
-(*noinline*) function Vector#(FrontWidth,ASNinst) oddLayer (Vector#(FrontWidth,ASNinst) in) provisos(Add#(a__,a__,FrontWidth));
-	Vector#(FrontWidth,ASNinst) out;
-	out[0] = in[0]; out[valueOf(FrontWidth)-1] = in[valueOf(FrontWidth)-1];
-	for (Integer i = 1; i+1 < valueOf(FrontWidth); i=i+2) begin
-		Bool switch = !in[i].valid || (in[i+1].valid && in[i+1].specLvl[2:1] < in[i].specLvl[2:1]);
-		out[i  ] = switch ? in[i+1] : in[i  ];
-		out[i+1] = switch ? in[i  ] : in[i+1];
-	end
-	return out;
-endfunction
+	function Bool le(ASNinst x1, ASNinst x2);
+		return (!x2.valid || (x1.valid && x1.specLvl <= x2.specLvl));
+	endfunction
 
-(*noinline*) function Vector#(FrontWidth,ASNinst) arbSortNet (Vector#(FrontWidth,ASNinst) inst) provisos(Add#(a__,a__,FrontWidth));
+	Vector#(virtFrontWidth,ASNinst) virtInst = replicate(ASNinst{valid: False});
 	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1)
-		inst = oddLayer(evenLayer(inst));
-	return inst;
+		virtInst[i] = inst[i];
+
+	virtInst = sortLe(le, virtInst);
+	
+	return take(virtInst);
+
 endfunction
 
 (*synthesize*)
