@@ -208,7 +208,7 @@ module mkFrontend (Frontend ifc);
 				Redirect red = redirectQ[i].first(); redirectQ[i].deq();
 				if(red.kill || red.redirect) begin
 					regfetchEpoch[i] <= red.epoch;
-					scoreboardArray   [i].clear();
+					scoreboardArray[i].clear();
 				end
 				regfetchLock[i] <= red.lock;
 				if(red.dry || red.kill || red.redirect)
@@ -218,15 +218,16 @@ module mkFrontend (Frontend ifc);
 
 				regfetchQ[i].deq();
 
-			end else if(!regfetchLock[i] && !scoreboardArray[i].search1(regfetchQ[i].first.src1)
-			                             && !scoreboardArray[i].search2(regfetchQ[i].first.src2)) begin
+			end else if(!regfetchLock[i] && !scoreboardArray[i].hasDest1(regfetchQ[i].first.src1)
+			                             && !scoreboardArray[i].hasDest2(regfetchQ[i].first.src2)
+			                             && (!scoreboardArray[i].hasSpec||!isSensInst(regfetchQ[i].first.iType))) begin
 
 				let rfToken = regfetchQ[i].first(); regfetchQ[i].deq();
 
 				let arg1    = regFileArray[i].rd1(fromMaybe('0, rfToken.src1));
 				let arg2    = regFileArray[i].rd2(fromMaybe('0, rfToken.src2));
 
-				scoreboardArray[i].insert(rfToken.dst);
+				scoreboardArray[i].insert(rfToken.dst,isSpecInst(rfToken.iType));
 
 				arbiterQ[i].enq(ExecToken{ feID   : fromInteger(i) ,
 				                           pc     : rfToken.pc     ,

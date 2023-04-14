@@ -192,6 +192,29 @@ module mkBackend (Backend ifc);
 
 			toMem[0] = tagged Valid mToken;
 
+			if (eToken.iType == Ld) begin
+				l1D.req(L1DReq{ op     : Ld           ,
+				                ldFunc : eToken.ldFunc,
+				                stFunc : eToken.stFunc,
+				                addr   : exec.add     ,
+				                data   : exec.res     ,
+				                transId: eToken.feID  });
+			end else if (eToken.iType == St) begin
+				l1D.req(L1DReq{ op     : St           ,
+				                ldFunc : eToken.ldFunc,
+				                stFunc : eToken.stFunc,
+				                addr   : exec.add     ,
+				                data   : exec.res     ,
+				                transId: eToken.feID  });
+			end else if(eToken.iType == Join) begin
+				l1D.req(L1DReq{ op     : Join         ,
+				                ldFunc : eToken.ldFunc,
+				                stFunc : eToken.stFunc,
+				                addr   : exec.add     ,
+				                data   : exec.res     ,
+				                transId: eToken.feID  });
+			end 
+
 		end
 
 		// Arith lanes
@@ -263,55 +286,8 @@ module mkBackend (Backend ifc);
 		Vector#(BackWidth, Maybe#(MemToken)) toMem    = memoryQ.first(); memoryQ.deq();
 		Vector#(BackWidth, Maybe#(ComToken)) toCommit = replicate(tagged Invalid);
 
-		// Mem lane
-		if(toMem[0] matches tagged Valid .mToken) begin
-			let cToken = ComToken { feID   : mToken.feID   ,
-			                        epoch  : mToken.epoch  ,
-			                        `ifdef DEBUG_RAW_INST
-			                        pc     : mToken.pc     ,
-			                        rawInst: mToken.rawInst,
-			                        `endif
-			                        // iType
-			                        iType  : mToken.iType  ,
-			                        mulFunc: mToken.mulFunc,
-			                        divFunc: mToken.divFunc,
-			                        // Op
-			                        res    : mToken.res    ,
-			                        addr   : mToken.addr   ,
-			                        nextpc : mToken.nextpc ,
-			                        brTaken: mToken.brTaken,
-			                        dst    : mToken.dst    };
-			toCommit[0] = tagged Valid cToken;
-
-			// Send L1D req, if the instruction is valid
-			if (mToken.epoch == commitEpoch[mToken.feID][1]) begin
-				if (mToken.iType == Ld) begin
-					l1D.req(L1DReq{ op     : Ld           ,
-					                ldFunc : mToken.ldFunc,
-					                stFunc : mToken.stFunc,
-					                addr   : mToken.addr  ,
-					                data   : mToken.res   ,
-					                transId: mToken.feID  });
-				end else if (mToken.iType == St) begin
-					l1D.req(L1DReq{ op     : St           ,
-					                ldFunc : mToken.ldFunc,
-					                stFunc : mToken.stFunc,
-					                addr   : mToken.addr  ,
-					                data   : mToken.res   ,
-					                transId: mToken.feID  });
-				end else if(mToken.iType == Join) begin
-					l1D.req(L1DReq{ op     : Join         ,
-					                ldFunc : mToken.ldFunc,
-					                stFunc : mToken.stFunc,
-					                addr   : mToken.addr  ,
-					                data   : mToken.res   ,
-					                transId: mToken.feID  });
-				end 
-			end
-		end
-
-		// Arith lanes
-		for(Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
+		// All lanes
+		for(Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
 		if(toMem[i] matches tagged Valid .mToken) begin
 			let cToken = ComToken { feID   : mToken.feID   ,
 			                        epoch  : mToken.epoch  ,
@@ -361,6 +337,9 @@ module mkBackend (Backend ifc);
 		// Mem lane
 		if(toCommit[0] matches tagged Valid .cToken) begin
 
+			if(cToken.iType == Ld || cToken.iType == St || cToken.iType == Join)
+				l1D.deqres();
+
 			if(cToken.epoch == commitEpoch[cToken.feID][0])  begin
 
 				sbRemove[cToken.feID] = tagged Valid(?);
@@ -374,7 +353,7 @@ module mkBackend (Backend ifc);
 
 				end else if(cToken.iType == Ld) begin
 
-					let res <- l1D.resp();
+					let res = l1D.getres();
 					if(res.valid) begin
 						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe(?, cToken.dst), res: res.data};
 						numWB = numWB+1;
@@ -410,7 +389,7 @@ module mkBackend (Backend ifc);
 
 				end else if(cToken.iType == St) begin
 
-					let res <- l1D.resp();
+					let res = l1D.getres();
 					if(res.valid) begin
 						numWB = numWB+1;
 						`ifdef DEBUG_CMR
@@ -445,7 +424,7 @@ module mkBackend (Backend ifc);
 
 				end else if(cToken.iType == Join) begin
 
-					let res <- l1D.resp();
+					let res = l1D.getres();
 					if(res.valid) begin
 						if(res.data == '0) begin
 							stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
@@ -636,7 +615,7 @@ module mkBackend (Backend ifc);
 
 	rule do_old_commit;
 
-		L1DResp#(FrontID) resp   <- l1D.oldResp();
+		L1DResp#(FrontID) resp    = l1D.getoldres(); l1D.deqoldres();
 		OldToken          cToken  = miata[resp.transId].first; miata[resp.transId].deq();
 		FrontID           feID    = resp.transId;
 		Data              loadRes = 'hdeadbeef;

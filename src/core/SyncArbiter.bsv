@@ -117,14 +117,14 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 		Vector#(FrontWidth,ASNinst) ariInst;
 
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(inputQueue[i].notEmpty && inputQueue[i].first.epoch ==  arbiterEpoch[i] && isMemInst(inputQueue[i].first))
+			if(inputQueue[i].notEmpty && inputQueue[i].first.epoch ==  arbiterEpoch[i] && isMemInst(inputQueue[i].first.iType))
 				memInst[i] = ASNinst{valid: True, feID: fromInteger(i), specLvl: specLvl[i], inst: inputQueue[i].first};
 			else
 				memInst[i] = ASNinst{valid: False, feID: ?, specLvl: ?, inst: ?};
 		end
 
 		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(inputQueue[i].notEmpty && inputQueue[i].first.epoch ==  arbiterEpoch[i] && isArithInst(inputQueue[i].first))
+			if(inputQueue[i].notEmpty && inputQueue[i].first.epoch ==  arbiterEpoch[i] && isArithInst(inputQueue[i].first.iType))
 				ariInst[i] = ASNinst{valid: True, feID: fromInteger(i), specLvl: specLvl[i], inst: inputQueue[i].first};
 			else
 				ariInst[i] = ASNinst{valid: False, feID: ?, specLvl: ?, inst: ?};
@@ -154,9 +154,9 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 			if(inputQueue[i].notEmpty && (instTaken[i] || inputQueue[i].first.epoch !=  arbiterEpoch[i]))
 				inputQueue[i].deq();
-			if(inputQueue[i].notEmpty && instTaken[i] && isFlowInst(inputQueue[i].first))
+			if(inputQueue[i].notEmpty && instTaken[i] && isFlowInst(inputQueue[i].first.iType))
 				specLvl[i] <= '1;
-			else if(inputQueue[i].notEmpty && instTaken[i] && isSpecInst(inputQueue[i].first))
+			else if(inputQueue[i].notEmpty && instTaken[i] && isSpecInst(inputQueue[i].first.iType))
 				specLvl[i][2] <= '1;
 			else if(specLvl[i] != '0)
 				specLvl[i] <= specLvl[i]-1;
@@ -187,7 +187,7 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 		Bool isArithOvb = False;
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1)
 			if(isValid(inst[i]) && !instTaken[i])
-				if(isMemInst(fromMaybe(?,inst[i])))
+				if(isMemInst(fromMaybe(?,inst[i]).iType))
 					isMemOvb = True;
 				else
 					isArithOvb = True;

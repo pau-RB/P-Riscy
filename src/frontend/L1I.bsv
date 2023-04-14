@@ -29,7 +29,7 @@ module mkL1I(L1I#(numHart, cacheRows, cacheColumns) ifc) provisos(Add#(a__, TLog
     Vector#(numHart, Reg#(CacheLineNum)) mshrLine <- replicateM(mkReg(?));
 
     FIFOF#(bramReq            ) reqQ   <- mkBypassFIFOF();
-    FIFOF#(bramReq            ) brmQ   <- mkFIFOF();
+    FIFOF#(bramReq            ) brmQ   <- mkSizedFIFOF(3);
     FIFOF#(WideMemReq#(hartID)) memreq <- mkBypassFIFOF();
     FIFOF#(WideMemRes#(hartID)) memres <- mkBypassFIFOF();
 

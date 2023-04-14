@@ -53,7 +53,7 @@ module mkDirectInstCache (BareInstCache#(cacheRows, cacheColumns) ifc) provisos(
 
     FIFOF#(InstCacheReq) reqQ <- mkBypassFIFOF();
     FIFOF#(InstCacheReq) brmQ <- mkFIFOF();
-    FIFOF#(InstCacheRes) resQ <- mkBypassFIFOF();
+    FIFOF#(InstCacheRes) resQ <- mkFIFOF();
 
     Reg#(Maybe#(cacheRowIdx)) invIndex <- mkReg(tagged Valid 0); // Invalidate entries
 

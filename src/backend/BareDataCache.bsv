@@ -117,7 +117,7 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns) ifc) provisos(
 
 	FIFOF#(DataCacheReq)      reqQ    <- mkBypassFIFOF();
 	FIFOF#(DataCacheReq)      bramReq <- mkPipelineFIFOF();
-	FIFOF#(DataCacheResp)     resQ    <- mkBypassFIFOF();
+	FIFOF#(DataCacheResp)     resQ    <- mkFIFOF();
 	FIFOF#(WideMemReq#(void)) wbQ     <- mkBypassFIFOF();
 
 	Ehr#(3,Maybe#(cacheRowIdx)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts

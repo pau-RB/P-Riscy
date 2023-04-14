@@ -27,8 +27,10 @@ typedef struct{
 interface L1D#(numeric type numHart, numeric type cacheRows, numeric type cacheColumns);
 	interface WideMemClient#(Bit#(TLog#(numHart))) mem;
 	method Action req(L1DReq#(Bit#(TLog#(numHart))) r);
-	method ActionValue#(L1DResp#(Bit#(TLog#(numHart)))) resp();
-	method ActionValue#(L1DResp#(Bit#(TLog#(numHart)))) oldResp();
+	method L1DResp#(Bit#(TLog#(numHart))) getres();
+	method L1DResp#(Bit#(TLog#(numHart))) getoldres();
+	method Action deqres();
+	method Action deqoldres();
 	`ifdef DEBUG_STATS
 	method LSUStat getStat();
 	`endif
@@ -118,7 +120,7 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns) ifc) provisos(Add#(a__, 1, 
 	Ehr#(2,Maybe#(hartID))                 retryMSHR <- mkEhr(tagged Invalid);
 
 	FIFOF#(L1DReq        #(hartID)) inReqQ   <- mkBypassFIFOF();
-	FIFOF#(DataCacheToken#(hartID)) dcReqQ   <- mkPipelineFIFOF();
+	FIFOF#(DataCacheToken#(hartID)) dcReqQ   <- mkSizedFIFOF(3);
 	FIFOF#(WideMemReq    #(hartID)) memreq   <- mkBypassFIFOF();
 	FIFOF#(WideMemRes    #(hartID)) memres   <- mkBypassFIFOF();
 	FIFOF#(L1DResp       #(hartID)) respQ    <- mkBypassFIFOF();
@@ -290,14 +292,19 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns) ifc) provisos(Add#(a__, 1, 
 		inReqQ.enq(r);
 	endmethod
 
-	method ActionValue#(L1DResp#(hartID)) resp;
-		respQ.deq();
+	method L1DResp#(Bit#(TLog#(numHart))) getres();
 		return respQ.first();
 	endmethod
 
-	method ActionValue#(L1DResp#(hartID)) oldResp;
-		oldRespQ.deq();
+	method L1DResp#(Bit#(TLog#(numHart))) getoldres();
 		return oldRespQ.first();
+	endmethod
+
+	method Action deqres();
+		respQ.deq();
+	endmethod
+	method Action deqoldres();
+		oldRespQ.deq();
 	endmethod
 
 	`ifdef DEBUG_STATS

@@ -225,27 +225,37 @@ typedef struct {
 
 //////////// SPECULATION INDICATIONS ////////////
 
-function Bool isMemInst(ExecToken inst);
-	return (inst.iType == Ld          || inst.iType == St    ||
-	        inst.iType == Fork        || inst.iType == Forkr ||
-	        inst.iType == Join        || inst.iType == Ghost );
+// Must be executed by an arithmetic lane
+function Bool isMemInst(IType inst);
+	return (inst == Ld          || inst == St    ||
+	        inst == Fork        || inst == Forkr ||
+	        inst == Join        || inst == Ghost );
 endfunction
 
-function Bool isArithInst(ExecToken inst);
-	return (inst.iType == Unsupported || inst.iType == Alu   ||
-	        inst.iType == Mul         || inst.iType == Div   ||
-	        inst.iType == J           || inst.iType == Jr    ||
-	        inst.iType == Br          || inst.iType == Auipc );
+// Must be executed by a memory lane
+function Bool isArithInst(IType inst);
+	return (inst == Unsupported || inst == Alu   ||
+	        inst == Mul         || inst == Div   ||
+	        inst == J           || inst == Jr    ||
+	        inst == Br          || inst == Auipc );
 endfunction
 
-function Bool isSpecInst(ExecToken inst);
-	return (inst.iType == J           || inst.iType == Jr    ||
-	        inst.iType == Fork        || inst.iType == Forkr ||
-	        inst.iType == Br          || inst.iType == Ld    ||
-	        inst.iType == St          || inst.iType == Join  );
+// May cause a redirect
+function Bool isSpecInst(IType inst);
+	return (inst == J           || inst == Jr    ||
+	        inst == Fork        || inst == Forkr ||
+	        inst == Br          || inst == Ld    ||
+	        inst == St          || inst == Join  );
 endfunction
 
-function Bool isFlowInst(ExecToken inst);
-	return (inst.iType == J           || inst.iType == Jr    ||
-	        inst.iType == Br);
+// Will likely cause a redirect
+function Bool isFlowInst(IType inst);
+	return (inst == J           || inst == Jr    ||
+	        inst == Br);
+endfunction
+
+// Cannot be executed under speculation (isSpecInst)
+function Bool isSensInst(IType inst);
+	return (inst == Ld          || inst == St    ||
+	        inst == Join  );
 endfunction
