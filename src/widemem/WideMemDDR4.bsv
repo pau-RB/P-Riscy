@@ -14,11 +14,12 @@ import DDR4Common::*;
 
 `ifdef SIMULATION
 import DDR4Sim::*;
-import WideMemDelay::*;
 `else
 import Clocks:: *;
 import DefaultValue:: *;
 `endif
+
+import WideMemDelay::*;
 
 import GetPut::*;
 import ClientServerHelper::*;
