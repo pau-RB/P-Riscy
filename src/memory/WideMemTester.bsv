@@ -45,27 +45,27 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 	FIFOF#(WideMemReq#(tagT)) memreq <- mkBypassFIFOF();
 	FIFOF#(WideMemRes#(tagT)) memres <- mkBypassFIFOF();
 
-	Reg#(Bool)         testbusy <- mkReg(False);
-	Reg#(Bool)         testwait <- mkReg(False);
+	Ehr#(2,Bool)       testbusy <- mkEhr(False);
+	Ehr#(2,Bool)       testwait <- mkEhr(False);
 
-	Reg#(PerfCnt)      testlen <- mkReg( ?);
-	Reg#(TestType)     testtyp <- mkReg( ?);
-	Reg#(CacheLineNum) teststr <- mkReg( ?);
+	Reg#(PerfCnt)      testlen  <- mkReg( ?);
+	Reg#(TestType)     testtyp  <- mkReg( ?);
+	Reg#(CacheLineNum) teststr  <- mkReg( ?);
 
-	Reg#(CacheLineNum) baseadd <- mkReg('0);
-	Reg#(PerfCnt)      exptx   <- mkReg('0);
-	Reg#(PerfCnt)      exprx   <- mkReg('0);
-	Reg#(PerfCnt)      numtx   <- mkReg('0);
-	Reg#(PerfCnt)      numrx   <- mkReg('0);
+	Reg#(CacheLineNum) baseadd  <- mkReg('0);
+	Reg#(PerfCnt)      exptx    <- mkReg('0);
+	Reg#(PerfCnt)      exprx    <- mkReg('0);
+	Reg#(PerfCnt)      numtx    <- mkReg('0);
+	Reg#(PerfCnt)      numrx    <- mkReg('0);
 
-	Ehr#(2,PerfCnt)    timmer0 <- mkEhr('0);
-	Ehr#(2,PerfCnt)    timmer1 <- mkEhr('0);
+	Ehr#(2,PerfCnt)    timmer0  <- mkEhr('0);
+	Ehr#(2,PerfCnt)    timmer1  <- mkEhr('0);
 
-	Reg#(PerfCnt)      latency <- mkReg('0);
-	Reg#(PerfCnt)      delayTX <- mkReg('0);
-	Reg#(PerfCnt)      delayRX <- mkReg('0);
+	Reg#(PerfCnt)      latency  <- mkReg('0);
+	Reg#(PerfCnt)      delayTX  <- mkReg('0);
+	Reg#(PerfCnt)      delayRX  <- mkReg('0);
 
-	rule do_start if(!testbusy);
+	rule do_start if(!testbusy[0]);
 
 		TestReq r = testreq.first; testreq.deq;
 
@@ -77,8 +77,8 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 			                     delayTX: ?      ,
 			                     delayRX: ?      });
 		end else begin
-			testbusy <= True;
-			testwait <= False;
+			testbusy[1] <= True;
+			testwait[1] <= False;
 
 			testlen  <= r.testlen;
 			teststr  <= r.teststr;
@@ -90,7 +90,7 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 				RDLAT: begin exptx <=   r.testlen; exprx <= r.testlen; end
 				MXLAT: begin exptx <= 2*r.testlen; exprx <= r.testlen; end
 				RDTHP: begin exptx <=   r.testlen; exprx <= r.testlen; end
-				WRTHP: begin exptx <=   r.testlen; exprx <= r.testlen; end
+				WRTHP: begin exptx <= 1+r.testlen; exprx <=         1; end
 				MXTHP: begin exptx <= 2*r.testlen; exprx <= r.testlen; end
 			endcase
 
@@ -103,19 +103,27 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 		end
 	endrule
 
-	rule do_send if(testbusy && !testwait && numtx != exptx);
+	rule do_cycle;
+		timmer0[1] <= timmer0[1]+1;
+		timmer1[1] <= timmer1[1]+1;
+	endrule
+
+	rule do_send if(testbusy[1] && !testwait[1] && numtx != exptx);
 		case(testtyp)
 			RDLAT: begin
+				// Send rx one by one, use timmer0 for latency
 				memreq.enq(WideMemReq{ tag  : ?      ,
 				                       write: False  ,
 				                       num  : baseadd,
 				                       line : ?      });
-				testwait   <= True           ;
+				testwait[1]<= True           ;
 				baseadd    <= baseadd+teststr;
 				numtx      <= numtx+1        ;
 				timmer0[0] <= '0             ;
 			end
 			MXLAT: begin
+				// Send rx two by two, use timmer0 for latency
+				// Alternate between wr and rd to same addr
 				if(numtx[0] == 1'b0) begin
 					memreq.enq(WideMemReq{ tag  : ?      ,
 					                       write: True   ,
@@ -126,13 +134,14 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 					                       write: False  ,
 					                       num  : baseadd,
 					                       line : ?      });
-					testwait   <= True           ;
+					testwait[1]<= True           ;
 					baseadd    <= baseadd+teststr;
 					timmer0[0] <= '0             ;
 				end
 				numtx <= numtx+1;
 			end
 			RDTHP: begin
+				// Send all read btb, use timmer0 for send thpt
 				memreq.enq(WideMemReq{ tag  : ?      ,
 				                       write: False  ,
 				                       num  : baseadd,
@@ -140,25 +149,35 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 				baseadd  <= baseadd+teststr;
 				numtx    <= numtx+1        ;
 				if(numtx == '0)
+					// First tx, use timmer0 for send thpt
 					timmer0[0] <= '0;
 				if(numtx+1 == exptx)
 					delayTX <= timmer0[0]+1;
 			end
 			WRTHP: begin
-				memreq.enq(WideMemReq{ tag  : ?      ,
-				                       write: True   ,
-				                       num  : baseadd,
-				                       line : ?      });
-				baseadd  <= baseadd+teststr;
-				numtx    <= numtx+1        ;
-				if(numtx == '0)
-					timmer0[0] <= '0;
 				if(numtx+1 == exptx) begin
-					delayTX <= timmer0[0]+1;
-					numrx <= exprx;
+					// Last tx, send a rd
+					memreq.enq(WideMemReq{ tag  : ?      ,
+					                       write: False   ,
+					                       num  : baseadd,
+					                       line : ?      });
+				end else begin
+					// Else, send all wr btb
+					memreq.enq(WideMemReq{ tag  : ?      ,
+					                       write: True   ,
+					                       num  : baseadd,
+					                       line : ?      });
+					baseadd  <= baseadd+teststr;
 				end
+				numtx <= numtx+1;
+				if(numtx == '0)
+					// First tx, use timmer0 for send thpt
+					timmer0[0] <= '0;
+				if(numtx+2 == exptx)
+					delayTX <= timmer0[0]+1;
 			end
 			MXTHP: begin
+				// Send all wr and rd btb
 				if(numtx[0] == 1'b0) begin
 					memreq.enq(WideMemReq{ tag  : ?      ,
 					                       write: True   ,
@@ -173,6 +192,7 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 				end
 				numtx <= numtx+1;
 				if(numtx == '0)
+					// First tx, use timmer0 for send thpt
 					timmer0[0] <= '0;
 				if(numtx+1 == exptx) begin
 					delayTX <= timmer0[0]+1;
@@ -185,32 +205,30 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 		memres.deq();
 		case(testtyp)
 			RDLAT: begin
-				testwait <= False             ;
-				numrx    <= numrx+1           ;
-				latency  <= latency+timmer0[0];
+				testwait[0] <= False             ;
+				numrx       <= numrx+1           ;
+				latency     <= latency+timmer0[0];
 			end
 			MXLAT: begin
-				testwait <= False             ;
-				numrx    <= numrx+1           ;
-				latency  <= latency+timmer0[0];
+				testwait[0] <= False             ;
+				numrx       <= numrx+1           ;
+				latency     <= latency+timmer0[0];
 			end
 			RDTHP: begin
 				numrx <= numrx+1  ;
 				if(numrx == '0)
+					// First rx, use timmer1 for recieve thpt
 					timmer1[0] <= '0;
 				if(numrx+1 == exprx)
 					delayRX <= timmer1[0]+1;
 			end
 			WRTHP: begin
 				numrx <= numrx+1  ;
-				if(numrx == '0)
-					timmer1[0] <= '0;
-				if(numrx+1 == exprx)
-					delayRX <= timmer1[0]+1;
 			end
 			MXTHP: begin
 				numrx <= numrx+1  ;
 				if(numrx == '0)
+					// First rx, use timmer1 for recieve thpt
 					timmer1[0] <= '0;
 				if(numrx+1 == exprx)
 					delayRX <= timmer1[0]+1;
@@ -218,13 +236,8 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 		endcase
 	endrule
 
-	rule do_cycle;
-		timmer0[1] <= timmer0[1]+1;
-		timmer1[1] <= timmer1[1]+1;
-	endrule
-
-	rule do_end if(testbusy && numrx == exprx);
-		testbusy <= False;
+	rule do_end if(testbusy[0] && numrx == exprx);
+		testbusy[0] <= False;
 		testres.enq(TestRes{ testtyp: testtyp,
 		                     testlen: testlen,
 		                     teststr: teststr,

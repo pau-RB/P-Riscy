@@ -220,27 +220,27 @@ static ToHost        *connectalHost=0;
 
 void testMem() {
 
-    connectalProc->tstMem(100, RDLAT, 0);
-    connectalProc->tstMem(100, RDLAT, 1);
-    connectalProc->tstMem(100, RDLAT, 5);
+    connectalProc->tstMem(100 , RDLAT, 0);
+    connectalProc->tstMem(100 , RDLAT, 1);
+    connectalProc->tstMem(100 , RDLAT, 5);
 
-    connectalProc->tstMem(100, MXLAT, 0);
-    connectalProc->tstMem(100, MXLAT, 1);
-    connectalProc->tstMem(100, MXLAT, 5);
+    connectalProc->tstMem(100 , MXLAT, 0);
+    connectalProc->tstMem(100 , MXLAT, 1);
+    connectalProc->tstMem(100 , MXLAT, 5);
 
-    connectalProc->tstMem(100, RDTHP, 0);
-    connectalProc->tstMem(100, RDTHP, 1);
-    connectalProc->tstMem(100, RDTHP, 5);
+    connectalProc->tstMem(1000, RDTHP, 0);
+    connectalProc->tstMem(1000, RDTHP, 1);
+    connectalProc->tstMem(1000, RDTHP, 5);
 
-    connectalProc->tstMem(100, WRTHP, 0);
-    connectalProc->tstMem(100, WRTHP, 1);
-    connectalProc->tstMem(100, WRTHP, 5);
+    connectalProc->tstMem(1000, WRTHP, 0);
+    connectalProc->tstMem(1000, WRTHP, 1);
+    connectalProc->tstMem(1000, WRTHP, 5);
 
-    connectalProc->tstMem(100, MXTHP, 0);
-    connectalProc->tstMem(100, MXTHP, 1);
-    connectalProc->tstMem(100, MXTHP, 5);
+    connectalProc->tstMem(1000, MXTHP, 0);
+    connectalProc->tstMem(1000, MXTHP, 1);
+    connectalProc->tstMem(1000, MXTHP, 5);
 
-    connectalProc->tstMem(100, TTEND, 0);
+    connectalProc->tstMem(1000, TTEND, 0);
 
 }
 
