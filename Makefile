@@ -9,7 +9,8 @@ BSVPATH += /    \
 	src/        \
 	src/include \
 	src/types   \
-	src/memory  \
+	src/core    \
+	src/widemem \
 	src/frontend\
 	src/backend \
 	src/MulDiv  \
