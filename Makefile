@@ -99,6 +99,7 @@ endif
 #CONNECTALFLAGS += -D DEBUG_CYC -D DEBUG_RAW_INST # simulation only     - Report cycle-accurate status of the pipeline 
 
  CONNECTALFLAGS += -D L2SC                        # FPGA and simulation - Add L2 cache to the memory hierarchy
+ CONNECTALFLAGS += -D VCUDDRDELAY                 # FPGA only           - Add latency to DDR4 artificially
 #CONNECTALFLAGS += -D MEMTEST                     # FPGA and simulation - Test main memory performance before start
 
 CONNECTALFLAGS += --mainclockperiod=16

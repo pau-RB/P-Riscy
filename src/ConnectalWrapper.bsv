@@ -46,7 +46,7 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	Reg#(Bool) memInit <- mkReg(False);
 	Reg#(Bool) cpuInit <- mkReg(False);
 
-	WideMemDDR4#(RAMLatency, Tuple2#(Bit#(TLog#(2)),FrontID))                                      mainDDR4 <- mkWideMemDDR4(host);
+	WideMemDDR4#(SimDDRLatency, VCUDDRLatency, Tuple2#(Bit#(TLog#(2)),FrontID))                    mainDDR4 <- mkWideMemDDR4(host);
 	`ifdef L2SC
 	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, Tuple2#(Bit#(TLog#(2)),FrontID)) mainL2SC <- mkWideMemCache();
 	`endif

@@ -41,4 +41,5 @@ typedef 16   L2CacheHashBlocks; // Must be power of 2
 `endif
 
 // Main Mem
-typedef 100 RAMLatency;
+typedef 100 SimDDRLatency;
+typedef 100 VCUDDRLatency;

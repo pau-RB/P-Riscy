@@ -30,13 +30,13 @@ interface Top_Pins;
         `endif
 endinterface
 
-interface WideMemDDR4#(numeric type simLatency, type tagT);
+interface WideMemDDR4#(numeric type simLatency, numeric type vcuLatency, type tagT);
 	interface WideMemServer#(tagT) portA;
 	interface WideMemServer#(tagT) portB;
 	interface Top_Pins pins;
 endinterface
 
-module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency, tagT) ifc) provisos(Add#(a__, 2, simLatency), Bits#(tagT, t__));
+module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency, vcuLatency, tagT) ifc) provisos(Add#(a__, 2, simLatency), Bits#(tagT, t__));
 
 	FIFO#(WideMemReq#(tagT)) reqAQ <- mkFIFO();
 	FIFO#(WideMemReq#(tagT)) reqBQ <- mkFIFO();
@@ -151,14 +151,26 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency, tagT) ifc) pro
 		WideMemDelay#(TSub#(simLatency,2), tagT) simIfcB <- mkWideMemDelay();
 		mkConnection(simIfcA.mem,wmifcA);
 		mkConnection(simIfcB.mem,wmifcB);
+	`else
+		`ifdef VCUDDRDELAY
+		WideMemDelay#(TSub#(vcuLatency,2), tagT) vcuIfcA <- mkWideMemDelay();
+		WideMemDelay#(TSub#(vcuLatency,2), tagT) vcuIfcB <- mkWideMemDelay();
+		mkConnection(vcuIfcA.mem,wmifcA);
+		mkConnection(vcuIfcB.mem,wmifcB);
+		`endif
 	`endif
 
 	`ifdef SIMULATION
 		interface WideMemServer portA = simIfcA.portA;
 		interface WideMemServer portB = simIfcB.portA;
 	`else
+		`ifdef VCUDDRDELAY
+		interface WideMemServer portA = vcuIfcA.portA;
+		interface WideMemServer portB = vcuIfcB.portA;
+		`else
 		interface WideMemServer portA = wmifcA;
 		interface WideMemServer portB = wmifcB;
+		`endif
 	`endif
 
 	interface Top_Pins pins;
