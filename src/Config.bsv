@@ -26,8 +26,7 @@ typedef 3 BackWidth;
 
 // L1I
 typedef 256 L1ICacheRows;    // Must be power of 2
-typedef 2   L1ICacheColumns; // Must be power of 2
-Bool l1IAssociative = False;
+typedef 1   L1ICacheColumns; // Must be power of 2
 
 // LSU
 typedef 256 L1DCacheRows;    // Must be power of 2

@@ -92,7 +92,7 @@ endinterface
 module mkFrontend (Frontend ifc);
 
 	// Data cache
-	L1I#(FrontWidth, L1ICacheRows) l1I <- mkDirectL1I();
+	L1I#(FrontWidth, L1ICacheRows, L1ICacheColumns) l1I <- mkL1I();
 
 	// Stages
 	Vector#(FrontWidth, FIFOF#(RFToken)  ) regfetchQ  <- replicateM(mkPipelineFIFOF());
