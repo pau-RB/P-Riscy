@@ -253,9 +253,3 @@ function Bool isFlowInst(IType inst);
 	return (inst == J           || inst == Jr    ||
 	        inst == Br);
 endfunction
-
-// Cannot be executed under speculation (isSpecInst)
-function Bool isSensInst(IType inst);
-	return (inst == Ld          || inst == St    ||
-	        inst == Join  );
-endfunction

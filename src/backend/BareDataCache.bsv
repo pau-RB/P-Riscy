@@ -18,6 +18,7 @@ typedef struct{
 	Addr        addr;
 	Data        data;
 	CacheLine   line;
+	Bool        isOld;
 } DataCacheReq deriving(Eq, Bits, FShow);
 
 typedef Maybe#(Data) DataCacheResp;
@@ -25,6 +26,7 @@ typedef Maybe#(Data) DataCacheResp;
 interface BareDataCache#(numeric type cacheRows, numeric type cacheColumns, numeric type cacheHash);
 	method Action invalidate();
 	method Action req(DataCacheReq r);
+	method Action confirm(Bool comm);
 	method ActionValue#(DataCacheResp) resp();
 	method ActionValue#(WideMemReq#(void)) getWB();
 endinterface
@@ -125,6 +127,7 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 	BRAM2Port  #(cacheRowIdx, CacheMeta                ) metaArray <- mkBRAM2Server  (cfg);
 
 	FIFOF#(DataCacheReq)      reqQ     <- mkBypassFIFOF();
+	FIFOF#(Bool        )      confirmQ <- mkBypassFIFOF();
 	FIFOF#(DataCacheReq)      bramReqA <- mkPipelineFIFOF();
 	FIFOF#(DataCacheReq)      bramReqB <- mkPipelineFIFOF();
 	FIFOF#(DataCacheResp)     resQ     <- mkFIFOF();
@@ -202,14 +205,25 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 
 			bramReqB.enq(req); // delay actual wr to next cycle
 
-		end else if (meta.valid && (tag == tagOf(req.addr))) begin // request hit
+		end else if(req.isOld) begin // old req always hits
 
 			if(req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN)
+				bramReqB.enq(req);
+
+			resQ.enq(tagged Valid extendLoad(data[wordSelect], req.addr, req.op));
+
+		end else if (meta.valid && (tag == tagOf(req.addr))) begin // request young hit
+
+			Bool conf = confirmQ.first(); confirmQ.deq();
+
+			if((req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN) && conf)
 				bramReqB.enq(req); // delay actual wr to next cycle
 
 			resQ.enq(tagged Valid extendLoad(data[wordSelect], req.addr, req.op));
 
-		end else begin // request miss
+		end else begin // request young miss
+
+			Bool conf = confirmQ.first(); confirmQ.deq();
 
 			resQ.enq(tagged Invalid);
 
@@ -270,6 +284,10 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 		reqQ.enq(r);
 	endmethod
 
+	method Action confirm(Bool comm);
+		confirmQ.enq(comm);
+	endmethod
+
 	method ActionValue#(DataCacheResp) resp();
 		resQ.deq();
 		return resQ.first();
@@ -311,6 +329,11 @@ module mkAssociativeDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash
 			for(Integer i = 0; i < valueOf(cacheColumns); i=i+1)
 				lane[fromInteger(i)].req(r);
 		end
+	endmethod
+
+	method Action confirm(Bool comm);
+		for(Integer i = 0; i < valueOf(cacheColumns); i=i+1)
+			lane[fromInteger(i)].confirm(comm);
 	endmethod
 
 	method ActionValue#(DataCacheResp) resp();

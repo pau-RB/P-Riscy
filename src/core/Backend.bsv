@@ -286,8 +286,34 @@ module mkBackend (Backend ifc);
 		Vector#(BackWidth, Maybe#(MemToken)) toMem    = memoryQ.first(); memoryQ.deq();
 		Vector#(BackWidth, Maybe#(ComToken)) toCommit = replicate(tagged Invalid);
 
-		// All lanes
-		for(Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
+		// Mem lane
+		if(toMem[0] matches tagged Valid .mToken) begin
+			let cToken = ComToken { feID   : mToken.feID   ,
+			                        epoch  : mToken.epoch  ,
+			                        `ifdef DEBUG_RAW_INST
+			                        pc     : mToken.pc     ,
+			                        rawInst: mToken.rawInst,
+			                        `endif
+			                        // iType
+			                        iType  : mToken.iType  ,
+			                        mulFunc: mToken.mulFunc,
+			                        divFunc: mToken.divFunc,
+			                        // Op
+			                        res    : mToken.res    ,
+			                        addr   : mToken.addr   ,
+			                        nextpc : mToken.nextpc ,
+			                        brTaken: mToken.brTaken,
+			                        dst    : mToken.dst    };
+			toCommit[0] = tagged Valid cToken;
+
+			// Confirm L1D req, if the instruction is valid
+			if(mToken.iType == Ld || mToken.iType == St || mToken.iType == Join)
+				l1D.confirm((mToken.epoch == commitEpoch[mToken.feID][1]));
+
+		end
+
+		// Arith lanes
+		for(Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
 		if(toMem[i] matches tagged Valid .mToken) begin
 			let cToken = ComToken { feID   : mToken.feID   ,
 			                        epoch  : mToken.epoch  ,
@@ -337,9 +363,6 @@ module mkBackend (Backend ifc);
 		// Mem lane
 		if(toCommit[0] matches tagged Valid .cToken) begin
 
-			if(cToken.iType == Ld || cToken.iType == St || cToken.iType == Join)
-				l1D.deqres();
-
 			if(cToken.epoch == commitEpoch[cToken.feID][0])  begin
 
 				sbRemove[cToken.feID] = tagged Valid(?);
@@ -353,7 +376,7 @@ module mkBackend (Backend ifc);
 
 				end else if(cToken.iType == Ld) begin
 
-					let res = l1D.getres();
+					let res = l1D.getres(); l1D.deqres();
 					if(res.valid) begin
 						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe(?, cToken.dst), res: res.data};
 						numWB = numWB+1;
@@ -389,7 +412,7 @@ module mkBackend (Backend ifc);
 
 				end else if(cToken.iType == St) begin
 
-					let res = l1D.getres();
+					let res = l1D.getres(); l1D.deqres();
 					if(res.valid) begin
 						numWB = numWB+1;
 						`ifdef DEBUG_CMR
@@ -424,7 +447,7 @@ module mkBackend (Backend ifc);
 
 				end else if(cToken.iType == Join) begin
 
-					let res = l1D.getres();
+					let res = l1D.getres(); l1D.deqres();
 					if(res.valid) begin
 						if(res.data == '0) begin
 							stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);

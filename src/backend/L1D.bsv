@@ -27,6 +27,7 @@ typedef struct{
 interface L1D#(numeric type numHart, numeric type cacheRows, numeric type cacheColumns, numeric type cacheHash);
 	interface WideMemClient#(Bit#(TLog#(numHart))) mem;
 	method Action req(L1DReq#(Bit#(TLog#(numHart))) r);
+	method Action confirm(Bool comm);
 	method L1DResp#(Bit#(TLog#(numHart))) getres();
 	method L1DResp#(Bit#(TLog#(numHart))) getoldres();
 	method Action deqres();
@@ -124,6 +125,7 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 	Ehr#(2,Maybe#(hartID))                           retryMSHR <- mkEhr(tagged Invalid);
 
 	FIFOF#(L1DReq        #(hartID)) inReqQ   <- mkBypassFIFOF();
+	FIFOF#(Bool                   ) confirmQ <- mkFIFOF();
 	FIFOF#(DataCacheToken#(hartID)) dcReqQ   <- mkSizedFIFOF(3);
 	FIFOF#(WideMemReq    #(hartID)) memreq   <- mkBypassFIFOF();
 	FIFOF#(WideMemRes    #(hartID)) memres   <- mkBypassFIFOF();
@@ -146,10 +148,11 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 
 		L1DReq#(hartID) req = inReqQ.first(); inReqQ.deq();
 
-		dataCache.req(DataCacheReq{ op  : cacheOpOf(req.op, req.ldFunc, req.stFunc),
-		                            addr: req.addr,
-		                            data: req.data,
-		                            line: ? });
+		dataCache.req(DataCacheReq{ op   : cacheOpOf(req.op, req.ldFunc, req.stFunc),
+		                            addr : req.addr,
+		                            data : req.data,
+		                            line : ? ,
+		                            isOld: False });
 		dcReqQ.enq(DataCacheToken{ req  : req,
 		                           isOld: False });
 
@@ -175,38 +178,36 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 			idMatch = idMatch  | signExtend(pack(mmMatch))&fromInteger(i);
 		end
 
-		if(isValid(d)) begin // Hit
-
-			if(dcReqQ.first().isOld) begin // Old hit
-				oldRespQ.enq(L1DResp{ valid  : True,
-				                      data   : fromMaybe(?,d),
-				                      transId: req.transId });
-			end else begin // Young hit
-				respQ.enq(L1DResp{ valid  : True,
-				                   data   : fromMaybe(?,d),
-				                   transId: req.transId });
+		if(dcReqQ.first.isOld) begin // Old hit
+			oldRespQ.enq(L1DResp{ valid  : True,
+			                      data   : fromMaybe(?,d),
+			                      transId: req.transId });
+		end else begin
+			Bool conf = confirmQ.first(); confirmQ.deq();
+			if(conf) begin
+				if(isValid(d)) begin // Young hit
+					respQ.enq(L1DResp{ valid  : True,
+					                   data   : fromMaybe(?,d),
+					                   transId: req.transId });
+				end else if(conf) begin // Young miss
+					respQ.enq(L1DResp{ valid  : False,
+					                   data   : ?,
+					                   transId: req.transId });
+					if(isMatch) begin
+						mshrArray[idMatch].enq(req);
+					end else begin
+						mshrArray[req.transId].enq(req);
+						memreq.enq(WideMemReq{ tag  : req.transId,
+						                       write: False,
+						                       num  : lineNumOf(req.addr),
+						                       line : ? });
+					end
+				end
 			end
-
-		end else begin // Young miss
-
-			respQ.enq(L1DResp{ valid  : False,
-			                   data   : ?,
-			                   transId: req.transId });
-
-			if(isMatch) begin
-				mshrArray[idMatch].enq(req);
-			end else begin
-				mshrArray[req.transId].enq(req);
-				memreq.enq(WideMemReq{ tag  : req.transId,
-				                       write: False,
-				                       num  : lineNumOf(req.addr),
-				                       line : ? });
-			end
-
 		end
 
 		`ifdef DEBUG_STATS
-		if(!dcReqQ.first().isOld) begin
+		if(!dcReqQ.first().isOld && confirmQ.first) begin
 			if (isValid(d)) begin // hit
 				case (req.op)
 					Ld:   hLd  [0] <= hLd  [0]+1;
@@ -228,11 +229,11 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 	rule do_MEMRESP if(!isValid(retryMSHR[1]));
 
 		WideMemRes#(hartID) res = memres.first(); memres.deq();
-		dataCache.req(DataCacheReq{ op  : PUT,
-		                            addr: {mshrArray[res.tag].cacheLineNum,'0},
-		                            data: ?,
-		                            line: res.line });
-
+		dataCache.req(DataCacheReq{ op   : PUT,
+		                            addr : {mshrArray[res.tag].cacheLineNum,'0},
+		                            data : ?,
+		                            line : res.line,
+		                            isOld: True});
 		hartID mshrId = res.tag;
 		if(!mshrArray[mshrId].isEmpty && mshrArray[mshrId].first.op == Ld) begin
 			let  req = mshrArray[mshrId].first(); mshrArray[mshrId].deq();
@@ -253,10 +254,11 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 	rule do_RETRY if(retryMSHR[1] matches tagged Valid .mshrId);
 
 		let req = mshrArray[mshrId].first(); mshrArray[mshrId].deq();
-		dataCache.req(DataCacheReq{ op  : cacheOpOf(req.op, req.ldFunc, req.stFunc),
-		                            addr: req.addr,
-		                            data: req.data,
-		                            line: ? });
+		dataCache.req(DataCacheReq{ op   : cacheOpOf(req.op, req.ldFunc, req.stFunc),
+		                            addr : req.addr,
+		                            data : req.data,
+		                            line : ?,
+		                            isOld: True});
 		dcReqQ.enq(DataCacheToken{ req  : req,
 		                           isOld: True});
 
@@ -294,6 +296,11 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 
 	method Action req(L1DReq#(hartID) r);
 		inReqQ.enq(r);
+	endmethod
+
+	method Action confirm(Bool comm);
+		dataCache.confirm(comm);
+		confirmQ.enq(comm);
 	endmethod
 
 	method L1DResp#(Bit#(TLog#(numHart))) getres();
