@@ -13,7 +13,7 @@ endinterface
 
 module mkWideMemDelay(WideMemDelay#(delayLatency, tagT) ifc) provisos(Bits#(tagT, t__));
 
-	Vector#(delayLatency, FIFOF#(WideMemReq#(tagT))) forward <- replicateM(mkPipelineFIFOF());
+	Vector#(delayLatency, FIFOF#(WideMemReq#(tagT))) forward <- replicateM(mkFIFOF());
 	FIFOF#(WideMemReq#(tagT)) inQ  = forward[0];
 	FIFOF#(WideMemReq#(tagT)) outQ = forward[valueof(delayLatency)-1];
 	FIFOF#(WideMemReq#(tagT)) memreq <- mkBypassFIFOF();
