@@ -24,7 +24,7 @@ typedef struct{
 	transIdType transId;
 } L1DResp#(type transIdType) deriving(Eq, Bits, FShow);
 
-interface L1D#(numeric type numHart, numeric type cacheRows, numeric type cacheColumns);
+interface L1D#(numeric type numHart, numeric type cacheRows, numeric type cacheColumns, numeric type cacheHash);
 	interface WideMemClient#(Bit#(TLog#(numHart))) mem;
 	method Action req(L1DReq#(Bit#(TLog#(numHart))) r);
 	method L1DResp#(Bit#(TLog#(numHart))) getres();
@@ -95,7 +95,11 @@ module mkMSHR (MSHR#(numHart)) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(har
 
 endmodule
 
-module mkL1D (L1D#(numHart, cacheRows, cacheColumns) ifc) provisos(Add#(a__, 1, TLog#(numHart)), Alias#(hartID, Bit#(TLog#(numHart))));
+module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Add#(a__, 1, TLog#(numHart)),
+                                                                              Log#(cacheHash, e__),
+                                                                              Add#(f__, TLog#(cacheHash), TLog#(cacheRows)),
+                                                                              Add#(g__, TLog#(cacheHash), CacheLineNumSz),
+                                                                              Alias#(hartID, Bit#(TLog#(numHart))));
 
 	function DataCacheOp cacheOpOf(MemOp op, LoadFunc ldFunc, StoreFunc stFunc);
 		case(op)
@@ -115,9 +119,9 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns) ifc) provisos(Add#(a__, 1, 
 		endcase
 	endfunction
 
-	BareDataCache#(cacheRows,cacheColumns) dataCache <- ((valueOf(cacheColumns)==1) ? mkAssociativeDataCache() : mkDirectDataCache());
-	Vector#(numHart, MSHR#(numHart))       mshrArray <- replicateM(mkMSHR());
-	Ehr#(2,Maybe#(hartID))                 retryMSHR <- mkEhr(tagged Invalid);
+	BareDataCache#(cacheRows,cacheColumns,cacheHash) dataCache <- ((valueOf(cacheColumns)==1) ? mkAssociativeDataCache() : mkDirectDataCache());
+	Vector#(numHart, MSHR#(numHart))                 mshrArray <- replicateM(mkMSHR());
+	Ehr#(2,Maybe#(hartID))                           retryMSHR <- mkEhr(tagged Invalid);
 
 	FIFOF#(L1DReq        #(hartID)) inReqQ   <- mkBypassFIFOF();
 	FIFOF#(DataCacheToken#(hartID)) dcReqQ   <- mkSizedFIFOF(3);

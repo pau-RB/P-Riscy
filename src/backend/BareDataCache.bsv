@@ -8,6 +8,7 @@ import BRAM::*;
 
 typedef CacheLineNum              CacheTag     #(numeric type cacheRows   );
 typedef Bit#(TLog#(cacheRows))    CacheRowIndex#(numeric type cacheRows   );
+typedef Bit#(TLog#(cacheHash))    CacheRowHash #(numeric type cacheHash   );
 typedef Bit#(TLog#(cacheColumns)) CacheColIndex#(numeric type cacheColumns);
 
 typedef enum{PUT,LB,LH,LW,LBU,LHU,SB,SH,SW,JOIN} DataCacheOp deriving(Bits, Eq, FShow);
@@ -21,7 +22,7 @@ typedef struct{
 
 typedef Maybe#(Data) DataCacheResp;
 
-interface BareDataCache#(numeric type cacheRows, numeric type cacheColumns);
+interface BareDataCache#(numeric type cacheRows, numeric type cacheColumns, numeric type cacheHash);
 	method Action invalidate();
 	method Action req(DataCacheReq r);
 	method ActionValue#(DataCacheResp) resp();
@@ -59,8 +60,12 @@ typedef struct{
 	Bool     dirty;
 } CacheMeta deriving(Eq, Bits, FShow);
 
-module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns) ifc) provisos(Alias#(cacheTag   ,  CacheTag#(cacheRows)),
-                                                                                Alias#(cacheRowIdx,  CacheRowIndex#(cacheRows)));
+module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc) provisos(Log#(cacheHash, e__),
+                                                                                           Add#(f__, TLog#(cacheHash), TLog#(cacheRows)),
+                                                                                           Add#(g__, TLog#(cacheHash), CacheLineNumSz),
+                                                                                           Alias#(cacheTag   ,  CacheTag#(cacheRows)),
+                                                                                           Alias#(cacheRowIdx,  CacheRowIndex#(cacheRows)),
+                                                                                           Alias#(cacheRowHash, CacheRowHash#(cacheHash)));
 
 	function Bit#(CacheLineBytes) writeEnOf (Addr addr, DataCacheOp op);
 
@@ -103,6 +108,10 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns) ifc) provisos(
 		return idx;
 	endfunction
 
+	function cacheRowHash hashOf(Addr addr);
+		return truncate(indexOf(addr));
+	endfunction
+
 	Reg#(Maybe#(cacheRowIdx)) invIndex <- mkReg(tagged Valid 0);
 
 	BRAM_Configure cfg = BRAM_Configure { memorySize              : 0,
@@ -120,7 +129,7 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns) ifc) provisos(
 	FIFOF#(DataCacheResp)     resQ    <- mkFIFOF();
 	FIFOF#(WideMemReq#(void)) wbQ     <- mkBypassFIFOF();
 
-	Ehr#(3,Maybe#(cacheRowIdx)) writePortIndex <- mkEhr(tagged Invalid); // Prevent conflicts
+	Ehr#(3,Maybe#(cacheRowHash)) writePortHash <- mkEhr(tagged Invalid); // Prevent conflicts
 
 	rule do_invalidate if (invIndex matches tagged Valid .index);
 
@@ -139,10 +148,10 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns) ifc) provisos(
 	endrule
 
 	rule do_WPI;
-		writePortIndex[2] <= tagged Invalid;
+		writePortHash[2] <= tagged Invalid;
 	endrule
 
-	rule do_REQ if(!wbQ.notEmpty() && !isValid(invIndex) && (!isValid(writePortIndex[1]) || fromMaybe(?,writePortIndex[1]) != indexOf(reqQ.first.addr)));
+	rule do_REQ if(!wbQ.notEmpty() && !isValid(invIndex) && (!isValid(writePortHash[1]) || fromMaybe(?,writePortHash[1]) != hashOf(reqQ.first.addr)));
 
 		DataCacheReq req = reqQ.first(); reqQ.deq();
 		cacheRowIdx index = indexOf(req.addr);
@@ -176,7 +185,7 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns) ifc) provisos(
 		CacheLine            writeLn    = writeLnOf   (req.addr, req.op, req.data);
 
 		if(req.op == PUT || req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN) begin
-			writePortIndex[0] <= tagged Valid (index);
+			writePortHash[0] <= tagged Valid(hashOf(req.addr));
 		end
 
 		if(req.op == PUT) begin
@@ -250,9 +259,12 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns) ifc) provisos(
 
 endmodule
 
-module mkAssociativeDataCache (BareDataCache#(cacheRows, cacheColumns) ifc) provisos(Alias#(cacheColIdx,  CacheColIndex#(cacheColumns)));
+module mkAssociativeDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc) provisos(Log#(cacheHash, e__),
+                                                                                                Add#(f__, TLog#(cacheHash), TLog#(cacheRows)),
+                                                                                                Add#(g__, TLog#(cacheHash), CacheLineNumSz),
+                                                                                                Alias#(cacheColIdx,  CacheColIndex#(cacheColumns)));
 
-	Vector#(cacheColumns,BareDataCache#(cacheRows,cacheColumns)) lane <- replicateM(mkDirectDataCache());
+	Vector#(cacheColumns,BareDataCache#(cacheRows,cacheColumns, cacheHash)) lane <- replicateM(mkDirectDataCache());
 	Reg#(cacheColIdx) replaceIndex <- mkReg(0);
 	FIFOF#(WideMemReq#(void)) wbFifo <- mkBypassFIFOF();
 
