@@ -128,7 +128,7 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 	FIFOF#(WideMemReq    #(hartID)) memreq   <- mkBypassFIFOF();
 	FIFOF#(WideMemRes    #(hartID)) memres   <- mkBypassFIFOF();
 	FIFOF#(L1DResp       #(hartID)) respQ    <- mkBypassFIFOF();
-	FIFOF#(L1DResp       #(hartID)) oldRespQ <- mkBypassFIFOF();
+	FIFOF#(L1DResp       #(hartID)) oldRespQ <- mkFIFOF();
 
 	`ifdef DEBUG_STATS
 	Ehr#(2,PerfCnt) hLd   <- mkEhr(0);
@@ -142,7 +142,7 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 	Ehr#(2,PerfCnt) dJoin <- mkEhr(0);
 	`endif
 
-	rule do_INREQ if(!isValid(retryMSHR[1]));
+	rule do_INREQ if(!isValid(retryMSHR[0]));
 
 		L1DReq#(hartID) req = inReqQ.first(); inReqQ.deq();
 
@@ -225,7 +225,7 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 
 	endrule
 
-	rule do_MEMRESP if(!isValid(retryMSHR[0]));
+	rule do_MEMRESP if(!isValid(retryMSHR[1]));
 
 		WideMemRes#(hartID) res = memres.first(); memres.deq();
 		dataCache.req(DataCacheReq{ op  : PUT,
@@ -243,14 +243,14 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 			                      data   : dat,
 			                      transId: mshrId });
 			if(!mshrArray[mshrId].isLast())
-				retryMSHR[0] <= tagged Valid res.tag;
+				retryMSHR[1] <= tagged Valid res.tag;
 		end else begin
-			retryMSHR[0] <= tagged Valid res.tag;
+			retryMSHR[1] <= tagged Valid res.tag;
 		end
 
 	endrule
 
-	rule do_RETRY if(retryMSHR[0] matches tagged Valid .mshrId);
+	rule do_RETRY if(retryMSHR[1] matches tagged Valid .mshrId);
 
 		let req = mshrArray[mshrId].first(); mshrArray[mshrId].deq();
 		dataCache.req(DataCacheReq{ op  : cacheOpOf(req.op, req.ldFunc, req.stFunc),
@@ -261,7 +261,7 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 		                           isOld: True});
 
 		if(mshrArray[mshrId].isLast())
-			retryMSHR[0] <= tagged Invalid;
+			retryMSHR[1] <= tagged Invalid;
 
 	endrule
 
