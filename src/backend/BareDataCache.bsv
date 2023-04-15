@@ -124,12 +124,14 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 	BRAM2Port  #(cacheRowIdx, cacheTag                 ) tagsArray <- mkBRAM2Server  (cfg);
 	BRAM2Port  #(cacheRowIdx, CacheMeta                ) metaArray <- mkBRAM2Server  (cfg);
 
-	FIFOF#(DataCacheReq)      reqQ    <- mkBypassFIFOF();
-	FIFOF#(DataCacheReq)      bramReq <- mkPipelineFIFOF();
-	FIFOF#(DataCacheResp)     resQ    <- mkFIFOF();
-	FIFOF#(WideMemReq#(void)) wbQ     <- mkBypassFIFOF();
+	FIFOF#(DataCacheReq)      reqQ     <- mkBypassFIFOF();
+	FIFOF#(DataCacheReq)      bramReqA <- mkPipelineFIFOF();
+	FIFOF#(DataCacheReq)      bramReqB <- mkPipelineFIFOF();
+	FIFOF#(DataCacheResp)     resQ     <- mkFIFOF();
+	FIFOF#(WideMemReq#(void)) wbQ      <- mkBypassFIFOF();
 
-	Ehr#(3,Maybe#(cacheRowHash)) writePortHash <- mkEhr(tagged Invalid); // Prevent conflicts
+	Ehr#(3,Maybe#(cacheRowHash)) writePortHashA <- mkEhr(tagged Invalid); // Prevent conflicts
+	Ehr#(3,Maybe#(cacheRowHash)) writePortHashB <- mkEhr(tagged Invalid); // Prevent conflicts
 
 	rule do_invalidate if (invIndex matches tagged Valid .index);
 
@@ -148,15 +150,19 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 	endrule
 
 	rule do_WPI;
-		writePortHash[2] <= tagged Invalid;
+		writePortHashA[2] <= tagged Invalid;
+		writePortHashB[2] <= tagged Invalid;
 	endrule
 
-	rule do_REQ if(!wbQ.notEmpty() && !isValid(invIndex) && (!isValid(writePortHash[1]) || fromMaybe(?,writePortHash[1]) != hashOf(reqQ.first.addr)));
+	rule do_REQ if(!wbQ.notEmpty()
+	            && !isValid(invIndex)
+	            && (!isValid(writePortHashA[1]) || fromMaybe(?,writePortHashA[1]) != hashOf(reqQ.first.addr))
+	            && (!isValid(writePortHashB[1]) || fromMaybe(?,writePortHashB[1]) != hashOf(reqQ.first.addr)));
 
 		DataCacheReq req = reqQ.first(); reqQ.deq();
 		cacheRowIdx index = indexOf(req.addr);
 
-		bramReq.enq(req);
+		bramReqA.enq(req);
 		dataArray.portA.request.put( BRAMRequestBE{ writeen        : '0,
 		                                            responseOnWrite: False,
 		                                            address        : index,
@@ -171,9 +177,9 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 		                                            datain         : ? } );
 	endrule
 
-	rule do_RESP;
+	rule do_RESPA;
 
-		DataCacheReq req = bramReq.first(); bramReq.deq();
+		DataCacheReq req = bramReqA.first(); bramReqA.deq();
 
 		CacheLine  data <- dataArray.portA.response.get;
 		cacheTag   tag  <- tagsArray.portA.response.get;
@@ -181,12 +187,9 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 
 		cacheRowIdx          index      = indexOf     (req.addr);
 		CacheWordSelect      wordSelect = wordSelectOf(req.addr);
-		Bit#(CacheLineBytes) writeEn    = writeEnOf   (req.addr, req.op);
-		CacheLine            writeLn    = writeLnOf   (req.addr, req.op, req.data);
 
-		if(req.op == PUT || req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN) begin
-			writePortHash[0] <= tagged Valid(hashOf(req.addr));
-		end
+		if(req.op == PUT || req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN)
+			writePortHashA[0] <= tagged Valid(hashOf(req.addr));
 
 		if(req.op == PUT) begin
 
@@ -196,6 +199,35 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 				                     num  : tag, //{tag,index},
 				                     line : data });
 			end
+
+			bramReqB.enq(req); // delay actual wr to next cycle
+
+		end else if (meta.valid && (tag == tagOf(req.addr))) begin // request hit
+
+			if(req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN)
+				bramReqB.enq(req); // delay actual wr to next cycle
+
+			resQ.enq(tagged Valid extendLoad(data[wordSelect], req.addr, req.op));
+
+		end else begin // request miss
+
+			resQ.enq(tagged Invalid);
+
+		end
+
+	endrule
+
+	rule do_RESPB;
+
+		DataCacheReq req = bramReqB.first(); bramReqB.deq();
+
+		cacheRowIdx          index      = indexOf  (req.addr);
+		Bit#(CacheLineBytes) writeEn    = writeEnOf(req.addr, req.op);
+		CacheLine            writeLn    = writeLnOf(req.addr, req.op, req.data);
+
+		writePortHashB[0] <= tagged Valid(hashOf(req.addr));
+
+		if(req.op == PUT) begin
 
 			CacheMeta newMeta = CacheMeta { valid: True,
 			                                dirty: False };
@@ -213,27 +245,18 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 			                                            address        : index,
 			                                            datain         : newMeta } );
 
-		end else if (meta.valid && (tag == tagOf(req.addr))) begin // request hit
+		end else begin
 
-			if(req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN) begin
-				CacheMeta newMeta = CacheMeta { valid: True,
-				                                dirty: True };
-
-				dataArray.portB.request.put( BRAMRequestBE{ writeen        : writeEn,
-				                                            responseOnWrite: False,
-				                                            address        : index,
-				                                            datain         : writeLn } );
-				metaArray.portB.request.put( BRAMRequest  { write          : True,
-				                                            responseOnWrite: False,
-				                                            address        : index,
-				                                            datain         : newMeta } );
-			end
-
-			resQ.enq(tagged Valid extendLoad(data[wordSelect], req.addr, req.op));
-
-		end else begin // request miss
-
-			resQ.enq(tagged Invalid);
+			CacheMeta newMeta = CacheMeta { valid: True,
+			                                dirty: True };
+			dataArray.portB.request.put( BRAMRequestBE{ writeen        : writeEn,
+			                                            responseOnWrite: False,
+			                                            address        : index,
+			                                            datain         : writeLn } );
+			metaArray.portB.request.put( BRAMRequest  { write          : True,
+			                                            responseOnWrite: False,
+			                                            address        : index,
+			                                            datain         : newMeta } );
 
 		end
 
