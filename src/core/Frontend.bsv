@@ -206,10 +206,8 @@ module mkFrontend (Frontend ifc);
 			if (redirectQ[i].notEmpty) begin
 
 				Redirect red = redirectQ[i].first(); redirectQ[i].deq();
-				if(red.kill || red.redirect) begin
+				if(red.kill || red.redirect)
 					regfetchEpoch[i] <= red.epoch;
-					scoreboardArray[i].clear();
-				end
 				regfetchLock[i] <= red.lock;
 				if(red.dry || red.kill || red.redirect)
 					stream[i].redirect(red);
@@ -226,7 +224,8 @@ module mkFrontend (Frontend ifc);
 				let arg1    = regFileArray[i].rd1(fromMaybe('0, rfToken.src1));
 				let arg2    = regFileArray[i].rd2(fromMaybe('0, rfToken.src2));
 
-				scoreboardArray[i].insert(rfToken.dst);
+				if(rfToken.dst matches tagged Valid .dv)
+					scoreboardArray[i].insert(dv);
 
 				arbiterQ[i].enq(ExecToken{ feID   : fromInteger(i) ,
 				                           pc     : rfToken.pc     ,

@@ -18,48 +18,23 @@ endinterface
 //////////////////
 // Pipeline SFIFO
 
-// deq < search < enq < clear
+// deq < clr < search < enq
 module mkPipelineSFifo( function Bool isFound(dt x, st y), SFifo#(n, dt, st) ifc ) provisos (Bits#(dt,dtSz));
     // n is size of the FIFO
     // dt is data type
     // st is search type
     Vector#(n, Reg#(dt))    data     <- replicateM(mkRegU());
-    Ehr#(2, Bit#(TLog#(n))) enqP     <- mkEhr(0);
-    Ehr#(2, Bit#(TLog#(n))) deqP     <- mkEhr(0);
-    Ehr#(3, Bool)           empty    <- mkEhr(True);
-    Ehr#(3, Bool)           full     <- mkEhr(False);
+    Ehr#(5, Bit#(TLog#(n))) enqP     <- mkEhr(0);
+    Ehr#(5, Bit#(TLog#(n))) deqP     <- mkEhr(0);
+    Ehr#(4, Bool)           empty    <- mkEhr(True);
+    Ehr#(4, Bool)           full     <- mkEhr(False);
     Bit#(TLog#(n))          max_index = fromInteger(valueOf(n)-1);
 
-    method Bool search(st x);
-        // look between deqP[1] and enqP[0]
-        Bool ret = False;
-        Bool enqP_lt_deqP = enqP[0] < deqP[1];
-        for( Integer i = 0 ; i < valueOf(n) ; i = i+1 ) begin
-            Bool lt_enqP = fromInteger(i) < enqP[0];
-            Bool gte_deqP = fromInteger(i) >= deqP[1];
-            Bool is_match = isFound(data[i], x);
-            if( full[1] || (enqP_lt_deqP && lt_enqP) || (enqP_lt_deqP && gte_deqP) || (lt_enqP && gte_deqP) ) begin
-                // index i is valid
-                if( is_match ) begin
-                    ret = True;
-                end
-            end
-        end
-        return ret;
-    endmethod
-
-    method Bool notFull = !full[1];
-
-    method Action enq(dt x) if( !full[1] );
-        data[enqP[0]] <= x;
-        empty[1] <= False;
-        enqP[0] <= (enqP[0] == max_index) ? 0 : enqP[0] + 1;
-        if( enqP[1] == deqP[1] ) begin
-            full[1] <= True;
-        end
-    endmethod
-
     method Bool notEmpty = !empty[0];
+
+    method dt first if( !empty[0] );
+        return data[deqP[0]];
+    endmethod
 
     method Action deq if( !empty[0] );
         // Tell later stages a dequeue was requested
@@ -70,16 +45,41 @@ module mkPipelineSFifo( function Bool isFound(dt x, st y), SFifo#(n, dt, st) ifc
         end
     endmethod
 
-    method dt first if( !empty[0] );
-        return data[deqP[0]];
+    method Action clear;
+        enqP [1] <= 0;
+        deqP [1] <= 0;
+        empty[1] <= True;
+        full [1] <= False;
     endmethod
 
-    method Action clear;
-        enqP[1] <= 0;
-        deqP[1] <= 0;
-        empty[2] <= True;
-        full[2] <= False;
+    method Bool search(st x);
+        Bool ret = False;
+        Bool enqP_lt_deqP = enqP[2] < deqP[2];
+        for( Integer i = 0 ; i < valueOf(n) ; i = i+1 ) begin
+            Bool lt_enqP = fromInteger(i) < enqP[2];
+            Bool gte_deqP = fromInteger(i) >= deqP[2];
+            Bool is_match = isFound(data[i], x);
+            if( full[2] || (enqP_lt_deqP && lt_enqP) || (enqP_lt_deqP && gte_deqP) || (lt_enqP && gte_deqP) ) begin
+                // index i is valid
+                if( is_match ) begin
+                    ret = True;
+                end
+            end
+        end
+        return ret;
     endmethod
+
+    method Bool notFull = !full[3];
+
+    method Action enq(dt x) if( !full[3] );
+        data[enqP[3]] <= x;
+        empty[3] <= False;
+        enqP[3] <= (enqP[3] == max_index) ? 0 : enqP[3] + 1;
+        if( enqP[4] == deqP[3] ) begin
+            full[3] <= True;
+        end
+    endmethod
+
 endmodule
 
 ////////////////

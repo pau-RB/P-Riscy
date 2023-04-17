@@ -86,13 +86,13 @@ module mkCore7SS(Core ifc);
 	endrule
 
 	for (Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-		rule do_forward_sb_remove;
-			let sbremove = backend.deqSBremove[i].first(); backend.deqSBremove[i].deq();
-			frontend.scoreboard[i].remove();
-		endrule
 		rule do_forward_rf_writeback;
 			let rfwriteback = backend.deqRFwriteBack[i].first(); backend.deqRFwriteBack[i].deq();
 			frontend.regFile[i].wr(rfwriteback);
+			if(rfwriteback.rmv)
+				frontend.scoreboard[i].remove();
+			if(rfwriteback.clr)
+				frontend.scoreboard[i].clear();
 		endrule
 		rule do_forward_redirect_bta;
 			if(backend.deqRedirect[i].notEmpty()) begin

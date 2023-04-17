@@ -50,7 +50,6 @@ interface Backend;
 	method Action enq(Vector#(BackWidth, Maybe#(ExecToken)) inst);
 
 	// To upstream
-	interface Vector#(FrontWidth,FifoDeq#(void    )) deqSBremove;
 	interface Vector#(FrontWidth,FifoDeq#(RFwb    )) deqRFwriteBack;
 	interface Vector#(FrontWidth,FifoDeq#(Redirect)) deqRedirect;
 
@@ -104,7 +103,6 @@ module mkBackend (Backend ifc);
 	FIFOF#(Vector#(BackWidth,Maybe#(MemToken)))     memoryQ         <- mkPipelineFIFOF();
 	FIFOF#(Vector#(BackWidth,Maybe#(ComToken)))     commitQ         <- mkPipelineFIFOF();
 
-	Vector#(2,Vector#(FrontWidth, FIFOF#(void    ))) toWBsbRemove    <- replicateM(replicateM(mkBypassFIFOF));
 	Vector#(2,Vector#(FrontWidth, FIFOF#(RFwb    ))) toWBrfWriteBack <- replicateM(replicateM(mkBypassFIFOF));
 	Vector#(2,Vector#(FrontWidth, FIFOF#(Epoch   ))) toWBstEpoch     <- replicateM(replicateM(mkBypassFIFOF));
 	Vector#(2,Vector#(FrontWidth, FIFOF#(Redirect))) toWBstRedirect  <- replicateM(replicateM(mkBypassFIFOF));
@@ -117,7 +115,6 @@ module mkBackend (Backend ifc);
 	Vector#(TSub#(BackWidth,1), XilinxIntDiv#(void)) divArray <- replicateM(mkDiv);
 
 	// Upstream
-	Vector#(FrontWidth, FIFOF#(void))              sbRemoveQ       <- replicateM(mkFIFOF());
 	Vector#(FrontWidth, FIFOF#(RFwb))              rfWriteBackQ    <- replicateM(mkFIFOF());
 	Vector#(FrontWidth, FIFOF#(Redirect))          redirectQ       <- replicateM(mkFIFOF());
 
@@ -348,7 +345,6 @@ module mkBackend (Backend ifc);
 	rule do_commit;
 
 		// Upstream actions
-		Vector#(FrontWidth, Maybe#(void    )) sbRemove     = replicate(tagged Invalid);
 		Vector#(FrontWidth, Maybe#(RFwb    )) rfWriteBack  = replicate(tagged Invalid);
 		Vector#(FrontWidth, Maybe#(Epoch   )) stEpoch      = replicate(tagged Invalid);
 		Vector#(FrontWidth, Maybe#(Redirect)) stRedirect   = replicate(tagged Invalid);
@@ -365,8 +361,6 @@ module mkBackend (Backend ifc);
 
 			if(cToken.epoch == commitEpoch[cToken.feID][0])  begin
 
-				sbRemove[cToken.feID] = tagged Valid(?);
-
 				if(cToken.iType == Ghost) begin
 
 					eforkQ.enq(NTTXreq { frontID: cToken.feID,
@@ -378,7 +372,7 @@ module mkBackend (Backend ifc);
 
 					let res = l1D.getres(); l1D.deqres();
 					if(res.valid) begin
-						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe(?, cToken.dst), res: res.data};
+						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe(?, cToken.dst), res: res.data, rmv: True, clr: False};
 						numWB = numWB+1;
 						`ifdef DEBUG_CMR
 						commitReportQ.port[0].enq(generateCMR(numCycles, mapID[cToken.feID], ?, cToken, res.data, ?));
@@ -398,13 +392,14 @@ module mkBackend (Backend ifc);
 						                                     addr   : cToken.addr              ,
 						                                     `endif
 						                                     dst    : fromMaybe('0,cToken.dst) });
-						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
-						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
-						                                                 dry     : False,
-						                                                 kill    : False,
-						                                                 redirect: True,
-						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
-						                                                 nextPc  : cToken.nextpc };
+						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: '0, res: '0, rmv: False, clr: True};
+						stEpoch    [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
+						stRedirect [cToken.feID] = tagged Valid Redirect{ lock    : True,
+						                                                  dry     : False,
+						                                                  kill    : False,
+						                                                  redirect: True,
+						                                                  epoch   : commitEpoch[cToken.feID][0]+1,
+						                                                  nextPc  : cToken.nextpc };
 						`ifdef DEBUG_CYC
 						commit_miss [0] = True;
 						`endif
@@ -433,13 +428,14 @@ module mkBackend (Backend ifc);
 						                                     addr   : cToken.addr              ,
 						                                     `endif
 						                                     dst    : fromMaybe('0,cToken.dst) });
-						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
-						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
-						                                                 dry     : False,
-						                                                 kill    : False,
-						                                                 redirect: True,
-						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
-						                                                 nextPc  : cToken.nextpc };
+						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: '0, res: '0,  rmv: False, clr: True};
+						stEpoch    [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
+						stRedirect [cToken.feID] = tagged Valid Redirect{ lock    : True,
+						                                                  dry     : False,
+						                                                  kill    : False,
+						                                                  redirect: True,
+						                                                  epoch   : commitEpoch[cToken.feID][0]+1,
+						                                                  nextPc  : cToken.nextpc };
 						`ifdef DEBUG_CYC
 						commit_miss [0] = True;
 						`endif
@@ -450,13 +446,14 @@ module mkBackend (Backend ifc);
 					let res = l1D.getres(); l1D.deqres();
 					if(res.valid) begin
 						if(res.data == '0) begin
-							stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
-							stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : False,
-							                                                 dry     : False,
-							                                                 kill    : True,
-							                                                 redirect: False,
-							                                                 epoch   : commitEpoch[cToken.feID][0]+1,
-							                                                 nextPc  : ? };
+							rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: '0, res: '0, rmv: False, clr: True};
+							stEpoch    [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
+							stRedirect [cToken.feID] = tagged Valid Redirect{ lock    : False,
+							                                                  dry     : False,
+							                                                  kill    : True,
+							                                                  redirect: False,
+							                                                  epoch   : commitEpoch[cToken.feID][0]+1,
+							                                                  nextPc  : ? };
 						end
 						numWB = numWB+1;
 						`ifdef DEBUG_CMR
@@ -477,13 +474,14 @@ module mkBackend (Backend ifc);
 						                                     addr   : cToken.addr              ,
 						                                     `endif
 						                                     dst    : fromMaybe('0,cToken.dst) });
-						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
-						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
-						                                                 dry     : False,
-						                                                 kill    : False,
-						                                                 redirect: True,
-						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
-						                                                 nextPc  : cToken.nextpc };
+						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: '0, res: '0,  rmv: False, clr: True};
+						stEpoch    [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
+						stRedirect [cToken.feID] = tagged Valid Redirect{ lock    : True,
+						                                                  dry     : False,
+						                                                  kill    : False,
+						                                                  redirect: True,
+						                                                  epoch   : commitEpoch[cToken.feID][0]+1,
+						                                                  nextPc  : cToken.nextpc };
 						`ifdef DEBUG_CYC
 						commit_miss [0] = True;
 						`endif
@@ -498,13 +496,14 @@ module mkBackend (Backend ifc);
 					                     nextpc : cToken.addr,
 					                     evict  : False });
 
-					stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
-					stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : True,
-					                                                 dry     : False,
-					                                                 kill    : False,
-					                                                 redirect: True,
-					                                                 epoch   : commitEpoch[cToken.feID][0]+1,
-					                                                 nextPc  : cToken.nextpc };
+					rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: '0, res: '0, rmv: False, clr: True};
+					stEpoch    [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
+					stRedirect [cToken.feID] = tagged Valid Redirect{ lock    : True,
+					                                                  dry     : False,
+					                                                  kill    : False,
+					                                                  redirect: True,
+					                                                  epoch   : commitEpoch[cToken.feID][0]+1,
+					                                                  nextPc  : cToken.nextpc };
 
 					numWB = numWB+1;
 					`ifdef DEBUG_CMR
@@ -562,8 +561,6 @@ module mkBackend (Backend ifc);
 
 				if (cToken.epoch == commitEpoch[cToken.feID][0])  begin
 
-					sbRemove[cToken.feID] = tagged Valid(?);
-
 					Data muldivRes = ?;
 
 					if(cToken.iType == Mul) begin
@@ -573,7 +570,7 @@ module mkBackend (Backend ifc);
 							Mulhsu: truncateLSB(mulArray[i-1].product);
 							Mulhu : truncateLSB(mulArray[i-1].product);
 						endcase);
-						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe('0, cToken.dst), res: muldivRes};
+						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe('0, cToken.dst), res: muldivRes, rmv: True, clr: False};
 					end else if(cToken.iType == Div) begin
 						muldivRes = (case(cToken.divFunc)
 							Div   : divArray[i-1].quotient ;
@@ -581,19 +578,27 @@ module mkBackend (Backend ifc);
 							Rem   : divArray[i-1].remainder;
 							Remu  : divArray[i-1].remainder;
 						endcase);
-						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe('0, cToken.dst), res: muldivRes};
+						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe('0, cToken.dst), res: muldivRes, rmv: True, clr: False};
+					end else if (cToken.iType == J || cToken.iType == Jr) begin
+						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe('0, cToken.dst), res: cToken.res,  rmv: False, clr: True};
+						stEpoch    [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
+						stRedirect [cToken.feID] = tagged Valid Redirect{ lock    : False,
+						                                                  dry     : False,
+						                                                  kill    : False,
+						                                                  redirect: True,
+						                                                  epoch   : commitEpoch[cToken.feID][0]+1,
+						                                                  nextPc  : cToken.addr };
+					end else if(cToken.iType == Br && cToken.brTaken) begin
+						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: '0, res: '0, rmv: False, clr: True};
+						stEpoch    [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
+						stRedirect [cToken.feID] = tagged Valid Redirect{ lock    : False,
+						                                                  dry     : False,
+						                                                  kill    : False,
+						                                                  redirect: True,
+						                                                  epoch   : commitEpoch[cToken.feID][0]+1,
+						                                                  nextPc  : cToken.addr };
 					end else if(isValid(cToken.dst))
-						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe('0, cToken.dst), res: cToken.res};
-
-					if(cToken.brTaken || cToken.iType == J || cToken.iType == Jr) begin
-						stEpoch   [cToken.feID] = tagged Valid (commitEpoch[cToken.feID][0]+1);
-						stRedirect[cToken.feID] = tagged Valid Redirect{ lock    : False,
-						                                                 dry     : False,
-						                                                 kill    : False,
-						                                                 redirect: True,
-						                                                 epoch   : commitEpoch[cToken.feID][0]+1,
-						                                                 nextPc  : cToken.addr };
-					end
+						rfWriteBack[cToken.feID] = tagged Valid RFwb{dst: fromMaybe('0, cToken.dst), res: cToken.res, rmv: True, clr: False};
 
 					numWB = numWB+1;
 
@@ -613,7 +618,6 @@ module mkBackend (Backend ifc);
 
 		// To WB
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-			if(sbRemove   [i] matches tagged Valid .lat) toWBsbRemove   [0][i].enq(lat);
 			if(rfWriteBack[i] matches tagged Valid .lat) toWBrfWriteBack[0][i].enq(lat);
 			if(stEpoch    [i] matches tagged Valid .lat) toWBstEpoch    [0][i].enq(lat);
 			if(stRedirect [i] matches tagged Valid .lat) toWBstRedirect [0][i].enq(lat);
@@ -646,7 +650,7 @@ module mkBackend (Backend ifc);
 		if(cToken.iType == Ld) begin
 
 			loadRes = resp.data;
-			toWBrfWriteBack[1][feID].enq(RFwb{dst: cToken.dst, res: loadRes});
+			toWBrfWriteBack[1][feID].enq(RFwb{dst: cToken.dst, res: loadRes, rmv: False, clr: False});
 			toWBstRedirect [1][feID].enq(Redirect{ lock    : False,
 			                                       dry     : False,
 			                                       kill    : False,
@@ -703,9 +707,6 @@ module mkBackend (Backend ifc);
 
 		rule do_wb;
 
-			     if(toWBsbRemove   [0][i].notEmpty) begin sbRemoveQ   [i].enq(toWBsbRemove   [0][i].first); toWBsbRemove   [0][i].deq(); end
-			else if(toWBsbRemove   [1][i].notEmpty) begin sbRemoveQ   [i].enq(toWBsbRemove   [1][i].first); toWBsbRemove   [1][i].deq(); end
-
 			     if(toWBrfWriteBack[0][i].notEmpty) begin rfWriteBackQ[i].enq(toWBrfWriteBack[0][i].first); toWBrfWriteBack[0][i].deq(); end
 			else if(toWBrfWriteBack[1][i].notEmpty) begin rfWriteBackQ[i].enq(toWBrfWriteBack[1][i].first); toWBrfWriteBack[1][i].deq(); end
 
@@ -738,16 +739,6 @@ module mkBackend (Backend ifc);
 
 	//////////// INTERFACE ////////////
 
-	Vector#(FrontWidth, FifoDeq#(void)) deqSBremoveIfc = newVector;
-	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-		deqSBremoveIfc[i] =
-			(interface FifoDeq#(Redirect);
-				method notEmpty = sbRemoveQ[i].notEmpty;
-				method deq      = sbRemoveQ[i].deq;
-				method first    = sbRemoveQ[i].first;
-			endinterface);
-	end
-
 	Vector#(FrontWidth, FifoDeq#(RFwb)) deqRFwriteBackIfc = newVector;
 	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 		deqRFwriteBackIfc[i] =
@@ -777,7 +768,6 @@ module mkBackend (Backend ifc);
 	endmethod
 
 	// To upstream
-	interface deqSBremove    = deqSBremoveIfc;
 	interface deqRFwriteBack = deqRFwriteBackIfc;
 	interface deqRedirect    = deqRedirectIfc;
 

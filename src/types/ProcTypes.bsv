@@ -221,6 +221,8 @@ typedef struct {
 typedef struct {
 	RIndx       dst;
 	Data        res;
+	Bool        rmv;
+	Bool        clr;
 } RFwb deriving (Bits, Eq, FShow);
 
 //////////// SPECULATION INDICATIONS ////////////

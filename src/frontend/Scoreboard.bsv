@@ -2,16 +2,16 @@ import SFifo::*;
 import ProcTypes::*;
 
 interface Scoreboard#(numeric type size);
-    method Action insert(Maybe#(RIndx) d);
+    method Action insert(RIndx d);
     method Action remove;
     method Bool hasDest1(Maybe#(RIndx) r);
     method Bool hasDest2(Maybe#(RIndx) r);
     method Action clear;
 endinterface
 
-function Bool isFound(Maybe#(RIndx) x, Maybe#(RIndx) k);
+function Bool isFound(RIndx xv, Maybe#(RIndx) k);
 
-    if(x matches tagged Valid .xv &&& k matches tagged Valid .kv &&& kv == xv &&& kv != '0) begin
+    if(k matches tagged Valid .kv &&& kv == xv &&& kv != '0) begin
         return True;
     end else begin
         return False;
@@ -22,9 +22,9 @@ endfunction
 // remove < search < insert < clear
 module mkPipelineScoreboard(Scoreboard#(size));
 
-    SFifo#(size, Maybe#(RIndx), Maybe#(RIndx)) dest <- mkPipelineSFifo(isFound);
+    SFifo#(size, RIndx, Maybe#(RIndx)) dest <- mkPipelineSFifo(isFound);
 
-    method Action insert(Maybe#(RIndx) d);
+    method Action insert(RIndx d);
         dest.enq(d);
     endmethod
 
