@@ -120,15 +120,17 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 		endcase
 	endfunction
 
-	BareDataCache#(cacheRows,cacheColumns,cacheHash) dataCache <- ((valueOf(cacheColumns)==1) ? mkAssociativeDataCache() : mkDirectDataCache());
+	FIFOF#(WideMemReq#(hartID)) memreq <- mkBypassFIFOF();
+	FIFOF#(WideMemRes#(hartID)) memres <- mkBypassFIFOF();
+
+	BareDataCache#(cacheRows,cacheColumns,cacheHash) dataCache <- mkDirectDataCache();
 	Vector#(numHart, MSHR#(numHart))                 mshrArray <- replicateM(mkMSHR());
 	Ehr#(2,Maybe#(hartID))                           retryMSHR <- mkEhr(tagged Invalid);
 
 	FIFOF#(L1DReq        #(hartID)) inReqQ   <- mkBypassFIFOF();
 	FIFOF#(Bool                   ) confirmQ <- mkFIFOF();
 	FIFOF#(DataCacheToken#(hartID)) dcReqQ   <- mkSizedFIFOF(3);
-	FIFOF#(WideMemReq    #(hartID)) memreq   <- mkBypassFIFOF();
-	FIFOF#(WideMemRes    #(hartID)) memres   <- mkBypassFIFOF();
+	FIFOF#(WideMemReq#(hartID)    ) missQ    <- mkSizedBypassFIFOF(4);
 	FIFOF#(L1DResp       #(hartID)) respQ    <- mkBypassFIFOF();
 	FIFOF#(L1DResp       #(hartID)) oldRespQ <- mkFIFOF();
 
@@ -197,10 +199,10 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 						mshrArray[idMatch].enq(req);
 					end else begin
 						mshrArray[req.transId].enq(req);
-						memreq.enq(WideMemReq{ tag  : req.transId,
-						                       write: False,
-						                       num  : lineNumOf(req.addr),
-						                       line : ? });
+						missQ.enq(WideMemReq{ tag  : req.transId,
+						                      write: False,
+						                      num  : lineNumOf(req.addr),
+						                      line : ? });
 					end
 				end
 			end
@@ -223,6 +225,21 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 			end
 		end
 		`endif
+
+	endrule
+
+	rule do_MEMREQ;
+
+		if(dataCache.hasWB()) begin
+			let req = dataCache.getWB(); dataCache.deqWB();
+			memreq.enq(WideMemReq{ tag  : ?,
+			                       write: True,
+			                       num  : req.num,
+			                       line : req.line });
+		end else if(missQ.notEmpty) begin
+			let req = missQ.first(); missQ.deq();
+			memreq.enq(req);
+		end
 
 	endrule
 
@@ -264,17 +281,6 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 
 		if(mshrArray[mshrId].isLast())
 			retryMSHR[1] <= tagged Invalid;
-
-	endrule
-
-	rule do_WB;
-
-		let req <- dataCache.getWB();
-
-		memreq.enq(WideMemReq{ tag  : ?,
-		                       write: True,
-		                       num  : req.num,
-		                       line : req.line });
 
 	endrule
 

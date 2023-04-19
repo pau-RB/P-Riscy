@@ -28,7 +28,9 @@ interface BareDataCache#(numeric type cacheRows, numeric type cacheColumns, nume
 	method Action req(DataCacheReq r);
 	method Action confirm(Bool comm);
 	method ActionValue#(DataCacheResp) resp();
-	method ActionValue#(WideMemReq#(void)) getWB();
+	method Bool hasWB();
+	method WideMemReq#(void) getWB();
+	method Action deqWB();
 endinterface
 
 function CacheWordSelect wordSelectOf(Addr addr);
@@ -68,6 +70,8 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
                                                                                            Alias#(cacheTag   ,  CacheTag#(cacheRows)),
                                                                                            Alias#(cacheRowIdx,  CacheRowIndex#(cacheRows)),
                                                                                            Alias#(cacheRowHash, CacheRowHash#(cacheHash)));
+	
+	//////////// FUNCTIONS ////////////
 
 	function Bit#(CacheLineBytes) writeEnOf (Addr addr, DataCacheOp op);
 
@@ -114,10 +118,23 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 		return truncate(indexOf(addr));
 	endfunction
 
-	Reg#(Maybe#(cacheRowIdx)) invIndex <- mkReg(tagged Valid 0);
+	function Bool isIndxConflict(DataCacheReq yng, DataCacheReq old);
+		return (old.op == SB ||old.op == SH ||old.op == SW || old.op == JOIN || old.op == PUT)
+			&& (yng.op == LB ||yng.op == LH ||yng.op == LW || yng.op == JOIN || old.op == PUT)
+			&& (hashOf(yng.addr) == hashOf(old.addr));
+	endfunction
+
+	function Bool isAddrConflict(DataCacheReq yng, DataCacheReq old);
+		return (old.op == SB ||old.op == SH ||old.op == SW || old.op == JOIN || old.op == PUT)
+			&& (yng.op == LB ||yng.op == LH ||yng.op == LW || yng.op == JOIN || old.op == PUT)
+			&& (tagOf(yng.addr) == tagOf(old.addr));
+	endfunction
+
+
+	//////////// DATA ////////////
 
 	BRAM_Configure cfg = BRAM_Configure { memorySize              : 0,
-	                                      latency                 : 1,
+	                                      latency                 : 2,
 	                                      outFIFODepth            : 2,
 	                                      loadFormat              : None,
 	                                      allowWriteResponseBypass: False };
@@ -126,17 +143,22 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 	BRAM2Port  #(cacheRowIdx, cacheTag                 ) tagsArray <- mkBRAM2Server  (cfg);
 	BRAM2Port  #(cacheRowIdx, CacheMeta                ) metaArray <- mkBRAM2Server  (cfg);
 
-	FIFOF#(DataCacheReq)      reqQ     <- mkBypassFIFOF();
-	FIFOF#(Bool        )      confirmQ <- mkBypassFIFOF();
-	FIFOF#(DataCacheReq)      bramReqA <- mkPipelineFIFOF();
-	FIFOF#(DataCacheReq)      bramReqB <- mkPipelineFIFOF();
-	FIFOF#(DataCacheResp)     resQ     <- mkFIFOF();
-	FIFOF#(WideMemReq#(void)) wbQ      <- mkBypassFIFOF();
+	Reg#(Maybe#(cacheRowIdx)) invIndex <- mkReg(tagged Valid 0);
 
-	Ehr#(3,Maybe#(cacheRowHash)) writePortHashA <- mkEhr(tagged Invalid); // Prevent conflicts
-	Ehr#(3,Maybe#(cacheRowHash)) writePortHashB <- mkEhr(tagged Invalid); // Prevent conflicts
+	FIFOF#(DataCacheReq)      reqQ  <- mkBypassFIFOF();
+	FIFOF#(DataCacheReq)      brmQ1 <- mkPipelineFIFOF();
+	FIFOF#(DataCacheReq)      brmQ2 <- mkPipelineFIFOF();
+	FIFOF#(DataCacheResp)     resQ  <- mkBypassFIFOF();
 
-	rule do_invalidate if (invIndex matches tagged Valid .index);
+	FIFOF#(Bool)              conQ  <- mkFIFOF();
+	FIFOF#(WideMemReq#(void)) wrbQ  <- mkSizedBypassFIFOF(4);
+
+	RWire#(DataCacheReq)      brmC1 <- mkRWire();
+	RWire#(DataCacheReq)      brmC2 <- mkRWire();
+
+	//////////// RULES ////////////
+
+	rule do_INV if (invIndex matches tagged Valid .index);
 
 		CacheMeta newMeta = CacheMeta { valid: False,
 		                                dirty: False };
@@ -152,20 +174,21 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 
 	endrule
 
-	rule do_WPI;
-		writePortHashA[2] <= tagged Invalid;
-		writePortHashB[2] <= tagged Invalid;
+	rule do_CON;
+		if(brmQ1.notEmpty)
+			brmC1.wset(brmQ1.first);
+		if(brmQ2.notEmpty)
+			brmC2.wset(brmQ2.first);
 	endrule
 
-	rule do_REQ if(!wbQ.notEmpty()
-	            && !isValid(invIndex)
-	            && (!isValid(writePortHashA[1]) || fromMaybe(?,writePortHashA[1]) != hashOf(reqQ.first.addr))
-	            && (!isValid(writePortHashB[1]) || fromMaybe(?,writePortHashB[1]) != hashOf(reqQ.first.addr)));
+	rule do_ST1 if(!isValid(invIndex)
+	           && (!isValid(brmC1.wget) || !isAddrConflict(reqQ.first,fromMaybe(?,brmC1.wget)))
+	           && (!isValid(brmC2.wget) || !isIndxConflict(reqQ.first,fromMaybe(?,brmC2.wget))));
 
-		DataCacheReq req = reqQ.first(); reqQ.deq();
+		DataCacheReq req = reqQ.first(); reqQ.deq(); brmQ1.enq(req);
+
 		cacheRowIdx index = indexOf(req.addr);
 
-		bramReqA.enq(req);
 		dataArray.portA.request.put( BRAMRequestBE{ writeen        : '0,
 		                                            responseOnWrite: False,
 		                                            address        : index,
@@ -180,9 +203,15 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 		                                            datain         : ? } );
 	endrule
 
-	rule do_RESPA;
+	rule do_ST2;
 
-		DataCacheReq req = bramReqA.first(); bramReqA.deq();
+		brmQ2.enq(brmQ1.first); brmQ1.deq();
+
+	endrule
+
+	rule do_ST3;
+
+		DataCacheReq req = brmQ2.first(); brmQ2.deq();
 
 		CacheLine  data <- dataArray.portA.response.get;
 		cacheTag   tag  <- tagsArray.portA.response.get;
@@ -190,62 +219,20 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 
 		cacheRowIdx          index      = indexOf     (req.addr);
 		CacheWordSelect      wordSelect = wordSelectOf(req.addr);
-
-		if(req.op == PUT || req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN)
-			writePortHashA[0] <= tagged Valid(hashOf(req.addr));
+		Bit#(CacheLineBytes) writeEn    = writeEnOf   (req.addr, req.op);
+		CacheLine            writeLn    = writeLnOf   (req.addr, req.op, req.data);
 
 		if(req.op == PUT) begin
 
 			if(meta.valid && meta.dirty) begin // old line is dirty
-				wbQ.enq(WideMemReq { tag  : ?,
-				                     write: True,
-				                     num  : tag, //{tag,index},
-				                     line : data });
+				wrbQ.enq(WideMemReq { tag  : ?,
+				                      write: True,
+				                      num  : tag, //{tag,index},
+				                      line : data });
 			end
-
-			bramReqB.enq(req); // delay actual wr to next cycle
-
-		end else if(req.isOld) begin // old req always hits
-
-			if(req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN)
-				bramReqB.enq(req);
-
-			resQ.enq(tagged Valid extendLoad(data[wordSelect], req.addr, req.op));
-
-		end else if (meta.valid && (tag == tagOf(req.addr))) begin // request young hit
-
-			Bool conf = confirmQ.first(); confirmQ.deq();
-
-			if((req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN) && conf)
-				bramReqB.enq(req); // delay actual wr to next cycle
-
-			resQ.enq(tagged Valid extendLoad(data[wordSelect], req.addr, req.op));
-
-		end else begin // request young miss
-
-			Bool conf = confirmQ.first(); confirmQ.deq();
-
-			resQ.enq(tagged Invalid);
-
-		end
-
-	endrule
-
-	rule do_RESPB;
-
-		DataCacheReq req = bramReqB.first(); bramReqB.deq();
-
-		cacheRowIdx          index      = indexOf  (req.addr);
-		Bit#(CacheLineBytes) writeEn    = writeEnOf(req.addr, req.op);
-		CacheLine            writeLn    = writeLnOf(req.addr, req.op, req.data);
-
-		writePortHashB[0] <= tagged Valid(hashOf(req.addr));
-
-		if(req.op == PUT) begin
 
 			CacheMeta newMeta = CacheMeta { valid: True,
 			                                dirty: False };
-
 			dataArray.portB.request.put( BRAMRequestBE{ writeen        : '1,
 			                                            responseOnWrite: False,
 			                                            address        : index,
@@ -259,22 +246,53 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 			                                            address        : index,
 			                                            datain         : newMeta } );
 
-		end else begin
+		end else if(req.isOld) begin // old req always hits
 
-			CacheMeta newMeta = CacheMeta { valid: True,
-			                                dirty: True };
-			dataArray.portB.request.put( BRAMRequestBE{ writeen        : writeEn,
-			                                            responseOnWrite: False,
-			                                            address        : index,
-			                                            datain         : writeLn } );
-			metaArray.portB.request.put( BRAMRequest  { write          : True,
-			                                            responseOnWrite: False,
-			                                            address        : index,
-			                                            datain         : newMeta } );
+			if(req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN) begin
+				CacheMeta newMeta = CacheMeta { valid: True,
+				                                dirty: True };
+				dataArray.portB.request.put( BRAMRequestBE{ writeen        : writeEn,
+				                                            responseOnWrite: False,
+				                                            address        : index,
+				                                            datain         : writeLn } );
+				metaArray.portB.request.put( BRAMRequest  { write          : True,
+				                                            responseOnWrite: False,
+				                                            address        : index,
+				                                            datain         : newMeta } );
+			end
+
+			resQ.enq(tagged Valid extendLoad(data[wordSelect], req.addr, req.op));
+
+		end else if (meta.valid && (tag == tagOf(req.addr))) begin // request young hit
+
+			Bool conf = conQ.first(); conQ.deq();
+
+			if(conf && (req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN)) begin
+				CacheMeta newMeta = CacheMeta { valid: True,
+				                                dirty: True };
+				dataArray.portB.request.put( BRAMRequestBE{ writeen        : writeEn,
+				                                            responseOnWrite: False,
+				                                            address        : index,
+				                                            datain         : writeLn } );
+				metaArray.portB.request.put( BRAMRequest  { write          : True,
+				                                            responseOnWrite: False,
+				                                            address        : index,
+				                                            datain         : newMeta } );
+			end
+
+			resQ.enq(tagged Valid extendLoad(data[wordSelect], req.addr, req.op));
+
+		end else begin // request young miss
+
+			Bool conf = conQ.first(); conQ.deq();
+
+			resQ.enq(tagged Invalid);
 
 		end
 
 	endrule
+
+	//////////// INTERFACE ////////////
 
 	method Action invalidate();
 		invIndex <= tagged Valid 0;
@@ -285,7 +303,7 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 	endmethod
 
 	method Action confirm(Bool comm);
-		confirmQ.enq(comm);
+		conQ.enq(comm);
 	endmethod
 
 	method ActionValue#(DataCacheResp) resp();
@@ -293,13 +311,14 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 		return resQ.first();
 	endmethod
 
-	method ActionValue#(WideMemReq#(void)) getWB();
-		wbQ.deq();
-		return wbQ.first();
-	endmethod
+	method Bool hasWB() = wrbQ.notEmpty();
+
+	method WideMemReq#(void) getWB() = wrbQ.first();
+
+	method Action deqWB() = wrbQ.deq();
 
 endmodule
-
+/*
 module mkAssociativeDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc) provisos(Log#(cacheHash, e__),
                                                                                                 Add#(f__, TLog#(cacheHash), TLog#(cacheRows)),
                                                                                                 Add#(g__, TLog#(cacheHash), CacheLineNumSz),
@@ -356,3 +375,4 @@ module mkAssociativeDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash
 	endmethod
 
 endmodule
+*/
