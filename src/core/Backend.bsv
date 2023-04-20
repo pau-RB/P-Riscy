@@ -90,7 +90,7 @@ endinterface
 module mkBackend (Backend ifc);
 
 	// L1D
-	L1D#(FrontWidth, L1DCacheRows, L1DCacheColumns, L1DCacheHashBlocks) l1D <- mkL1D();
+	L1D#(FrontWidth, L1DCacheRows, L1DCacheColumns) l1D <- mkL1D();
 
 	// Missed access table
 	Vector#(FrontWidth, FIFOF#(OldToken)) miata <- replicateM(mkPipelineFIFOF());

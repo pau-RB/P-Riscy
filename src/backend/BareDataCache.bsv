@@ -8,7 +8,6 @@ import BRAM::*;
 
 typedef CacheLineNum              CacheTag     #(numeric type cacheRows   );
 typedef Bit#(TLog#(cacheRows))    CacheRowIndex#(numeric type cacheRows   );
-typedef Bit#(TLog#(cacheHash))    CacheRowHash #(numeric type cacheHash   );
 typedef Bit#(TLog#(cacheColumns)) CacheColIndex#(numeric type cacheColumns);
 
 typedef enum{PUT,LB,LH,LW,LBU,LHU,SB,SH,SW,JOIN} DataCacheOp deriving(Bits, Eq, FShow);
@@ -23,7 +22,7 @@ typedef struct{
 
 typedef Maybe#(Data) DataCacheResp;
 
-interface BareDataCache#(numeric type cacheRows, numeric type cacheColumns, numeric type cacheHash);
+interface BareDataCache#(numeric type cacheRows, numeric type cacheColumns);
 	method Action invalidate();
 	method Action req(DataCacheReq r);
 	method Action confirm(Bool comm);
@@ -64,12 +63,8 @@ typedef struct{
 	Bool     dirty;
 } CacheMeta deriving(Eq, Bits, FShow);
 
-module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc) provisos(Log#(cacheHash, e__),
-                                                                                           Add#(f__, TLog#(cacheHash), TLog#(cacheRows)),
-                                                                                           Add#(g__, TLog#(cacheHash), CacheLineNumSz),
-                                                                                           Alias#(cacheTag   ,  CacheTag#(cacheRows)),
-                                                                                           Alias#(cacheRowIdx,  CacheRowIndex#(cacheRows)),
-                                                                                           Alias#(cacheRowHash, CacheRowHash#(cacheHash)));
+module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns) ifc) provisos(Alias#(cacheTag   ,  CacheTag#(cacheRows)),
+                                                                                Alias#(cacheRowIdx,  CacheRowIndex#(cacheRows)));
 	
 	//////////// FUNCTIONS ////////////
 
@@ -114,20 +109,13 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 		return idx;
 	endfunction
 
-	function cacheRowHash hashOf(Addr addr);
-		return truncate(indexOf(addr));
-	endfunction
-
-	function Bool isIndxConflict(DataCacheReq yng, DataCacheReq old);
-		return (old.op == SB ||old.op == SH ||old.op == SW || old.op == JOIN || old.op == PUT)
-			&& (yng.op == LB ||yng.op == LH ||yng.op == LW || yng.op == JOIN || old.op == PUT)
-			&& (hashOf(yng.addr) == hashOf(old.addr));
-	endfunction
-
-	function Bool isAddrConflict(DataCacheReq yng, DataCacheReq old);
-		return (old.op == SB ||old.op == SH ||old.op == SW || old.op == JOIN || old.op == PUT)
-			&& (yng.op == LB ||yng.op == LH ||yng.op == LW || yng.op == JOIN || old.op == PUT)
-			&& (tagOf(yng.addr) == tagOf(old.addr));
+	function Bool isHashConflict(DataCacheReq yng, DataCacheReq old);
+		Bool reqcon = (tagOf(yng.addr) == tagOf(old.addr))
+		           && (old.op == SB ||old.op == SH ||old.op == SW || old.op == PUT || old.op == JOIN)
+		           && (yng.op == LB ||yng.op == LH ||yng.op == LW || yng.op == PUT || yng.op == JOIN);
+		Bool putcon = (indexOf(yng.addr) == indexOf(old.addr))
+		           && (old.op == PUT || yng.op == PUT);
+		return reqcon || putcon;
 	endfunction
 
 
@@ -182,8 +170,8 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 	endrule
 
 	rule do_ST1 if(!isValid(invIndex)
-	           && (!isValid(brmC1.wget) || !isAddrConflict(reqQ.first,fromMaybe(?,brmC1.wget)))
-	           && (!isValid(brmC2.wget) || !isIndxConflict(reqQ.first,fromMaybe(?,brmC2.wget))));
+	           && (!isValid(brmC1.wget) || !isHashConflict(reqQ.first,fromMaybe(?,brmC1.wget)))
+	           && (!isValid(brmC2.wget) || !isHashConflict(reqQ.first,fromMaybe(?,brmC2.wget))));
 
 		DataCacheReq req = reqQ.first(); reqQ.deq(); brmQ1.enq(req);
 
@@ -249,6 +237,7 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 		end else if(req.isOld) begin // old req always hits
 
 			if(req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN) begin
+
 				CacheMeta newMeta = CacheMeta { valid: True,
 				                                dirty: True };
 				dataArray.portB.request.put( BRAMRequestBE{ writeen        : writeEn,
@@ -268,6 +257,7 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 			Bool conf = conQ.first(); conQ.deq();
 
 			if(conf && (req.op == SB ||req.op == SH ||req.op == SW || req.op == JOIN)) begin
+
 				CacheMeta newMeta = CacheMeta { valid: True,
 				                                dirty: True };
 				dataArray.portB.request.put( BRAMRequestBE{ writeen        : writeEn,
