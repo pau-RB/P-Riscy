@@ -45,9 +45,9 @@ module mkDirectInstCache (BareInstCache#(cacheRows, cacheColumns) ifc) provisos(
                                           loadFormat              : None,
                                           allowWriteResponseBypass: False };
 
-    BRAM1Port#(cacheRowIdx, CacheLine) dataArray <- mkBRAM1Server(cfg);
-    BRAM1Port#(cacheRowIdx, cacheTag ) tagsArray <- mkBRAM1Server(cfg);
-    BRAM1Port#(cacheRowIdx, Bool     ) metaArray <- mkBRAM1Server(cfg);
+    BRAM2Port#(cacheRowIdx, CacheLine) dataArray <- mkBRAM2Server(cfg);
+    BRAM2Port#(cacheRowIdx, cacheTag ) tagsArray <- mkBRAM2Server(cfg);
+    BRAM2Port#(cacheRowIdx, Bool     ) metaArray <- mkBRAM2Server(cfg);
 
     //////////// QUEUES ////////////
 
@@ -61,7 +61,7 @@ module mkDirectInstCache (BareInstCache#(cacheRows, cacheColumns) ifc) provisos(
 
     rule do_invalidate if (invIndex matches tagged Valid .index);
 
-        metaArray.portA.request.put( BRAMRequest  { write          : True,
+        metaArray.portB.request.put( BRAMRequest  { write          : True,
                                                     responseOnWrite: False,
                                                     address        : index,
                                                     datain         : False } );
@@ -78,21 +78,34 @@ module mkDirectInstCache (BareInstCache#(cacheRows, cacheColumns) ifc) provisos(
 
         InstCacheReq req   = reqQ.first(); reqQ.deq();
 
-        if(!req.write)
+        if(req.write) begin
+            dataArray.portB.request.put( BRAMRequest{ write          : True,
+                                                      responseOnWrite: False,
+                                                      address        : indexOf(req.num),
+                                                      datain         : req.line } );
+            tagsArray.portB.request.put( BRAMRequest{ write          : True,
+                                                      responseOnWrite: False,
+                                                      address        : indexOf(req.num),
+                                                      datain         : tagOf(req.num) } );
+            metaArray.portB.request.put( BRAMRequest{ write          : True,
+                                                      responseOnWrite: False,
+                                                      address        : indexOf(req.num),
+                                                      datain         : True } );
+        end else begin
+            dataArray.portA.request.put( BRAMRequest{ write          : False,
+                                                      responseOnWrite: False,
+                                                      address        : indexOf(req.num),
+                                                      datain         : req.line } );
+            tagsArray.portA.request.put( BRAMRequest{ write          : False,
+                                                      responseOnWrite: False,
+                                                      address        : indexOf(req.num),
+                                                      datain         : tagOf(req.num) } );
+            metaArray.portA.request.put( BRAMRequest{ write          : False,
+                                                      responseOnWrite: False,
+                                                      address        : indexOf(req.num),
+                                                      datain         : True } );
             brmQ.enq(req);
-
-        dataArray.portA.request.put( BRAMRequest{ write          : req.write,
-                                                  responseOnWrite: False,
-                                                  address        : indexOf(req.num),
-                                                  datain         : req.line } );
-        tagsArray.portA.request.put( BRAMRequest{ write          : req.write,
-                                                  responseOnWrite: False,
-                                                  address        : indexOf(req.num),
-                                                  datain         : tagOf(req.num) } );
-        metaArray.portA.request.put( BRAMRequest{ write          : req.write,
-                                                  responseOnWrite: False,
-                                                  address        : indexOf(req.num),
-                                                  datain         : True } );
+        end
 
     endrule
 
