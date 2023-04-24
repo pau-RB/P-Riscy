@@ -127,8 +127,8 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 	FIFOF#(L1DReq        #(hartID)) inReqQ   <- mkBypassFIFOF();
 	FIFOF#(Bool                   ) confirmQ <- mkFIFOF();
 	FIFOF#(DataCacheToken#(hartID)) dcReqQ   <- mkSizedFIFOF(3);
-	FIFOF#(WideMemReq    #(hartID)) memreq   <- mkBypassFIFOF();
-	FIFOF#(WideMemRes    #(hartID)) memres   <- mkBypassFIFOF();
+	FIFOF#(WideMemReq    #(hartID)) memreq   <- mkFIFOF();
+	FIFOF#(WideMemRes    #(hartID)) memres   <- mkFIFOF();
 	FIFOF#(L1DResp       #(hartID)) respQ    <- mkBypassFIFOF();
 	FIFOF#(L1DResp       #(hartID)) oldRespQ <- mkFIFOF();
 

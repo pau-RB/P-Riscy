@@ -30,8 +30,8 @@ module mkL1I(L1I#(numHart, cacheRows, cacheColumns) ifc) provisos(Add#(a__, TLog
 
     FIFOF#(bramReq            ) reqQ   <- mkBypassFIFOF();
     FIFOF#(bramReq            ) brmQ   <- mkSizedFIFOF(3);
-    FIFOF#(WideMemReq#(hartID)) memreq <- mkBypassFIFOF();
-    FIFOF#(WideMemRes#(hartID)) memres <- mkBypassFIFOF();
+    FIFOF#(WideMemReq#(hartID)) memreq <- mkFIFOF();
+    FIFOF#(WideMemRes#(hartID)) memres <- mkFIFOF();
 
     Vector#(numHart, FIFOF#(WideMemRes#(void))) resQ <- replicateM(mkFIFOF());
 
