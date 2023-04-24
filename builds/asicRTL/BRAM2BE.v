@@ -101,32 +101,76 @@ generate
       assign DOA = (PIPELINED) ? SDOA_R : SDOA;
       assign DOB = (PIPELINED) ? SDOB_R : SDOB;
 
-   end else if (MEMSIZE == 512 && DATA_WIDTH == 32) begin
-       R2PV_512x32 R2PV_512x32_inst(
-        .T_LOGIC (1'b0),
-        .MA_SAWL (1'b0),
-        .MA_TPA (1'b0),
-        .MA_TPB (1'b0),
-        .MA_WL (1'b0),
-        .MA_WRAS (1'b0),
-        .MA_WRASD (1'b0),
-        .POWERGATE (1'b0),
-        .DEEPSLEEP (1'b0),
-        .CLK_A (CLKA),
-        .CLK_B (CLKB),
-        .D (DIB),
-        .Q (SDOA),
-        .AC_A (ADDRA[1:0]),
-        .AW_A (ADDRA[8:2]),
-        .AC_B (ADDRB[1:0]),
-        .AW_B (ADDRB[8:2]),
-        .BW (SDWE),
-        .CEN_A (ENA),
-        .CEN_B (ENB),
-        .OBSV_DBW (),
-        .OBSV_CTL_A (),
-        .OBSV_CTL_B ()
-      );
+   end else if (MEMSIZE == 256 && DATA_WIDTH == 512) begin
+      for (i=0; i < 8; i=i+1) begin
+         R2PV_256x64 R2PV_256x64_inst(
+            .T_LOGIC (1'b0),
+            .MA_SAWL (1'b0),
+            .MA_TPA (1'b0),
+            .MA_TPB (1'b0),
+            .MA_WL (1'b0),
+            .MA_WRAS (1'b0),
+            .MA_WRASD (1'b0),
+            .POWERGATE (1'b0),
+            .DEEPSLEEP (1'b0),
+            .CLK_A (CLKA),
+            .CLK_B (CLKB),
+            .D (DIB[i*64+63:i*64]),
+            .Q (SDOA[i*64+63:i*64]),
+            .AC_A (ADDRA[1:0]),
+            .AW_A (ADDRA[7:2]),
+            .AC_B (ADDRB[1:0]),
+            .AW_B (ADDRB[7:2]),
+            .BW (SDWE),
+            .CEN_A (ENA),
+            .CEN_B (ENB),
+            .OBSV_DBW (),
+            .OBSV_CTL_A (),
+            .OBSV_CTL_B ()
+         );
+      end
+      assign SDOB = SDOA;
+
+      always @(posedge CLKA) begin
+         SDOA_R <= `BSV_ASSIGNMENT_DELAY SDOA;
+      end
+
+      always @(posedge CLKB) begin
+         SDOB_R <= `BSV_ASSIGNMENT_DELAY SDOB;
+      end
+
+      // Output drivers
+      assign DOA = (PIPELINED) ? SDOA_R : SDOA;
+      assign DOB = (PIPELINED) ? SDOB_R : SDOB;
+
+   end else if (MEMSIZE == 128 && DATA_WIDTH == 512) begin
+      for (i=0; i < 8; i=i+1) begin
+         R2PV_128x64 R2PV_128x64_inst(
+            .T_LOGIC (1'b0),
+            .MA_SAWL (1'b0),
+            .MA_TPA (1'b0),
+            .MA_TPB (1'b0),
+            .MA_WL (1'b0),
+            .MA_WRAS (1'b0),
+            .MA_WRASD (1'b0),
+            .POWERGATE (1'b0),
+            .DEEPSLEEP (1'b0),
+            .CLK_A (CLKA),
+            .CLK_B (CLKB),
+            .D (DIB[i*64+63:i*64]),
+            .Q (SDOA[i*64+63:i*64]),
+            .AC_A (ADDRA[1:0]),
+            .AW_A (ADDRA[6:2]),
+            .AC_B (ADDRB[1:0]),
+            .AW_B (ADDRB[6:2]),
+            .BW (SDWE),
+            .CEN_A (ENA),
+            .CEN_B (ENB),
+            .OBSV_DBW (),
+            .OBSV_CTL_A (),
+            .OBSV_CTL_B ()
+         );
+      end
       assign SDOB = SDOA;
 
       always @(posedge CLKA) begin
