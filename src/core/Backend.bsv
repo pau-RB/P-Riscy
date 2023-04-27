@@ -99,7 +99,6 @@ module mkBackend (Backend ifc);
 	Vector#(FrontWidth, Ehr#(2,Epoch) ) commitEpoch <- replicateM(mkEhr('0));
 
 	// Stages
-	FIFOF#(Vector#(BackWidth,Maybe#(ExecToken)))    executeQ        <- mkBypassFIFOF();
 	FIFOF#(Vector#(BackWidth,Maybe#(MemToken)))     memoryQ         <- mkPipelineFIFOF();
 	FIFOF#(Vector#(BackWidth,Maybe#(ComToken)))     commitQ         <- mkPipelineFIFOF();
 
@@ -150,130 +149,6 @@ module mkBackend (Backend ifc);
 
 	rule do_cnt_cycles if(coreStarted);
 		numCycles <= numCycles+1;
-	endrule
-
-	//////////// EXECUTE ////////////
-
-	rule do_execute;
-
-		Vector#(BackWidth, Maybe#(ExecToken)) toExec = executeQ.first(); executeQ.deq();
-		Vector#(BackWidth, Maybe#(MemToken) ) toMem  = replicate(tagged Invalid);
-
-		// Mem lane
-		if(toExec[0] matches tagged Valid .eToken) begin
-
-			Exec exec = execmem(eToken.iType  ,
-			                    eToken.arg1   ,
-			                    eToken.arg2   ,
-			                    eToken.imm    ,
-			                    eToken.pc     );
-
-			let mToken = MemToken{ feID   : eToken.feID   ,
-			                       epoch  : eToken.epoch  ,
-			                       `ifdef DEBUG_RAW_INST
-			                       pc     : eToken.pc     ,
-			                       rawInst: eToken.rawInst,
-			                       `endif
-			                       // iType
-			                       iType  : eToken.iType  ,
-			                       mulFunc: eToken.mulFunc,
-			                       divFunc: eToken.divFunc,
-			                       ldFunc : eToken.ldFunc ,
-			                       stFunc : eToken.stFunc ,
-			                       // Op
-			                       res    : exec.res      ,
-			                       addr   : exec.add      ,
-			                       nextpc : exec.npc      ,
-			                       brTaken: exec.brt      ,
-			                       dst    : eToken.dst    };
-
-			toMem[0] = tagged Valid mToken;
-
-			if (eToken.iType == Ld) begin
-				l1D.req(L1DReq{ op     : Ld           ,
-				                ldFunc : eToken.ldFunc,
-				                stFunc : eToken.stFunc,
-				                addr   : exec.add     ,
-				                data   : exec.res     ,
-				                transId: eToken.feID  });
-			end else if (eToken.iType == St) begin
-				l1D.req(L1DReq{ op     : St           ,
-				                ldFunc : eToken.ldFunc,
-				                stFunc : eToken.stFunc,
-				                addr   : exec.add     ,
-				                data   : exec.res     ,
-				                transId: eToken.feID  });
-			end else if(eToken.iType == Join) begin
-				l1D.req(L1DReq{ op     : Join         ,
-				                ldFunc : eToken.ldFunc,
-				                stFunc : eToken.stFunc,
-				                addr   : exec.add     ,
-				                data   : exec.res     ,
-				                transId: eToken.feID  });
-			end 
-
-		end
-
-		// Arith lanes
-		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
-		if(toExec[i] matches tagged Valid .eToken) begin
-
-			Exec exec = execari(eToken.iType  ,
-			                    eToken.aluFunc,
-			                    eToken.brFunc ,
-			                    eToken.arg1   ,
-			                    eToken.arg2   ,
-			                    eToken.imm    ,
-			                    eToken.pc     );
-
-			let mToken = MemToken{ feID   : eToken.feID   ,
-			                       epoch  : eToken.epoch  ,
-			                       `ifdef DEBUG_RAW_INST
-			                       pc     : eToken.pc     ,
-			                       rawInst: eToken.rawInst,
-			                       `endif
-			                       // iType
-			                       iType  : eToken.iType  ,
-			                       mulFunc: eToken.mulFunc,
-			                       divFunc: eToken.divFunc,
-			                       ldFunc : eToken.ldFunc ,
-			                       stFunc : eToken.stFunc ,
-			                       // Op
-			                       res    : exec.res      ,
-			                       addr   : exec.add      ,
-			                       nextpc : exec.npc      ,
-			                       brTaken: exec.brt      ,
-			                       dst    : eToken.dst    };
-
-			toMem[i] = tagged Valid mToken;
-
-			// Mul/Div
-			if(eToken.iType == Mul) begin
-				case(eToken.mulFunc)
-				Mul   : mulArray[i-1].req(eToken.arg1, eToken.arg2, Signed        , ?);
-				Mulh  : mulArray[i-1].req(eToken.arg1, eToken.arg2, Signed        , ?);
-				Mulhsu: mulArray[i-1].req(eToken.arg1, eToken.arg2, SignedUnsigned, ?);
-				Mulhu : mulArray[i-1].req(eToken.arg1, eToken.arg2, Unsigned      , ?);
-				endcase
-			end
-			if(eToken.iType == Div) begin
-				case(eToken.divFunc)
-				Div   : divArray[i-1].req(eToken.arg1, eToken.arg2, True          , ?);
-				Divu  : divArray[i-1].req(eToken.arg1, eToken.arg2, False         , ?);
-				Rem   : divArray[i-1].req(eToken.arg1, eToken.arg2, True          , ?);
-				Remu  : divArray[i-1].req(eToken.arg1, eToken.arg2, False         , ?);
-				endcase
-			end
-
-		end
-		end
-
-		memoryQ.enq(toMem);
-
-		`ifdef DEBUG_CYC
-		perf_exec_inst[0] <= toExec;
-		`endif
-
 	endrule
 
 	//////////// MEMORY ////////////
@@ -764,7 +639,126 @@ module mkBackend (Backend ifc);
 
 	// Execute
 	method Action enq(Vector#(BackWidth, Maybe#(ExecToken)) inst);
-		executeQ.enq(inst);
+
+		Vector#(BackWidth, Maybe#(MemToken) ) toMem  = replicate(tagged Invalid);
+
+		let toExec = inst;
+
+		// Mem lane
+		if(toExec[0] matches tagged Valid .eToken) begin
+
+			Exec exec = execmem(eToken.iType  ,
+			                    eToken.arg1   ,
+			                    eToken.arg2   ,
+			                    eToken.imm    ,
+			                    eToken.pc     );
+
+			let mToken = MemToken{ feID   : eToken.feID   ,
+			                       epoch  : eToken.epoch  ,
+			                       `ifdef DEBUG_RAW_INST
+			                       pc     : eToken.pc     ,
+			                       rawInst: eToken.rawInst,
+			                       `endif
+			                       // iType
+			                       iType  : eToken.iType  ,
+			                       mulFunc: eToken.mulFunc,
+			                       divFunc: eToken.divFunc,
+			                       ldFunc : eToken.ldFunc ,
+			                       stFunc : eToken.stFunc ,
+			                       // Op
+			                       res    : exec.res      ,
+			                       addr   : exec.add      ,
+			                       nextpc : exec.npc      ,
+			                       brTaken: exec.brt      ,
+			                       dst    : eToken.dst    };
+
+			toMem[0] = tagged Valid mToken;
+
+			if (eToken.iType == Ld) begin
+				l1D.req(L1DReq{ op     : Ld           ,
+				                ldFunc : eToken.ldFunc,
+				                stFunc : eToken.stFunc,
+				                addr   : exec.add     ,
+				                data   : exec.res     ,
+				                transId: eToken.feID  });
+			end else if (eToken.iType == St) begin
+				l1D.req(L1DReq{ op     : St           ,
+				                ldFunc : eToken.ldFunc,
+				                stFunc : eToken.stFunc,
+				                addr   : exec.add     ,
+				                data   : exec.res     ,
+				                transId: eToken.feID  });
+			end else if(eToken.iType == Join) begin
+				l1D.req(L1DReq{ op     : Join         ,
+				                ldFunc : eToken.ldFunc,
+				                stFunc : eToken.stFunc,
+				                addr   : exec.add     ,
+				                data   : exec.res     ,
+				                transId: eToken.feID  });
+			end
+
+		end
+
+		// Arith lanes
+		for (Integer i = 1; i < valueOf(BackWidth); i=i+1) begin
+		if(toExec[i] matches tagged Valid .eToken) begin
+
+			Exec exec = execari(eToken.iType  ,
+			                    eToken.aluFunc,
+			                    eToken.brFunc ,
+			                    eToken.arg1   ,
+			                    eToken.arg2   ,
+			                    eToken.imm    ,
+			                    eToken.pc     );
+
+			let mToken = MemToken{ feID   : eToken.feID   ,
+			                       epoch  : eToken.epoch  ,
+			                       `ifdef DEBUG_RAW_INST
+			                       pc     : eToken.pc     ,
+			                       rawInst: eToken.rawInst,
+			                       `endif
+			                       // iType
+			                       iType  : eToken.iType  ,
+			                       mulFunc: eToken.mulFunc,
+			                       divFunc: eToken.divFunc,
+			                       ldFunc : eToken.ldFunc ,
+			                       stFunc : eToken.stFunc ,
+			                       // Op
+			                       res    : exec.res      ,
+			                       addr   : exec.add      ,
+			                       nextpc : exec.npc      ,
+			                       brTaken: exec.brt      ,
+			                       dst    : eToken.dst    };
+
+			toMem[i] = tagged Valid mToken;
+
+			// Mul/Div
+			if(eToken.iType == Mul) begin
+				case(eToken.mulFunc)
+				Mul   : mulArray[i-1].req(eToken.arg1, eToken.arg2, Signed        , ?);
+				Mulh  : mulArray[i-1].req(eToken.arg1, eToken.arg2, Signed        , ?);
+				Mulhsu: mulArray[i-1].req(eToken.arg1, eToken.arg2, SignedUnsigned, ?);
+				Mulhu : mulArray[i-1].req(eToken.arg1, eToken.arg2, Unsigned      , ?);
+				endcase
+			end
+			if(eToken.iType == Div) begin
+				case(eToken.divFunc)
+				Div   : divArray[i-1].req(eToken.arg1, eToken.arg2, True          , ?);
+				Divu  : divArray[i-1].req(eToken.arg1, eToken.arg2, False         , ?);
+				Rem   : divArray[i-1].req(eToken.arg1, eToken.arg2, True          , ?);
+				Remu  : divArray[i-1].req(eToken.arg1, eToken.arg2, False         , ?);
+				endcase
+			end
+
+		end
+		end
+
+		memoryQ.enq(toMem);
+
+		`ifdef DEBUG_CYC
+		perf_exec_inst[0] <= toExec;
+		`endif
+
 	endmethod
 
 	// To upstream
