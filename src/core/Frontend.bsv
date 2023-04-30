@@ -38,30 +38,21 @@ interface  Hart;
 
 endinterface
 
-interface FetchDebug;
+`ifdef DEBUG_CYC
 
-	// Performance Debug
-	method StreamStatus currentState();
-	method Addr         currentPC();
-	method Bool         isl0Ihit();
-
+interface DEB_CYC_fet;
+	method StreamStatus status;
+	method Addr         nextPC;
+	method Bool         l0IHit;
 endinterface
 
-interface DecodeDebug;
-
-	// Performance Debug
-	method Addr         firstPC();
-	method Bool         notEmpty();
-
+interface DEB_CYC_dec;
+	method Bool         notEmpty;
+	method Bool         notStall;
+	method Addr         nextPC  ;
 endinterface
 
-interface RegFetchDebug;
-
-	// Performance Debug
-	method Addr         firstPC();
-	method Bool         notEmpty();
-
-endinterface
+`endif
 
 interface Frontend;
 
@@ -75,10 +66,11 @@ interface Frontend;
 	interface Vector#(FrontWidth, Scoreboard#(8)) scoreboard;
 	interface Vector#(FrontWidth, RFile         ) regFile;
 
-	// Debug
-	interface Vector#(FrontWidth, FetchDebug)    fetch;
-	interface Vector#(FrontWidth, DecodeDebug)   decode;
-	interface Vector#(FrontWidth, RegFetchDebug) regfetch;
+	// DEBUG_CYC
+	`ifdef DEBUG_CYC
+	interface Vector#(FrontWidth, DEB_CYC_fet) cycFet;
+	interface Vector#(FrontWidth, DEB_CYC_dec) cycDec;
+	`endif
 
 	// Stats
 	method Action startCore();
@@ -143,6 +135,12 @@ module mkFrontend (Frontend ifc);
 
 	Vector#(FrontWidth, Reg#(Epoch)) regfetchEpoch <- replicateM(mkReg('0));
 	Vector#(FrontWidth, Reg#(Bool )) regfetchLock  <- replicateM(mkReg(False));
+
+	`ifdef DEBUG_CYC
+	Vector#(FrontWidth, Wire#(Bool)) deb_cyc_dec_notEmpty <- replicateM(mkWire);
+	Vector#(FrontWidth, Wire#(Bool)) deb_cyc_dec_notStall <- replicateM(mkWire);
+	Vector#(FrontWidth, Wire#(Addr)) deb_cyc_dec_nextPC   <- replicateM(mkWire);
+	`endif
 
 	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
 
@@ -245,6 +243,20 @@ module mkFrontend (Frontend ifc);
 
 		endrule
 
+		`ifdef DEBUG_CYC
+		rule do_cyc_deb_decode;
+			deb_cyc_dec_notEmpty[i] <= stream[i].notEmpty    ;
+			if(stream[i].notEmpty) begin
+				if(stream[i].firstInst.inst matches tagged Valid .inst)
+					deb_cyc_dec_notStall[i] <= !regfetchLock[i] && !scoreboardArray[i].hasDest1(decode(inst).src1)
+					                                            && !scoreboardArray[i].hasDest2(decode(inst).src2);
+				else
+					deb_cyc_dec_notStall[i] <= True;
+				deb_cyc_dec_nextPC  [i] <= stream[i].firstInst.pc;
+			end
+		endrule
+		`endif
+
 	end
 
 	//////////// INTERFACE ////////////
@@ -271,54 +283,42 @@ module mkFrontend (Frontend ifc);
 			endinterface);
 	end
 
- 	Vector#(FrontWidth, FetchDebug) fetchIfc = newVector;
+	`ifdef DEBUG_CYC
+ 	Vector#(FrontWidth, DEB_CYC_fet) deb_cyc_fetIfc = newVector;
  	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-		fetchIfc[i] =
-			(interface FetchDebug;
-
-				// Performance Debug
-				method StreamStatus currentState() = stream[i].currentState(); 
-				method Addr         currentPC()    = stream[i].currentPC();
-				method Bool         isl0Ihit()     = stream[i].isl0Ihit(); 
-
+		deb_cyc_fetIfc[i] =
+			(interface DEB_CYC_fet;
+				method StreamStatus status = stream[i].currentState(); 
+				method Addr         nextPC = stream[i].currentPC();
+				method Bool         l0IHit = stream[i].isl0Ihit(); 
 			endinterface);
 	end
 
- 	Vector#(FrontWidth, DecodeDebug) decodeIfc = newVector;
+ 	Vector#(FrontWidth, DEB_CYC_dec) deb_cyc_decIfc = newVector;
  	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-		decodeIfc[i] =
-			(interface DecodeDebug;
-
-				// Performance Debug
-				method Addr         firstPC()      = stream[i].firstPC();
-				method Bool         notEmpty()     = stream[i].notEmpty();
-
-			endinterface);
-	end
-
- 	Vector#(FrontWidth, RegFetchDebug) regfetchIfc = newVector;
- 	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
-		regfetchIfc[i] =
-			(interface RegFetchDebug;
-
-				// Performance Debug
-				method Addr         firstPC();
-					return ?;
+		deb_cyc_decIfc[i] =
+			(interface DEB_CYC_dec;
+				method Bool notEmpty;
+					return deb_cyc_dec_notEmpty[i];
 				endmethod
-				method Bool         notEmpty();
-					return ?;
+				method Bool notStall;
+					return deb_cyc_dec_notStall[i];
 				endmethod
-
+				method Addr nextPC;
+					return deb_cyc_dec_nextPC[i];
+				endmethod
 			endinterface);
 	end
+	`endif
 
 	interface mem        = l1I.mem;
 	interface hart       = hartIfc;
 	interface scoreboard = scoreboardArray;
 	interface regFile    = regFileArray;
-	interface fetch      = fetchIfc;
-	interface decode     = decodeIfc;
-	interface regfetch   = regfetchIfc;
+	`ifdef DEBUG_CYC
+	interface cycFet     = deb_cyc_fetIfc;
+	interface cycDec     = deb_cyc_decIfc;
+	`endif
 
 	method Action startCore();
 		coreStarted <= True;

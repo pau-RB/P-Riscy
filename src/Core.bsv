@@ -166,9 +166,9 @@ module mkCore7SS(Core ifc);
 
 			//////////// FETCH ////////////
 
-			if(frontend.fetch[i].currentState() != Empty) $write("|| %d ", backend.getVerifID(fromInteger(i))); else $write("||            ");
+			if(frontend.cycFet[i].status != Empty) $write("|| %d ", backend.getVerifID(fromInteger(i))); else $write("||            ");
 
-			case (frontend.fetch[i].currentState())
+			case (frontend.cycFet[i].status)
 				Full :   $write("|| Full  ");
 				Evict:   $write("|| Evict ");
 				Ghost:   $write("|| Ghost ");
@@ -177,22 +177,22 @@ module mkCore7SS(Core ifc);
 				default: $write("||       ");
 			endcase
 
-			if(frontend.fetch   [i].isl0Ihit) $write("h "); else $write("m ");
-			if(frontend.fetch   [i].currentState() != Empty) $write("| F 0x%h |", frontend.fetch[i].currentPC()); else $write("| F            |");
+			if(frontend.cycFet[i].l0IHit) $write("h ");
+			else $write("m ");
+			if(frontend.cycFet[i].status != Empty) $write("| F 0x%h |", frontend.cycFet[i].nextPC);
+			else $write("| F            |");
 			
 			//////////// DECODE ////////////
 
-			if(frontend.decode  [i].notEmpty) $write(" D 0x%h |", frontend.decode  [i].firstPC); else $write(" D            |");
-			
-			//////////// REGFETCH ////////////
+			if(frontend.cycDec[i].notEmpty && frontend.cycDec[i].notStall) $write(" D 0x%h |", frontend.cycDec[i].nextPC);
+			else if (frontend.cycDec[i].notEmpty) $write("%c[2;97m D 0x%h %c[0;0m|", 27, frontend.cycDec[i].nextPC, 27);
+			else $write(" D            |");
 
-			if(frontend.regfetch[i].notEmpty) $write(" R 0x%h |", frontend.regfetch[i].firstPC); else $write(" R            |");
+			//////////// ARBITER ////////////
 
-			//////////// SELECT ////////////
-
-			if(perf_sel_taken[i]) $write(" S 0x%h |", fromMaybe(?,perf_sel_inst[i]).pc);
-			else if(isValid(perf_sel_inst[i])) $write("%c[2;97m S 0x%h %c[0;0m|", 27, fromMaybe(?,perf_sel_inst[i]).pc, 27);
-			else $write(" S            |");
+			if(perf_sel_taken[i]) $write(" A 0x%h |", fromMaybe(?,perf_sel_inst[i]).pc);
+			else if(isValid(perf_sel_inst[i])) $write("%c[2;97m A 0x%h %c[0;0m|", 27, fromMaybe(?,perf_sel_inst[i]).pc, 27);
+			else $write(" A            |");
 
 			//////////// EXECUTE ////////////
 
@@ -221,7 +221,7 @@ module mkCore7SS(Core ifc);
 			Bool wb = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
 				if(isValid(perf_wb_inst[j]) && (fromMaybe(?,perf_wb_inst[j]).feID == fromInteger(i))) begin
-					$write(" W 0x%h | ", fromMaybe(?,perf_wb_inst[j]).pc);
+					$write(" C 0x%h | ", fromMaybe(?,perf_wb_inst[j]).pc);
 					wb = True;
 				end
 			end
@@ -251,7 +251,7 @@ module mkCore7SS(Core ifc);
 
 		end
 
-		$write("-------------------------------------------------------------------------------------------------------------------------------------------------------\n");
+		$write("----------------------------------------------------------------------------------------------------------------------------------------\n");
 
 	endrule
 	`endif
