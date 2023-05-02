@@ -136,7 +136,6 @@ module mkXilinxIntMul(XilinxIntMul#(tagT)) provisos(
 
     // wire to catch deq
     PulseWire deqEn <- mkPulseWire;
-    PulseWire bypEn <- mkPulseWire;
 
     (* fire_when_enabled, no_implicit_conditions *)
     rule canon;
@@ -151,7 +150,7 @@ module mkXilinxIntMul(XilinxIntMul#(tagT)) provisos(
         end
         // enq resp FIFO if something is outputed from mul
         if (
-            pipe[valueof(IntMulLatency) - 1] matches tagged Valid {.sign, .tag} &&& !bypEn
+            pipe[valueof(IntMulLatency) - 1] matches tagged Valid {.sign, .tag}
         ) begin
             Bit#(64) prod = (case(sign)
                 Signed: (mulSigned.product);
@@ -188,42 +187,18 @@ module mkXilinxIntMul(XilinxIntMul#(tagT)) provisos(
         newReq.wset(tuple2(sign, tag)); // notify new req
     endmethod
 
-    method Action deqResp if(isValid(pipe[valueof(IntMulLatency) - 1]) || respQ.notEmpty);
-        if (
-            pipe[valueof(IntMulLatency) - 1] matches tagged Valid {.sign, .tag}
-        ) begin
-            bypEn.send;
-        end else begin
-            respQ.deq;
-        end
+    method Action deqResp if(respQ.notEmpty);
+        respQ.deq;
         deqEn.send; // notify deq resp
     endmethod
 
-    method respValid = (isValid(pipe[valueof(IntMulLatency) - 1]) || respQ.notEmpty);
+    method respValid = respQ.notEmpty;
 
-    method Bit#(64) product if(isValid(pipe[valueof(IntMulLatency) - 1]) || respQ.notEmpty);
-        if (
-            pipe[valueof(IntMulLatency) - 1] matches tagged Valid {.sign, .tag}
-        ) begin
-            Bit#(64) prod = (case(sign)
-                Signed: (mulSigned.product);
-                Unsigned: (mulUnsigned.product);
-                SignedUnsigned: (mulSignedUnsigned.product);
-                default: (?);
-            endcase);
-            return prod;
-        end else begin
-            return tpl_1(respQ.first);
-        end
+    method Bit#(64) product if(respQ.notEmpty);
+        return tpl_1(respQ.first);
     endmethod
 
-    method tagT respTag if(isValid(pipe[valueof(IntMulLatency) - 1]) || respQ.notEmpty);
-        if (
-            pipe[valueof(IntMulLatency) - 1] matches tagged Valid {.sign, .tag}
-        ) begin
-            return tag;
-        end else begin
-            return tpl_2(respQ.first);
-        end
+    method tagT respTag if(respQ.notEmpty);
+        return tpl_2(respQ.first);
     endmethod
 endmodule
