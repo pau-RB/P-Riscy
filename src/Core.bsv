@@ -147,8 +147,11 @@ module mkCore7SS(Core ifc);
 	`ifdef DEBUG_CYC
 	rule do_DEBUG_CYC if(coreStarted);
 
-		Vector#(FrontWidth,Maybe#(ExecToken)) perf_sel_inst    = arbiter.perf_get_inst ();
-		Vector#(FrontWidth,Bool)              perf_sel_taken   = arbiter.perf_get_taken();
+		Vector#(FrontWidth, DEB_CYC_fet) cycFet = frontend.cycFet();
+		Vector#(FrontWidth, DEB_CYC_dec) cycDec = frontend.cycDec();
+		Vector#(FrontWidth, DEB_CYC_arb) cycArb = arbiter .cycArb();
+
+
 
 		Vector#(BackWidth, Maybe#(ExecToken)) perf_exec_inst   = backend.get_exec_inst  ();
 		Vector#(BackWidth, Maybe#(MemToken) ) perf_mem_inst    = backend.get_mem_inst   ();
@@ -166,9 +169,9 @@ module mkCore7SS(Core ifc);
 
 			//////////// FETCH ////////////
 
-			if(frontend.cycFet[i].status != Empty) $write("|| %d ", backend.getVerifID(fromInteger(i))); else $write("||            ");
+			if(cycFet[i].status != Empty) $write("|| %d ", backend.getVerifID(fromInteger(i))); else $write("||            ");
 
-			case (frontend.cycFet[i].status)
+			case (cycFet[i].status)
 				Full :   $write("|| Full  ");
 				Evict:   $write("|| Evict ");
 				Ghost:   $write("|| Ghost ");
@@ -177,21 +180,19 @@ module mkCore7SS(Core ifc);
 				default: $write("||       ");
 			endcase
 
-			if(frontend.cycFet[i].l0IHit) $write("h ");
-			else $write("m ");
-			if(frontend.cycFet[i].status != Empty) $write("| F 0x%h |", frontend.cycFet[i].nextPC);
-			else $write("| F            |");
+			if(cycFet[i].l0IHit) $write("h "); else $write("m ");
+			if(cycFet[i].status != Empty) $write("| F 0x%h |", cycFet[i].nextPC); else $write("| F            |");
 			
 			//////////// DECODE ////////////
 
-			if(frontend.cycDec[i].notEmpty && frontend.cycDec[i].notStall) $write(" D 0x%h |", frontend.cycDec[i].nextPC);
-			else if (frontend.cycDec[i].notEmpty) $write("%c[2;97m D 0x%h %c[0;0m|", 27, frontend.cycDec[i].nextPC, 27);
+			if(cycDec[i].notEmpty && cycDec[i].notStall) $write(" D 0x%h |", cycDec[i].nextPC);
+			else if (cycDec[i].notEmpty) $write("%c[2;97m D 0x%h %c[0;0m|", 27, cycDec[i].nextPC, 27);
 			else $write(" D            |");
 
 			//////////// ARBITER ////////////
 
-			if(perf_sel_taken[i]) $write(" A 0x%h |", fromMaybe(?,perf_sel_inst[i]).pc);
-			else if(isValid(perf_sel_inst[i])) $write("%c[2;97m A 0x%h %c[0;0m|", 27, fromMaybe(?,perf_sel_inst[i]).pc, 27);
+			if(cycArb[i].notEmpty && cycArb[i].notStall) $write(" A 0x%h |", cycArb[i].nextPC);
+			else if(cycArb[i].notEmpty) $write("%c[2;97m A 0x%h %c[0;0m|", 27, cycArb[i].nextPC, 27);
 			else $write(" A            |");
 
 			//////////// EXECUTE ////////////

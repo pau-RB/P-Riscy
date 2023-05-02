@@ -39,19 +39,16 @@ interface  Hart;
 endinterface
 
 `ifdef DEBUG_CYC
-
 interface DEB_CYC_fet;
 	method StreamStatus status;
 	method Addr         nextPC;
 	method Bool         l0IHit;
 endinterface
-
 interface DEB_CYC_dec;
 	method Bool         notEmpty;
 	method Bool         notStall;
 	method Addr         nextPC  ;
 endinterface
-
 `endif
 
 interface Frontend;
@@ -298,15 +295,9 @@ module mkFrontend (Frontend ifc);
  	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 		deb_cyc_decIfc[i] =
 			(interface DEB_CYC_dec;
-				method Bool notEmpty;
-					return deb_cyc_dec_notEmpty[i];
-				endmethod
-				method Bool notStall;
-					return deb_cyc_dec_notStall[i];
-				endmethod
-				method Addr nextPC;
-					return deb_cyc_dec_nextPC[i];
-				endmethod
+				method Bool notEmpty; return deb_cyc_dec_notEmpty[i]; endmethod
+				method Bool notStall; return deb_cyc_dec_notStall[i]; endmethod
+				method Addr nextPC  ; return deb_cyc_dec_nextPC  [i]; endmethod
 			endinterface);
 	end
 	`endif
