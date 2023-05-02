@@ -41,6 +41,32 @@ interface FifoDeq#(type t);
 	method t first;
 endinterface
 
+`ifdef DEBUG_CYC
+interface DEB_CYC_exe;
+	method Bool    notEmpty;
+	method Addr    nextPC  ;
+	method FrontID feID    ;
+endinterface
+interface DEB_CYC_mem;
+	method Bool    notEmpty;
+	method Addr    nextPC  ;
+	method FrontID feID    ;
+endinterface
+interface DEB_CYC_com;
+	method Bool    notEmpty;
+	method Addr    nextPC  ;
+	method FrontID feID    ;
+	method Bool    valid   ;
+	method Bool    miss    ;
+	method Data    rawInst ;
+endinterface
+interface DEB_CYC_lat;
+	method Bool    notEmpty;
+	method FrontID feID    ;
+	method Data    rawInst ;
+endinterface
+`endif
+
 interface Backend;
 
 	// DMEM
@@ -76,13 +102,11 @@ interface Backend;
 
 	// Performance Debug
 	`ifdef DEBUG_CYC
-	method Vector#(BackWidth,Maybe#(ExecToken)) get_exec_inst  ();
-	method Vector#(BackWidth,Maybe#(MemToken) ) get_mem_inst   ();
-	method Vector#(BackWidth,Maybe#(ComToken) ) get_wb_inst    ();
-	method Vector#(BackWidth,Bool             ) get_wb_valid   ();
-	method Vector#(BackWidth,Bool             ) get_wb_miss    ();
-	method PerfCnt                              get_wb_commit  ();
-	method Maybe#(OldToken)                     get_old_wb_inst();
+	method Vector#(BackWidth,DEB_CYC_exe) cycExe;
+	method Vector#(BackWidth,DEB_CYC_mem) cycMem;
+	method Vector#(BackWidth,DEB_CYC_com) cycCom;
+	method                   DEB_CYC_lat  cycLat;
+	method PerfCnt cycNumCommit();
 	`endif
 
 endinterface
@@ -130,15 +154,6 @@ module mkBackend (Backend ifc);
 	FIFOF#(MemStat)                                memStatReportQ  <- mkFIFOF();
 	`endif
 
-	// Perf debug
-	`ifdef DEBUG_CYC
-	Ehr#(2,Vector#(BackWidth,Maybe#(ExecToken)))   perf_exec_inst  <- mkEhr(replicate(tagged Invalid));
-	Ehr#(2,Vector#(BackWidth,Maybe#(MemToken) ))   perf_mem_inst   <- mkEhr(replicate(tagged Invalid));
-	Ehr#(2,Vector#(BackWidth,Maybe#(ComToken) ))   perf_wb_inst    <- mkEhr(replicate(tagged Invalid));
-	Ehr#(2,Vector#(BackWidth,Bool             ))   perf_wb_valid   <- mkEhr(replicate(       False  ));
-	Ehr#(2,Vector#(BackWidth,Bool             ))   perf_wb_miss    <- mkEhr(replicate(       False  ));
-	`endif
-
 	// Stats
 	Ehr#(3,PerfCnt)                                numCommit       <- mkEhr(0);
 
@@ -151,7 +166,21 @@ module mkBackend (Backend ifc);
 		numCycles <= numCycles+1;
 	endrule
 
+	//////////// EXECUTE ////////////
+
+	`ifdef DEBUG_CYC
+	Vector#(BackWidth, RWire#(Bool   )) deb_cyc_exe_notEmpty <- replicateM(mkRWire);
+	Vector#(BackWidth, RWire#(Addr   )) deb_cyc_exe_nextPC   <- replicateM(mkRWire);
+	Vector#(BackWidth, RWire#(FrontID)) deb_cyc_exe_feID     <- replicateM(mkRWire);
+	`endif
+
 	//////////// MEMORY ////////////
+
+	`ifdef DEBUG_CYC
+	Vector#(BackWidth, RWire#(Bool   )) deb_cyc_mem_notEmpty <- replicateM(mkRWire);
+	Vector#(BackWidth, RWire#(Addr   )) deb_cyc_mem_nextPC   <- replicateM(mkRWire);
+	Vector#(BackWidth, RWire#(FrontID)) deb_cyc_mem_feID     <- replicateM(mkRWire);
+	`endif
 
 	rule do_mem;
 
@@ -210,12 +239,27 @@ module mkBackend (Backend ifc);
 		commitQ.enq(toCommit);
 
 		`ifdef DEBUG_CYC
-		perf_mem_inst[0] <= toMem;
+		for (Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
+			if(toMem[i] matches tagged Valid .inst) begin
+				deb_cyc_mem_notEmpty[i].wset(True     );
+				deb_cyc_mem_nextPC  [i].wset(inst.pc  );
+				deb_cyc_mem_feID    [i].wset(inst.feID);
+			end
+		end
 		`endif
 
 	endrule
 
 	//////////// COMMIT ////////////
+
+	`ifdef DEBUG_CYC
+	Vector#(BackWidth, RWire#(Bool   )) deb_cyc_com_notEmpty <- replicateM(mkRWire);
+	Vector#(BackWidth, RWire#(Addr   )) deb_cyc_com_nextPC   <- replicateM(mkRWire);
+	Vector#(BackWidth, RWire#(FrontID)) deb_cyc_com_feID     <- replicateM(mkRWire);
+	Vector#(BackWidth, RWire#(Bool   )) deb_cyc_com_valid    <- replicateM(mkRWire);
+	Vector#(BackWidth, RWire#(Bool   )) deb_cyc_com_miss     <- replicateM(mkRWire);
+	Vector#(BackWidth, RWire#(Data   )) deb_cyc_com_rawInst  <- replicateM(mkRWire);
+	`endif
 
 	rule do_commit;
 
@@ -503,9 +547,16 @@ module mkBackend (Backend ifc);
 
 		// Perf debug
 		`ifdef DEBUG_CYC
-		perf_wb_inst [0] <= toCommit;
-		perf_wb_valid[0] <= commit_valid;
-		perf_wb_miss [0] <= commit_miss;
+		for(Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
+			if(toCommit[i] matches tagged Valid .inst) begin
+				deb_cyc_com_notEmpty[i].wset(True           );
+				deb_cyc_com_nextPC  [i].wset(inst.pc        );
+				deb_cyc_com_feID    [i].wset(inst.feID      );
+				deb_cyc_com_valid   [i].wset(commit_valid[i]);
+				deb_cyc_com_miss    [i].wset(commit_miss [i]);
+				deb_cyc_com_rawInst [i].wset(inst.rawInst   );
+			end
+		end
 		`endif
 
 	endrule
@@ -513,7 +564,11 @@ module mkBackend (Backend ifc);
 
 	//////////// OLD COMMIT ////////////
 
-	Ehr#(2,Maybe#(OldToken)) perf_old_wb_inst  <- mkEhr(tagged Invalid);
+	`ifdef DEBUG_CYC
+	RWire#(Bool   ) deb_cyc_lat_notEmpty <- mkRWire;
+	RWire#(FrontID) deb_cyc_lat_feID     <- mkRWire;
+	RWire#(Data   ) deb_cyc_lat_rawInst  <- mkRWire;
+	`endif
 
 	rule do_old_commit;
 
@@ -570,12 +625,14 @@ module mkBackend (Backend ifc);
 		commitReportQ.port[0].enq(generateOldCMR(numCycles, mapID[feID], cToken, loadRes));
 		`endif
 
+		// Perf debug
 		`ifdef DEBUG_CYC
-		perf_old_wb_inst[0] <= tagged Valid cToken;
+			deb_cyc_lat_notEmpty.wset(True          );
+			deb_cyc_lat_feID    .wset(cToken.feID   );
+			deb_cyc_lat_rawInst .wset(cToken.rawInst);
 		`endif
 
 	endrule
-
 
 	//////////// WRBACK ////////////
 	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
@@ -594,23 +651,6 @@ module mkBackend (Backend ifc);
 		endrule
 
 	end
-
-
-	//////////// PERF DEBUG ////////////
-
-	`ifdef DEBUG_CYC
-	rule do_DEBUG_CYC;
-
-		perf_exec_inst  [1] <= replicate(tagged Invalid);
-		perf_mem_inst   [1] <= replicate(tagged Invalid);
-		perf_wb_inst    [1] <= replicate(tagged Invalid);
-		perf_wb_valid   [1] <= replicate(       False  );
-		perf_wb_miss    [1] <= replicate(       False  );
-		perf_old_wb_inst[1] <= tagged Invalid;
-
-	endrule
-	`endif
-
 
 	//////////// INTERFACE ////////////
 
@@ -634,10 +674,52 @@ module mkBackend (Backend ifc);
 			endinterface);
 	end
 
+	`ifdef DEBUG_CYC
+ 	Vector#(BackWidth, DEB_CYC_exe) deb_cyc_exeIfc = newVector;
+ 	for(Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
+		deb_cyc_exeIfc[i] =
+			(interface DEB_CYC_exe;
+				method Bool    notEmpty; if (deb_cyc_exe_notEmpty[i].wget matches tagged Valid .d) return d; else return False; endmethod
+				method Addr    nextPC  ; if (deb_cyc_exe_nextPC  [i].wget matches tagged Valid .d) return d; else return ?    ; endmethod
+				method FrontID feID    ; if (deb_cyc_exe_feID    [i].wget matches tagged Valid .d) return d; else return ?    ; endmethod
+			endinterface);
+	end
+
+ 	Vector#(BackWidth, DEB_CYC_mem) deb_cyc_memIfc = newVector;
+ 	for(Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
+		deb_cyc_memIfc[i] =
+			(interface DEB_CYC_mem;
+				method Bool    notEmpty; if (deb_cyc_mem_notEmpty[i].wget matches tagged Valid .d) return d; else return False; endmethod
+				method Addr    nextPC  ; if (deb_cyc_mem_nextPC  [i].wget matches tagged Valid .d) return d; else return ?    ; endmethod
+				method FrontID feID    ; if (deb_cyc_mem_feID    [i].wget matches tagged Valid .d) return d; else return ?    ; endmethod
+			endinterface);
+	end
+
+ 	Vector#(BackWidth, DEB_CYC_com) deb_cyc_comIfc = newVector;
+ 	for(Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
+		deb_cyc_comIfc[i] =
+			(interface DEB_CYC_com;
+				method Bool    notEmpty; if (deb_cyc_com_notEmpty[i].wget matches tagged Valid .d) return d; else return False; endmethod
+				method Addr    nextPC  ; if (deb_cyc_com_nextPC  [i].wget matches tagged Valid .d) return d; else return ?    ; endmethod
+				method FrontID feID    ; if (deb_cyc_com_feID    [i].wget matches tagged Valid .d) return d; else return ?    ; endmethod
+				method Bool    valid   ; if (deb_cyc_com_valid   [i].wget matches tagged Valid .d) return d; else return ?    ; endmethod
+				method Bool    miss    ; if (deb_cyc_com_miss    [i].wget matches tagged Valid .d) return d; else return ?    ; endmethod
+				method Data    rawInst ; if (deb_cyc_com_rawInst [i].wget matches tagged Valid .d) return d; else return ?    ; endmethod
+			endinterface);
+	end
+
+ 	DEB_CYC_lat deb_cyc_latIfc;
+	deb_cyc_latIfc =
+		(interface DEB_CYC_lat;
+			method Bool    notEmpty; if (deb_cyc_lat_notEmpty.wget matches tagged Valid .d) return d; else return False; endmethod
+			method FrontID feID    ; if (deb_cyc_lat_feID    .wget matches tagged Valid .d) return d; else return ?    ; endmethod
+			method Data    rawInst ; if (deb_cyc_lat_rawInst .wget matches tagged Valid .d) return d; else return ?    ; endmethod
+		endinterface);
+	`endif
+
 	// DMEM
 	interface mem = l1D.mem;
 
-	// Execute
 	method Action enq(Vector#(BackWidth, Maybe#(ExecToken)) inst);
 
 		Vector#(BackWidth, Maybe#(MemToken) ) toMem  = replicate(tagged Invalid);
@@ -756,7 +838,13 @@ module mkBackend (Backend ifc);
 		memoryQ.enq(toMem);
 
 		`ifdef DEBUG_CYC
-		perf_exec_inst[0] <= toExec;
+		for (Integer i = 0; i < valueOf(BackWidth); i=i+1) begin
+			if(toExec[i] matches tagged Valid .inst) begin
+				deb_cyc_exe_notEmpty[i].wset(True     );
+				deb_cyc_exe_nextPC  [i].wset(inst.pc  );
+				deb_cyc_exe_feID    [i].wset(inst.feID);
+			end
+		end
 		`endif
 
 	endmethod
@@ -810,35 +898,14 @@ module mkBackend (Backend ifc);
 	endmethod
 	`endif
 
-	// Performance Debug
 	`ifdef DEBUG_CYC
+	interface cycExe = deb_cyc_exeIfc;
+	interface cycMem = deb_cyc_memIfc;
+	interface cycCom = deb_cyc_comIfc;
+	interface cycLat = deb_cyc_latIfc;
 
-	method Vector#(BackWidth,Maybe#(ExecToken)) get_exec_inst();
-		return perf_exec_inst[1];
-	endmethod
-
-	method Vector#(BackWidth,Maybe#(MemToken)) get_mem_inst();
-		return perf_mem_inst[1];
-	endmethod
-
-	method Vector#(BackWidth,Maybe#(ComToken)) get_wb_inst();
-		return perf_wb_inst[1];
-	endmethod
-
-	method Vector#(BackWidth,Bool) get_wb_valid();
-		return perf_wb_valid[1];
-	endmethod
-
-	method Vector#(BackWidth,Bool) get_wb_miss();
-		return perf_wb_miss[1];
-	endmethod
-
-	method PerfCnt get_wb_commit();
+	method PerfCnt cycNumCommit();
 		return numCommit[2];
-	endmethod
-
-	method Maybe#(OldToken) get_old_wb_inst();
-		return perf_old_wb_inst[1];
 	endmethod
 
 	`endif

@@ -150,21 +150,15 @@ module mkCore7SS(Core ifc);
 		Vector#(FrontWidth, DEB_CYC_fet) cycFet = frontend.cycFet();
 		Vector#(FrontWidth, DEB_CYC_dec) cycDec = frontend.cycDec();
 		Vector#(FrontWidth, DEB_CYC_arb) cycArb = arbiter .cycArb();
-
-
-
-		Vector#(BackWidth, Maybe#(ExecToken)) perf_exec_inst   = backend.get_exec_inst  ();
-		Vector#(BackWidth, Maybe#(MemToken) ) perf_mem_inst    = backend.get_mem_inst   ();
-		Vector#(BackWidth, Maybe#(ComToken) ) perf_wb_inst     = backend.get_wb_inst    ();
-		Vector#(BackWidth, Bool             ) perf_wb_valid    = backend.get_wb_valid   ();
-		Vector#(BackWidth, Bool             ) perf_wb_miss     = backend.get_wb_miss    ();
-
-		Maybe#(OldToken)                      perf_old_wb_inst = backend.get_old_wb_inst();
+		Vector#(BackWidth , DEB_CYC_exe) cycExe = backend .cycExe();
+		Vector#(BackWidth , DEB_CYC_mem) cycMem = backend .cycMem();
+		Vector#(BackWidth , DEB_CYC_com) cycCom = backend .cycCom();
+		                    DEB_CYC_lat  cycLat = backend .cycLat();
 
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 
 			     if(i == 0) $write("%d ", numCycles[1]);
-			else if(i == 1) $write("%d ", backend.get_wb_commit());
+			else if(i == 1) $write("%d ", backend.cycNumCommit());
 			else            $write("                     ");
 
 			//////////// FETCH ////////////
@@ -199,52 +193,54 @@ module mkCore7SS(Core ifc);
 
 			Bool exec = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(isValid(perf_exec_inst[j]) && (fromMaybe(?,perf_exec_inst[j]).feID == fromInteger(i))) begin
-					$write(" E 0x%h |",  fromMaybe(?,perf_exec_inst[j]).pc);
+				if(cycExe[j].notEmpty && (cycExe[j].feID == fromInteger(i))) begin
+					$write(" E 0x%h |",  cycExe[j].nextPC);
 					exec = True;
 				end
 			end
 			if(!exec) $write("              |");
 
-			//////////// MEM ////////////
+			//////////// MEMORY ////////////
 
 			Bool mem = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(isValid(perf_mem_inst[j]) && (fromMaybe(?,perf_mem_inst[j]).feID == fromInteger(i))) begin
-					$write(" M 0x%h |",  fromMaybe(?,perf_mem_inst[j]).pc);
+				if(cycMem[j].notEmpty && (cycMem[j].feID == fromInteger(i))) begin
+					$write(" M 0x%h |",  cycMem[j].nextPC);
 					mem = True;
 				end
 			end
 			if(!mem) $write("              |");
 
-			//////////// WB ////////////
+			//////////// COMMIT ////////////
 
 			Bool wb = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(isValid(perf_wb_inst[j]) && (fromMaybe(?,perf_wb_inst[j]).feID == fromInteger(i))) begin
-					$write(" C 0x%h | ", fromMaybe(?,perf_wb_inst[j]).pc);
+				if(cycCom[j].notEmpty && cycCom[j].valid && (cycCom[j].feID == fromInteger(i))) begin
+					$write(" C 0x%h | ", cycCom[j].nextPC);
 					wb = True;
 				end
 			end
 			if(!wb) $write("              | ");
 
-			//////////// COMMIT ////////////
+			//////////// COMMIT PRETTY PRINT ////////////
 
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(perf_wb_valid[j] && !perf_wb_miss[j] && (fromMaybe(?,perf_wb_inst[j]).feID == fromInteger(i))) begin
+				if(cycCom[j].notEmpty && cycCom[j].valid && !cycCom[j].miss && (cycCom[j].feID == fromInteger(i))) begin
 					$write("%c[1;93m",27);
-					$write("", showInst(fromMaybe(?,perf_wb_inst[j]).rawInst));
+					$write("", showInst(cycCom[j].rawInst));
 					$write("%c[0m",27);
-				end else if(perf_wb_miss[j] && (fromMaybe(?,perf_wb_inst[j]).feID == fromInteger(i))) begin
+				end else if(cycCom[j].notEmpty && cycCom[j].miss && (cycCom[j].feID == fromInteger(i))) begin
 					$write("%c[2;97m",27);
-					$write("", showInst(fromMaybe(?,perf_wb_inst[j]).rawInst));
+					$write("", showInst(cycCom[j].rawInst));
 					$write("%c[0m",27);
 				end
 			end
 
-			if(isValid(perf_old_wb_inst) && (fromMaybe(?,perf_old_wb_inst).feID == fromInteger(i))) begin
+			//////////// LATE COMMIT PRETTY PRINT ////////////
+
+			if(cycLat.notEmpty && (cycLat.feID == fromInteger(i))) begin
 				$write("%c[1;33m",27);
-				$write("", showInst(fromMaybe(?,perf_old_wb_inst).rawInst));
+				$write("", showInst(cycLat.rawInst));
 				$write("%c[0m",27);
 			end
 
