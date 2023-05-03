@@ -153,62 +153,43 @@ class ToHost: public ToHostWrapper {
         }
 
         virtual void reportMSR ( const uint32_t verifID,
-                                 const uint64_t cycle,   const uint64_t commit,    const uint32_t data,
-                                 const uint64_t fHit,    const uint64_t fMiss,     const uint64_t fEmpty, 
-                                 const uint64_t aMemOvb, const uint64_t aArithOvb, const uint64_t aEmpty, 
-                                 const uint64_t hLd,     const uint64_t hSt,       const uint64_t hJoin,
-                                 const uint64_t mLd,     const uint64_t mSt,       const uint64_t mJoin,
-                                 const uint64_t dLd,     const uint64_t dSt,       const uint64_t dJoin,
-                                 const uint64_t l2hWR,   const uint64_t l2mWR,     
-                                 const uint64_t l2hRD,   const uint64_t l2mRD,
-                                 const uint64_t l2tWB){
+                                 const uint64_t cycle  , const uint64_t commit, const uint32_t data    ,
+                                 const uint64_t l1IhRD ,
+                                 const uint64_t l1ImRD ,
+                                 const uint64_t l1DhLd , const uint64_t l1DhSt, const uint64_t l1DhJoin,
+                                 const uint64_t l1DmLd , const uint64_t l1DmSt, const uint64_t l1DmJoin,
+                                 const uint64_t l2ShRD , const uint64_t l2ShWR, const uint64_t l2StWB  ,
+                                 const uint64_t l2SmRD , const uint64_t l2SmWR                         ){
 
             if(error_detected >= ERROR_THRESHOLD)
                 return;
 
-            FetchStat   fetch  ;
-            ArbiterStat arbiter;
-            LSUStat     lsu    ;
-            WMCStat     l2s    ;
-            MemStat     msr    ;
+            MemStat msr;
+            msr.verifID        = verifID ;
+            msr.cycle          = cycle   ;
+            msr.commit         = commit  ;
+            msr.data           = data    ;
 
-            fetch.hit        = fHit     ;
-            fetch.miss       = fMiss    ;
-            fetch.empty      = fEmpty   ;
+            msr.l1IStat.hRD    = l1IhRD  ;
+            msr.l1IStat.mRD    = l1ImRD  ;
 
-            arbiter.memOvb   = aMemOvb  ;
-            arbiter.arithOvb = aArithOvb;
-            arbiter.empty    = aEmpty   ;
+            msr.l1DStat.hLd    = l1DhLd  ;
+            msr.l1DStat.hSt    = l1DhSt  ;
+            msr.l1DStat.hJoin  = l1DhJoin;
+            msr.l1DStat.mLd    = l1DmLd  ;
+            msr.l1DStat.mSt    = l1DmSt  ;
+            msr.l1DStat.mJoin  = l1DmJoin;
 
-            lsu.hLd          = hLd      ;
-            lsu.hSt          = hSt      ;
-            lsu.hJoin        = hJoin    ;
-            lsu.mLd          = mLd      ;
-            lsu.mSt          = mSt      ;
-            lsu.mJoin        = mJoin    ;
-            lsu.dLd          = dLd      ;
-            lsu.dSt          = dSt      ;
-            lsu.dJoin        = dJoin    ;
-
-            l2s.hWR          = l2hWR    ;
-            l2s.mWR          = l2mWR    ;
-            l2s.hRD          = l2hRD    ;
-            l2s.mRD          = l2mRD    ;
-            l2s.tWB          = l2tWB    ;
-
-            msr.verifID      = verifID  ;
-            msr.cycle        = cycle    ;
-            msr.commit       = commit   ;
-            msr.data         = data     ;
-            msr.fetch        = fetch    ;
-            msr.arbiter      = arbiter  ;
-            msr.lsu          = lsu      ;
-            msr.l2s          = l2s      ;
+            msr.l2SStat.hWR    = l2ShWR  ;
+            msr.l2SStat.mWR    = l2SmWR  ;
+            msr.l2SStat.hRD    = l2ShRD  ;
+            msr.l2SStat.mRD    = l2SmRD  ;
+            msr.l2SStat.tWB    = l2StWB  ;
 
             inter->print_MSR_dut(msr);
 
         }
-    
+
     ToHost(unsigned int id) : ToHostWrapper(id){}
 
 };

@@ -45,11 +45,11 @@ interface SyncArbiter;
 
 	// Stats
 	method Action startCore();
-
+/*
 	`ifdef DEBUG_STATS
 	method ArbiterStat getStat();
 	`endif
-
+*/
 endinterface
 
 typedef Bit#(3) SpecLvl;
@@ -305,7 +305,7 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 	method Action startCore();
 		coreStarted <= True;
 	endmethod
-
+/*
 	`ifdef DEBUG_STATS
 	method ArbiterStat getStat();
 		return ArbiterStat{ memOvb  : numMemOvb  ,
@@ -313,5 +313,5 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 		                    empty   : numEmpty   };
 	endmethod
 	`endif
-
+*/
 endmodule

@@ -122,10 +122,9 @@ void Interpreter::print_HEX_dut(const Message msg) {
 
 void Interpreter::print_MSR_dut(const MemStat msr) {
 
-    LSUStat     lsu     = msr.lsu;
-    ArbiterStat arbiter = msr.arbiter;
-    FetchStat   fetch   = msr.fetch;
-    WMCStat     l2s     = msr.l2s;
+    L1IStat l1I = msr.l1IStat;
+    L1DStat l1D = msr.l1DStat;
+    WMCStat l2S = msr.l2SStat;
 
     std::string phrase;
 
@@ -144,65 +143,51 @@ void Interpreter::print_MSR_dut(const MemStat msr) {
     phrase = "                       |------------------------|------------------------|------------------------|";
     printf("%s \n", phrase.c_str());
 
-    phrase = "               Fetch   | hit   :                | miss  :                | empty :                |";
-    overwrite(phrase, std::to_string(fetch.hit     ), 33, 14 );
-    overwrite(phrase, std::to_string(fetch.miss    ), 58, 14 );
-    overwrite(phrase, std::to_string(fetch.empty   ), 83, 14 );
+    phrase = "               L1I     | tRD   :                | hRD   :                | mRD   :                |";
+    overwrite(phrase, std::to_string(l1I.hRD+l1I.mRD), 33, 14 );
+    overwrite(phrase, std::to_string(l1I.hRD        ), 58, 14 );
+    overwrite(phrase, std::to_string(l1I.mRD        ), 83, 14 );
     printf("%s \n", phrase.c_str());
 
     phrase = "                       |------------------------|------------------------|------------------------|";
     printf("%s \n", phrase.c_str());
 
-    phrase = "               Arbiter | memOvb:                | ariOvb:                | empty :                |";
-    overwrite(phrase, std::to_string(arbiter.memOvb  ), 33, 14 );
-    overwrite(phrase, std::to_string(arbiter.arithOvb), 58, 14 );
-    overwrite(phrase, std::to_string(arbiter.empty   ), 83, 14 );
+    phrase = "               L1D     | tLd   :                | hLd   :                | mLd   :                |";
+    overwrite(phrase, std::to_string(l1D.hLd+l1D.mLd),  33, 14 );
+    overwrite(phrase, std::to_string(l1D.hLd        ),  58, 14 );
+    overwrite(phrase, std::to_string(l1D.mLd        ),  83, 14 );
     printf("%s \n", phrase.c_str());
+
+    phrase = "                       | tSt   :                | hSt   :                | mSt   :                |";
+    overwrite(phrase, std::to_string(l1D.hSt+l1D.mSt),  33, 14 );
+    overwrite(phrase, std::to_string(l1D.hSt        ),  58, 14 );
+    overwrite(phrase, std::to_string(l1D.mSt        ),  83, 14 );
+    printf("%s \n", phrase.c_str());
+
+    phrase = "                       | tJoin :                | hJoin :                | mJoin :                |";
+    overwrite(phrase, std::to_string(l1D.hJoin+l1D.mJoin),  33, 14 );
+    overwrite(phrase, std::to_string(l1D.hJoin          ),  58, 14 );
+    overwrite(phrase, std::to_string(l1D.mJoin          ),  83, 14 );
+    printf("%s \n", phrase.c_str());
+
 
     phrase = "                       |------------------------|------------------------|------------------------|";
     printf("%s \n", phrase.c_str());
 
-    phrase = "               LSU     | tLd   :                | tSt   :                | tJoin :                |";
-    overwrite(phrase, std::to_string(lsu.hLd  +lsu.mLd  +lsu.dLd  ),  33, 14 );
-    overwrite(phrase, std::to_string(lsu.hSt  +lsu.mSt  +lsu.dSt  ),  58, 14 );
-    overwrite(phrase, std::to_string(lsu.hJoin+lsu.mJoin+lsu.dJoin),  83, 14 );
+    phrase = "               L2S     | tRD   :                | hRD   :                | mRD   :                |";
+    overwrite(phrase, std::to_string(l2S.hRD +l2S.mRD),  33, 14 );
+    overwrite(phrase, std::to_string(l2S.hRD         ),  58, 14 );
+    overwrite(phrase, std::to_string(l2S.mRD         ),  83, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "                       | hLd   :                | hSt   :                | hJoin :                |";
-    overwrite(phrase, std::to_string(lsu.hLd  ),  33, 14 );
-    overwrite(phrase, std::to_string(lsu.hSt  ),  58, 14 );
-    overwrite(phrase, std::to_string(lsu.hJoin),  83, 14 );
+    phrase = "                       | tWR   :                | hWR   :                | mWR   :                |";
+    overwrite(phrase, std::to_string(l2S.hWR +l2S.mWR),  33, 14 );
+    overwrite(phrase, std::to_string(l2S.hWR         ),  58, 14 );
+    overwrite(phrase, std::to_string(l2S.mWR         ),  83, 14 );
     printf("%s \n", phrase.c_str());
 
-    phrase = "                       | mLd   :                | mSt   :                | mJoin :                |";
-    overwrite(phrase, std::to_string(lsu.mLd  ),  33, 14 );
-    overwrite(phrase, std::to_string(lsu.mSt  ),  58, 14 );
-    overwrite(phrase, std::to_string(lsu.mJoin),  83, 14 );
-    printf("%s \n", phrase.c_str());
-
-    phrase = "                       | dLd   :                | dSt   :                | dJoin :                |";
-    overwrite(phrase, std::to_string(lsu.dLd  ),  33, 14 );
-    overwrite(phrase, std::to_string(lsu.dSt  ),  58, 14 );
-    overwrite(phrase, std::to_string(lsu.dJoin),  83, 14 );
-    printf("%s \n", phrase.c_str());
-
-    phrase = "                       |------------------------|------------------------|------------------------|";
-    printf("%s \n", phrase.c_str());
-
-    phrase = "               L2S     | tRD   :                | tWR   :                | tWB   :                |";
-    overwrite(phrase, std::to_string(l2s.hRD + l2s.mRD),  33, 14 );
-    overwrite(phrase, std::to_string(l2s.hWR + l2s.mWR),  58, 14 );
-    overwrite(phrase, std::to_string(l2s.tWB          ),  83, 14 );
-    printf("%s \n", phrase.c_str());
-
-    phrase = "                       | hRD   :                | hWR   :                |                        |";
-    overwrite(phrase, std::to_string(l2s.hRD          ),  33, 14 );
-    overwrite(phrase, std::to_string(l2s.hWR          ),  58, 14 );
-    printf("%s \n", phrase.c_str());
-
-    phrase = "                       | mRD   :                | mWR   :                |                        |";
-    overwrite(phrase, std::to_string(l2s.mRD          ),  33, 14 );
-    overwrite(phrase, std::to_string(l2s.mWR          ),  58, 14 );
+    phrase = "                       | tWB   :                |                        |                        |";
+    overwrite(phrase, std::to_string(l2S.tWB          ),  33, 14 );
     printf("%s \n", phrase.c_str());
 
 

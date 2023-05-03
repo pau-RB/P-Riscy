@@ -94,10 +94,10 @@ interface Backend;
 	`endif
 
 	// MMIO
-	`ifdef DEBUG_STATS
-	method ActionValue#(Message) getMSG();
-	method ActionValue#(Message) getHEX();
-	method ActionValue#(MemStat) getMSR();
+	`ifdef MMIO
+	method ActionValue#(StatReq) getMSG();
+	method ActionValue#(StatReq) getHEX();
+	method ActionValue#(StatReq) getMSR();
 	`endif
 
 	// Performance Debug
@@ -107,6 +107,10 @@ interface Backend;
 	method Vector#(BackWidth,DEB_CYC_com) cycCom;
 	method                   DEB_CYC_lat  cycLat;
 	method PerfCnt cycNumCommit();
+	`endif
+
+	`ifdef DEBUG_STATS
+	method L1DStat getL1DStat();
 	`endif
 
 endinterface
@@ -148,10 +152,12 @@ module mkBackend (Backend ifc);
 	`ifdef DEBUG_CMR
 	MFifo#(TAdd#(BackWidth,1),BackWidth,CommitReport) commitReportQ   <- mkPipelineMFifo();
 	`endif
+
+	// MMIO
 	`ifdef MMIO
-	FIFOF#(Message)                                messageReportQ  <- mkFIFOF();
-	FIFOF#(Message)                                hexReportQ      <- mkFIFOF();
-	FIFOF#(MemStat)                                memStatReportQ  <- mkFIFOF();
+	FIFOF#(StatReq)                                mmioMSGQ        <- mkFIFOF();
+	FIFOF#(StatReq)                                mmioHEXQ        <- mkFIFOF();
+	FIFOF#(StatReq)                                mmioMSRQ        <- mkFIFOF();
 	`endif
 
 	// Stats
@@ -433,31 +439,26 @@ module mkBackend (Backend ifc);
 				`ifdef MMIO
 				if (msg_ext_DEBUG == True) begin
 					if(cToken.iType == St && cToken.addr == msg_ADDR) begin
-						messageReportQ.enq(Message { verifID: mapID[cToken.feID],
-						                             cycle  : numCycles,
-						                             commit : numCommit[1],
-						                             data   : cToken.res });
+						mmioMSGQ.enq(StatReq { verifID: mapID[cToken.feID],
+						                       cycle  : numCycles         ,
+						                       commit : numCommit[1]      ,
+						                       data   : cToken.res        });
 					end
 				end
 				if (hex_ext_DEBUG == True) begin
 					if(cToken.iType == St && cToken.addr == hex_ADDR) begin
-						hexReportQ.enq(Message { verifID: mapID[cToken.feID],
-						                         cycle  : numCycles,
-						                         commit : numCommit[1],
-						                         data   : cToken.res });
+						mmioHEXQ.enq(StatReq { verifID: mapID[cToken.feID],
+						                       cycle  : numCycles         ,
+						                       commit : numCommit[1]      ,
+						                       data   : cToken.res        });
 					end
 				end
-				if (mem_ext_DEBUG == True) begin
+				if (msr_ext_DEBUG == True) begin
 					if(cToken.iType == St && cToken.addr == msr_ADDR) begin
-						LSUStat   lsr = l1D.getStat();
-						MemStat   msr = MemStat{ verifID: mapID[cToken.feID],
-						                         cycle  : numCycles,
-						                         commit : numCommit[1],
-						                         data   : cToken.res,
-						                         fetch  : ?,
-						                         arbiter: ?,
-						                         lsu    : lsr };
-						memStatReportQ.enq(msr);
+						mmioMSRQ.enq(StatReq { verifID: mapID[cToken.feID],
+						                       cycle  : numCycles         ,
+						                       commit : numCommit[1]      ,
+						                       data   : cToken.res        });
 					end
 				end
 				`endif
@@ -884,18 +885,9 @@ module mkBackend (Backend ifc);
 	`endif
 
 	`ifdef MMIO
-	method ActionValue#(Message) getMSG();
-		let latest = messageReportQ.first(); messageReportQ.deq();
-		return latest;
-	endmethod
-	method ActionValue#(Message) getHEX();
-		let latest = hexReportQ.first(); hexReportQ.deq();
-		return latest;
-	endmethod
-	method ActionValue#(MemStat) getMSR();
-		let latest = memStatReportQ.first(); memStatReportQ.deq();
-		return latest;
-	endmethod
+	method ActionValue#(StatReq) getMSG(); mmioMSGQ.deq(); return mmioMSGQ.first(); endmethod
+	method ActionValue#(StatReq) getHEX(); mmioHEXQ.deq(); return mmioHEXQ.first(); endmethod
+	method ActionValue#(StatReq) getMSR(); mmioMSRQ.deq(); return mmioMSRQ.first(); endmethod
 	`endif
 
 	`ifdef DEBUG_CYC
@@ -908,6 +900,10 @@ module mkBackend (Backend ifc);
 		return numCommit[2];
 	endmethod
 
+	`endif
+
+	`ifdef DEBUG_STATS
+	method L1DStat getL1DStat() = l1D.getStat();
 	`endif
 
 endmodule

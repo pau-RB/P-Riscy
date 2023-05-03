@@ -6,13 +6,13 @@ import SpecialFIFOs::*;
 import GetPut::*;
 import ClientServer::*;
 import Vector::*;
+import CMRTypes::*;
 
 interface L1I#(numeric type numHart, numeric type cacheRows, numeric type cacheColumns);
     interface WideMemClient#(Bit#(TLog#(numHart))) mem;
     interface Vector#(numHart, WideMemServer#(void)) port;
     `ifdef DEBUG_STATS
-    method PerfCnt getNumHit();
-    method PerfCnt getNumMiss();
+    method L1IStat getStat();
     `endif
 endinterface
 
@@ -38,8 +38,8 @@ module mkL1I(L1I#(numHart, cacheRows, cacheColumns) ifc) provisos(Add#(a__, TLog
     //////////// STATS ////////////
 
     `ifdef DEBUG_STATS
-    Reg#(PerfCnt) numHit  <- mkReg(0);
-    Reg#(PerfCnt) numMiss <- mkReg(0);
+    Reg#(PerfCnt) hRD <- mkReg(0);
+    Reg#(PerfCnt) mRD <- mkReg(0);
     `endif
 
     //////////// RULES ////////////
@@ -72,11 +72,10 @@ module mkL1I(L1I#(numHart, cacheRows, cacheColumns) ifc) provisos(Add#(a__, TLog
         end
 
         `ifdef DEBUG_STATS
-        if (res matches tagged Valid .line) begin // read hit
-            numHit <= numHit+1;
-        end else begin // read miss
-            numMiss <= numMiss+1;
-        end
+        if (res matches tagged Valid .line)
+            hRD <= hRD+1;
+        else
+            mRD <= mRD+1;
         `endif
 
     endrule
@@ -134,11 +133,9 @@ module mkL1I(L1I#(numHart, cacheRows, cacheColumns) ifc) provisos(Add#(a__, TLog
     interface port = wideMemIfcs;
 
     `ifdef DEBUG_STATS
-    method PerfCnt getNumHit();
-        return numHit;
-    endmethod
-    method PerfCnt getNumMiss();
-        return numMiss;
+    method L1IStat getStat();
+        return L1IStat{ hRD: hRD,
+                        mRD: mRD};
     endmethod
     `endif
 

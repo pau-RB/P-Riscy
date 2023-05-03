@@ -11,13 +11,14 @@ interface ToHost;
 	method Action reportMSG(Bit#(32) verifID, Bit#(64) cycle, Bit#(64) commit, Bit#(32) data);
 	method Action reportHEX(Bit#(32) verifID, Bit#(64) cycle, Bit#(64) commit, Bit#(32) data);
 	method Action reportMSR(Bit#(32) verifID,
-	                        Bit#(64) cycle,   Bit#(64) commit,    Bit#(32) data,
-	                        Bit#(64) fHit,    Bit#(64) fMiss,     Bit#(64) fEmpty,
-	                        Bit#(64) aMemOvb, Bit#(64) aArithOvb, Bit#(64) aEmpty,
-	                        Bit#(64) hLd,     Bit#(64) hSt,       Bit#(64) hJoin,
-	                        Bit#(64) mLd,     Bit#(64) mSt,       Bit#(64) mJoin,
-	                        Bit#(64) dLd,     Bit#(64) dSt,       Bit#(64) dJoin,
-	                        Bit#(64) l2hWR,   Bit#(64) l2mWR,
-	                        Bit#(64) l2hRD,   Bit#(64) l2mRD,
-	                        Bit#(64) l2tWB );
+	                        Bit#(64) cycle  , Bit#(64) commit   , Bit#(32) data    ,
+
+	                        Bit#(64) l1IhRD ,
+	                        Bit#(64) l1ImRD ,
+
+	                        Bit#(64) l1DhLd , Bit#(64) l1DhSt   , Bit#(64) l1DhJoin,
+	                        Bit#(64) l1DmLd , Bit#(64) l1DmSt   , Bit#(64) l1DmJoin,
+
+	                        Bit#(64) l2ShRD , Bit#(64) l2ShWR   , Bit#(64) l2StWB  ,
+	                        Bit#(64) l2SmRD , Bit#(64) l2SmWR                      );
 endinterface

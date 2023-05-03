@@ -117,21 +117,35 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 	`ifdef MMIO
 	rule getMSG if(msg_ext_DEBUG);
-		let latest <- core.getMSG();
-		mainMSGQ.enq(latest);
+		StatReq latest <- core.getMSG();
+		mainMSGQ.enq(Message { verifID: latest.verifID,
+		                       cycle  : latest.cycle  ,
+		                       commit : latest.commit ,
+		                       data   : latest.data   });
 	endrule
 	rule getHEX if(hex_ext_DEBUG);
-		let latest <- core.getHEX();
-		mainHEXQ.enq(latest);
+		StatReq latest <- core.getHEX();
+		mainHEXQ.enq(Message { verifID: latest.verifID,
+		                       cycle  : latest.cycle  ,
+		                       commit : latest.commit ,
+		                       data   : latest.data   });
 	endrule
-	rule getMSR if(mem_ext_DEBUG);
-		let latest <- core.getMSR();
+	rule getMSR if(msr_ext_DEBUG);
+		StatReq latest  <- core.getMSR();
+		L1IStat l1IStat  = core.getL1IStat();
+		L1DStat l1DStat  = core.getL1DStat();
 		`ifdef L2SC
-		latest.l2s = mainL2SC.getStat();
+		WMCStat l2SStat = mainL2SC.getStat();
 		`else
-		latest.l2s = unpack('0);
+		WMCStat l2SStat = unpack('0);
 		`endif
-		mainMSRQ.enq(latest);
+		mainMSRQ.enq(MemStat { verifID: latest.verifID,
+		                       cycle  : latest.cycle  ,
+		                       commit : latest.commit ,
+		                       data   : latest.data   ,
+		                       l1IStat: l1IStat       ,
+		                       l1DStat: l1DStat       ,
+		                       l2SStat: l2SStat       });
 	endrule
 	`endif
 
@@ -162,18 +176,16 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 		Message msg = mainHEXQ.first(); mainHEXQ.deq();
 		ind.reportHEX(msg.verifID, msg.cycle, msg.commit, msg.data);
 	endrule
-	rule relayMSR if(mem_ext_DEBUG);
+	rule relayMSR if(msr_ext_DEBUG);
 		MemStat msr = mainMSRQ.first(); mainMSRQ.deq();
-		ind.reportMSR(msr.verifID,
-		              msr.cycle,          msr.commit,           msr.data,
-		              msr.fetch.hit,      msr.fetch.miss,       msr.fetch.empty,
-		              msr.arbiter.memOvb, msr.arbiter.arithOvb, msr.arbiter.empty,
-		              msr.lsu.hLd,        msr.lsu.hSt,          msr.lsu.hJoin,
-		              msr.lsu.mLd,        msr.lsu.mSt,          msr.lsu.mJoin,
-		              msr.lsu.dLd,        msr.lsu.dSt,          msr.lsu.dJoin,
-		              msr.l2s.hWR,        msr.l2s.mWR,
-		              msr.l2s.hRD,        msr.l2s.mRD,
-		              msr.l2s.tWB );
+		ind.reportMSR(msr.verifID    ,
+		              msr.cycle      , msr.commit     , msr.data ,
+		              msr.l1IStat.hRD,
+		              msr.l1IStat.mRD,
+		              msr.l1DStat.hLd, msr.l1DStat.hSt, msr.l1DStat.hJoin,
+		              msr.l1DStat.mLd, msr.l1DStat.mSt, msr.l1DStat.mJoin,
+		              msr.l2SStat.hRD, msr.l2SStat.hWR, msr.l2SStat.tWB  ,
+		              msr.l2SStat.mRD, msr.l2SStat.mWR                   );
 	endrule
 	`endif
 

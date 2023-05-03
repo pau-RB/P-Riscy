@@ -36,9 +36,19 @@ interface Core;
 	`ifdef DEBUG_CMR
 	method ActionValue#(CommitReport) getCMR();
 	`endif
-	method ActionValue#(Message)      getMSG();
-	method ActionValue#(Message)      getHEX();
-	method ActionValue#(MemStat)      getMSR();
+
+	// MMIO
+	`ifdef MMIO
+	method ActionValue#(StatReq) getMSG();
+	method ActionValue#(StatReq) getHEX();
+	method ActionValue#(StatReq) getMSR();
+	`endif
+
+	// STAT
+	`ifdef DEBUG_STATS
+	method L1IStat getL1IStat();
+	method L1DStat getL1DStat();
+	`endif
 
 endinterface
 
@@ -264,27 +274,20 @@ module mkCore7SS(Core ifc);
 
 	// CMR
 	`ifdef DEBUG_CMR
-	method ActionValue#(CommitReport) getCMR();
-		let latest <- backend.getCMR();
-		return latest;
-	endmethod
+	method ActionValue#(CommitReport) getCMR = backend.getCMR;
 	`endif
 
+	// MMIO
 	`ifdef MMIO
-	method ActionValue#(Message) getMSG();
-		let latest <- backend.getMSG();
-		return latest;
-	endmethod
-	method ActionValue#(Message) getHEX();
-		let latest <- backend.getHEX();
-		return latest;
-	endmethod
-	method ActionValue#(MemStat) getMSR();
-		let latest <- backend.getMSR();
-		latest.fetch   = frontend.getStat();
-		latest.arbiter = arbiter.getStat();
-		return latest;
-	endmethod
+	method ActionValue#(StatReq) getMSG() = backend.getMSG();
+	method ActionValue#(StatReq) getHEX() = backend.getHEX();
+	method ActionValue#(StatReq) getMSR() = backend.getMSR();
+	`endif
+
+	// STAT
+	`ifdef DEBUG_STATS
+	method L1IStat getL1IStat() = frontend.getL1IStat();
+	method L1DStat getL1DStat() = backend .getL1DStat();
 	`endif
 
 endmodule

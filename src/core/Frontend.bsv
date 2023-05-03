@@ -73,7 +73,7 @@ interface Frontend;
 	method Action startCore();
 
 	`ifdef DEBUG_STATS
-	method FetchStat getStat();
+	method L1IStat getL1IStat();
 	`endif
 
 endinterface
@@ -316,11 +316,7 @@ module mkFrontend (Frontend ifc);
 	endmethod
 
 	`ifdef DEBUG_STATS
-	method FetchStat getStat();
-		return FetchStat { hit  : l1I.getNumHit() ,
-		                   miss : l1I.getNumMiss(),
-		                   empty: numEmpty        };
-	endmethod
+	method L1IStat getL1IStat() = l1I.getStat();
 	`endif
 
 endmodule
