@@ -33,7 +33,7 @@ interface L1D#(numeric type numHart, numeric type cacheRows, numeric type cacheC
 	method Action deqres();
 	method Action deqoldres();
 	`ifdef DEBUG_STATS
-	method LSUStat getStat();
+	method L1DStat getStat();
 	`endif
 endinterface
 
@@ -319,16 +319,13 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 	endmethod
 
 	`ifdef DEBUG_STATS
-	method LSUStat getStat();
-		return LSUStat{ hLd      : hLd  [1],
+	method L1DStat getStat();
+		return L1DStat{ hLd      : hLd  [1],
 		                hSt      : hSt  [1],
 		                hJoin    : hJoin[1],
 		                mLd      : mLd  [1],
 		                mSt      : mSt  [1],
-		                mJoin    : mJoin[1],
-		                dLd      : dLd  [1],
-		                dSt      : dSt  [1],
-		                dJoin    : dJoin[1] };
+		                mJoin    : mJoin[1]};
 	endmethod
 	`endif
 

@@ -80,47 +80,36 @@ typedef struct {
 	Data	data;
 } Message;
 
-typedef struct {
-	PerfCnt hit;
-    PerfCnt miss;
-    PerfCnt empty;
-} FetchStat;
+typedef struct{
+	PerfCnt hRD  ; // Total hits on read
+	PerfCnt mRD  ; // Total miss on read
+} L1IStat;
 
-typedef struct {
-	PerfCnt memOvb;
-	PerfCnt arithOvb;
-	PerfCnt empty;
-} ArbiterStat;
+typedef struct{
+	PerfCnt hLd  ; // Total hits on Ld
+	PerfCnt hSt  ; // Total hits on St
+	PerfCnt hJoin; // Total hits on Join
+	PerfCnt mLd  ; // Total miss on Ld
+	PerfCnt mSt  ; // Total miss on St
+	PerfCnt mJoin; // Total miss on Join
+} L1DStat;
 
-typedef struct {
-	PerfCnt hLd;
-    PerfCnt hSt;
-    PerfCnt hJoin;
-    PerfCnt mLd;
-    PerfCnt mSt;
-    PerfCnt mJoin;
-    PerfCnt dLd;
-    PerfCnt dSt;
-    PerfCnt dJoin;
-} LSUStat;
-
-typedef struct {
-	PerfCnt hWR; // Total hits on read
-	PerfCnt mWR; // Total miss on read
-	PerfCnt hRD; // Total hits on read
-	PerfCnt mRD; // Total miss on read
-	PerfCnt tWB; // Total writebacks
+typedef struct{
+	PerfCnt hWR  ; // Total hits on read
+	PerfCnt mWR  ; // Total miss on read
+	PerfCnt hRD  ; // Total hits on read
+	PerfCnt mRD  ; // Total miss on read
+	PerfCnt tWB  ; // Total writebacks
 } WMCStat;
 
-typedef struct {
-	VerifID     verifID;
-	PerfCnt     cycle;
-	PerfCnt     commit;
-	Data	    data;
-	FetchStat   fetch;
-	ArbiterStat arbiter;
-	LSUStat     lsu;
-	WMCStat     l2s;
+typedef struct{
+	VerifID verifID;
+	PerfCnt cycle  ;
+	PerfCnt commit ;
+	Data    data   ;
+	L1IStat l1IStat;
+	L1DStat l1DStat;
+	WMCStat l2SStat;
 } MemStat;
 
 #endif

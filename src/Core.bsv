@@ -36,9 +36,19 @@ interface Core;
 	`ifdef DEBUG_CMR
 	method ActionValue#(CommitReport) getCMR();
 	`endif
-	method ActionValue#(Message)      getMSG();
-	method ActionValue#(Message)      getHEX();
-	method ActionValue#(MemStat)      getMSR();
+
+	// MMIO
+	`ifdef MMIO
+	method ActionValue#(StatReq) getMSG();
+	method ActionValue#(StatReq) getHEX();
+	method ActionValue#(StatReq) getMSR();
+	`endif
+
+	// STAT
+	`ifdef DEBUG_STATS
+	method L1IStat getL1IStat();
+	method L1DStat getL1DStat();
+	`endif
 
 endinterface
 
@@ -147,28 +157,25 @@ module mkCore7SS(Core ifc);
 	`ifdef DEBUG_CYC
 	rule do_DEBUG_CYC if(coreStarted);
 
-		Vector#(FrontWidth,Maybe#(ExecToken)) perf_sel_inst    = arbiter.perf_get_inst ();
-		Vector#(FrontWidth,Bool)              perf_sel_taken   = arbiter.perf_get_taken();
-
-		Vector#(BackWidth, Maybe#(ExecToken)) perf_exec_inst   = backend.get_exec_inst  ();
-		Vector#(BackWidth, Maybe#(MemToken) ) perf_mem_inst    = backend.get_mem_inst   ();
-		Vector#(BackWidth, Maybe#(ComToken) ) perf_wb_inst     = backend.get_wb_inst    ();
-		Vector#(BackWidth, Bool             ) perf_wb_valid    = backend.get_wb_valid   ();
-		Vector#(BackWidth, Bool             ) perf_wb_miss     = backend.get_wb_miss    ();
-
-		Maybe#(OldToken)                      perf_old_wb_inst = backend.get_old_wb_inst();
+		Vector#(FrontWidth, DEB_CYC_fet) cycFet = frontend.cycFet();
+		Vector#(FrontWidth, DEB_CYC_dec) cycDec = frontend.cycDec();
+		Vector#(FrontWidth, DEB_CYC_arb) cycArb = arbiter .cycArb();
+		Vector#(BackWidth , DEB_CYC_exe) cycExe = backend .cycExe();
+		Vector#(BackWidth , DEB_CYC_mem) cycMem = backend .cycMem();
+		Vector#(BackWidth , DEB_CYC_com) cycCom = backend .cycCom();
+		                    DEB_CYC_lat  cycLat = backend .cycLat();
 
 		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
 
 			     if(i == 0) $write("%d ", numCycles[1]);
-			else if(i == 1) $write("%d ", backend.get_wb_commit());
+			else if(i == 1) $write("%d ", backend.cycNumCommit());
 			else            $write("                     ");
 
 			//////////// FETCH ////////////
 
-			if(frontend.fetch[i].currentState() != Empty) $write("|| %d ", backend.getVerifID(fromInteger(i))); else $write("||            ");
+			if(cycFet[i].status != Empty) $write("|| %d ", backend.getVerifID(fromInteger(i))); else $write("||            ");
 
-			case (frontend.fetch[i].currentState())
+			case (cycFet[i].status)
 				Full :   $write("|| Full  ");
 				Evict:   $write("|| Evict ");
 				Ghost:   $write("|| Ghost ");
@@ -177,73 +184,73 @@ module mkCore7SS(Core ifc);
 				default: $write("||       ");
 			endcase
 
-			if(frontend.fetch   [i].isl0Ihit) $write("h "); else $write("m ");
-			if(frontend.fetch   [i].currentState() != Empty) $write("| F 0x%h |", frontend.fetch[i].currentPC()); else $write("| F            |");
+			if(cycFet[i].l0IHit) $write("h "); else $write("m ");
+			if(cycFet[i].status != Empty) $write("| F 0x%h |", cycFet[i].nextPC); else $write("| F            |");
 			
 			//////////// DECODE ////////////
 
-			if(frontend.decode  [i].notEmpty) $write(" D 0x%h |", frontend.decode  [i].firstPC); else $write(" D            |");
-			
-			//////////// REGFETCH ////////////
+			if(cycDec[i].notEmpty && cycDec[i].notStall) $write(" D 0x%h |", cycDec[i].nextPC);
+			else if (cycDec[i].notEmpty) $write("%c[2;97m D 0x%h %c[0;0m|", 27, cycDec[i].nextPC, 27);
+			else $write(" D            |");
 
-			if(frontend.regfetch[i].notEmpty) $write(" R 0x%h |", frontend.regfetch[i].firstPC); else $write(" R            |");
+			//////////// ARBITER ////////////
 
-			//////////// SELECT ////////////
-
-			if(perf_sel_taken[i]) $write(" S 0x%h |", fromMaybe(?,perf_sel_inst[i]).pc);
-			else if(isValid(perf_sel_inst[i])) $write("%c[2;97m S 0x%h %c[0;0m|", 27, fromMaybe(?,perf_sel_inst[i]).pc, 27);
-			else $write(" S            |");
+			if(cycArb[i].notEmpty && cycArb[i].notStall) $write(" A 0x%h |", cycArb[i].nextPC);
+			else if(cycArb[i].notEmpty) $write("%c[2;97m A 0x%h %c[0;0m|", 27, cycArb[i].nextPC, 27);
+			else $write(" A            |");
 
 			//////////// EXECUTE ////////////
 
 			Bool exec = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(isValid(perf_exec_inst[j]) && (fromMaybe(?,perf_exec_inst[j]).feID == fromInteger(i))) begin
-					$write(" E 0x%h |",  fromMaybe(?,perf_exec_inst[j]).pc);
+				if(cycExe[j].notEmpty && (cycExe[j].feID == fromInteger(i))) begin
+					$write(" E 0x%h |",  cycExe[j].nextPC);
 					exec = True;
 				end
 			end
 			if(!exec) $write("              |");
 
-			//////////// MEM ////////////
+			//////////// MEMORY ////////////
 
 			Bool mem = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(isValid(perf_mem_inst[j]) && (fromMaybe(?,perf_mem_inst[j]).feID == fromInteger(i))) begin
-					$write(" M 0x%h |",  fromMaybe(?,perf_mem_inst[j]).pc);
+				if(cycMem[j].notEmpty && (cycMem[j].feID == fromInteger(i))) begin
+					$write(" M 0x%h |",  cycMem[j].nextPC);
 					mem = True;
 				end
 			end
 			if(!mem) $write("              |");
 
-			//////////// WB ////////////
+			//////////// COMMIT ////////////
 
 			Bool wb = False;
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(isValid(perf_wb_inst[j]) && (fromMaybe(?,perf_wb_inst[j]).feID == fromInteger(i))) begin
-					$write(" W 0x%h | ", fromMaybe(?,perf_wb_inst[j]).pc);
+				if(cycCom[j].notEmpty && cycCom[j].valid && (cycCom[j].feID == fromInteger(i))) begin
+					$write(" C 0x%h | ", cycCom[j].nextPC);
 					wb = True;
 				end
 			end
 			if(!wb) $write("              | ");
 
-			//////////// COMMIT ////////////
+			//////////// COMMIT PRETTY PRINT ////////////
 
 			for(Integer j = 0; j < valueOf(BackWidth); j=j+1) begin
-				if(perf_wb_valid[j] && !perf_wb_miss[j] && (fromMaybe(?,perf_wb_inst[j]).feID == fromInteger(i))) begin
+				if(cycCom[j].notEmpty && cycCom[j].valid && !cycCom[j].miss && (cycCom[j].feID == fromInteger(i))) begin
 					$write("%c[1;93m",27);
-					$write("", showInst(fromMaybe(?,perf_wb_inst[j]).rawInst));
+					$write("", showInst(cycCom[j].rawInst));
 					$write("%c[0m",27);
-				end else if(perf_wb_miss[j] && (fromMaybe(?,perf_wb_inst[j]).feID == fromInteger(i))) begin
+				end else if(cycCom[j].notEmpty && cycCom[j].miss && (cycCom[j].feID == fromInteger(i))) begin
 					$write("%c[2;97m",27);
-					$write("", showInst(fromMaybe(?,perf_wb_inst[j]).rawInst));
+					$write("", showInst(cycCom[j].rawInst));
 					$write("%c[0m",27);
 				end
 			end
 
-			if(isValid(perf_old_wb_inst) && (fromMaybe(?,perf_old_wb_inst).feID == fromInteger(i))) begin
+			//////////// LATE COMMIT PRETTY PRINT ////////////
+
+			if(cycLat.notEmpty && (cycLat.feID == fromInteger(i))) begin
 				$write("%c[1;33m",27);
-				$write("", showInst(fromMaybe(?,perf_old_wb_inst).rawInst));
+				$write("", showInst(cycLat.rawInst));
 				$write("%c[0m",27);
 			end
 
@@ -251,7 +258,7 @@ module mkCore7SS(Core ifc);
 
 		end
 
-		$write("-------------------------------------------------------------------------------------------------------------------------------------------------------\n");
+		$write("----------------------------------------------------------------------------------------------------------------------------------------\n");
 
 	endrule
 	`endif
@@ -267,27 +274,20 @@ module mkCore7SS(Core ifc);
 
 	// CMR
 	`ifdef DEBUG_CMR
-	method ActionValue#(CommitReport) getCMR();
-		let latest <- backend.getCMR();
-		return latest;
-	endmethod
+	method ActionValue#(CommitReport) getCMR = backend.getCMR;
 	`endif
 
+	// MMIO
 	`ifdef MMIO
-	method ActionValue#(Message) getMSG();
-		let latest <- backend.getMSG();
-		return latest;
-	endmethod
-	method ActionValue#(Message) getHEX();
-		let latest <- backend.getHEX();
-		return latest;
-	endmethod
-	method ActionValue#(MemStat) getMSR();
-		let latest <- backend.getMSR();
-		latest.fetch   = frontend.getStat();
-		latest.arbiter = arbiter.getStat();
-		return latest;
-	endmethod
+	method ActionValue#(StatReq) getMSG() = backend.getMSG();
+	method ActionValue#(StatReq) getHEX() = backend.getHEX();
+	method ActionValue#(StatReq) getMSR() = backend.getMSR();
+	`endif
+
+	// STAT
+	`ifdef DEBUG_STATS
+	method L1IStat getL1IStat() = frontend.getL1IStat();
+	method L1DStat getL1DStat() = backend .getL1DStat();
 	`endif
 
 endmodule

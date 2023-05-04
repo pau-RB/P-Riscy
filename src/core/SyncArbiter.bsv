@@ -19,6 +19,14 @@ interface FifoDeq#(type t);
 	method t first;
 endinterface
 
+`ifdef DEBUG_CYC
+interface DEB_CYC_arb;
+	method Bool notEmpty;
+	method Bool notStall;
+	method Addr nextPC  ;
+endinterface
+`endif
+
 interface SyncArbiter;
 
 	// IO
@@ -32,17 +40,16 @@ interface SyncArbiter;
 
 	// Performance debug
 	`ifdef DEBUG_CYC
-	method Vector#(FrontWidth,Maybe#(ExecToken)) perf_get_inst;
-	method Vector#(FrontWidth,Bool) perf_get_taken;
+	method Vector#(FrontWidth, DEB_CYC_arb) cycArb;
 	`endif
 
 	// Stats
 	method Action startCore();
-
+/*
 	`ifdef DEBUG_STATS
 	method ArbiterStat getStat();
 	`endif
-
+*/
 endinterface
 
 typedef Bit#(3) SpecLvl;
@@ -85,12 +92,6 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 	// Speculation counter
 	Vector#(FrontWidth,Reg#(SpecLvl))             specLvl <- replicateM(mkReg('0));
 
-	// Performance debug
-	`ifdef DEBUG_CYC
-	Ehr#(3,Vector#(FrontWidth,Maybe#(ExecToken))) perf_sel_inst  <- mkEhr(replicate(tagged Invalid));
-	Ehr#(3,Vector#(FrontWidth,Bool             )) perf_sel_taken <- mkEhr(replicate(False));
-	`endif
-
 	// Stats
 	`ifdef DEBUG_STATS
 	Reg#(PerfCnt) numMemOvb   <- mkReg(0);
@@ -108,6 +109,12 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 	endrule
 
 	//////////// SELECT ////////////
+
+	`ifdef DEBUG_CYC
+	Vector#(FrontWidth, Wire#(Bool)) deb_cyc_arb_notEmpty <- replicateM(mkWire);
+	Vector#(FrontWidth, Wire#(Bool)) deb_cyc_arb_notStall <- replicateM(mkWire);
+	Vector#(FrontWidth, Wire#(Addr)) deb_cyc_arb_nextPC   <- replicateM(mkWire);
+	`endif
 
 	rule do_select if(coreStarted);
 
@@ -167,14 +174,18 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 		if(unpack(|(pack(instTaken))))
 			outputQueue.enq(instForward);
 
-
 		`ifdef DEBUG_CYC
-		Vector#(FrontWidth,Maybe#(ExecToken)) inst = replicate(tagged Invalid);
-		for (Integer i = 0; i < valueOf(FrontWidth); i=i+1)
-			if(inputQueue[i].notEmpty)
-				inst[i] = tagged Valid inputQueue[i].first();
-		perf_sel_taken[0] <= instTaken;
-		perf_sel_inst [0] <= inst;
+		for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+			if(inputQueue[i].notEmpty) begin
+				deb_cyc_arb_notEmpty[i] <= True;
+				deb_cyc_arb_notStall[i] <= instTaken[i];
+				deb_cyc_arb_nextPC  [i] <= inputQueue[i].first.pc;
+			end else begin
+				deb_cyc_arb_notEmpty[i] <= False;
+				deb_cyc_arb_notStall[i] <= ?;
+				deb_cyc_arb_nextPC  [i] <= ?;
+			end
+		end
 		`endif
 
 		`ifdef DEBUG_STATS
@@ -216,10 +227,19 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 	end
 
 	`ifdef DEBUG_CYC
-	rule do_reset;
-		perf_sel_inst [2] <= replicate(tagged Invalid);
-		perf_sel_taken[2] <= replicate(False);
-	endrule
+	for(Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
+		rule do_cyc_deb_arb;
+			if(inputQueue[i].notEmpty) begin
+				deb_cyc_arb_notEmpty[i] <= True;
+				deb_cyc_arb_notStall[i] <= False;
+				deb_cyc_arb_nextPC  [i] <= inputQueue[i].first.pc;
+			end else begin
+				deb_cyc_arb_notEmpty[i] <= False;
+				deb_cyc_arb_notStall[i] <= False;
+				deb_cyc_arb_nextPC  [i] <= ?;
+			end
+		endrule
+	end
 	`endif
 
 	//////////// INTERFACE ////////////
@@ -261,26 +281,31 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 			endinterface);
 	end
 
+	`ifdef DEBUG_CYC
+	Vector#(FrontWidth, DEB_CYC_arb) deb_cyc_arbIfc = newVector;
+ 	for(Integer i = 0; i < valueOf(FrontWidth); i=i+1) begin
+		deb_cyc_arbIfc[i] =
+			(interface DEB_CYC_arb;
+				method notEmpty; return deb_cyc_arb_notEmpty[i]; endmethod
+				method notStall; return deb_cyc_arb_notStall[i]; endmethod
+				method nextPC;   return deb_cyc_arb_nextPC  [i]; endmethod
+			endinterface);
+	end
+	`endif
+
 	interface eport       = enqIfc;
 	interface dport       = deqIfc;
 	interface enqRedirect = enqRedirectIfc;
 	interface deqRedirect = deqRedirectIfc;
-
-	// Performance debug
 	`ifdef DEBUG_CYC
-	method Vector#(FrontWidth,Maybe#(ExecToken)) perf_get_inst();
-		return perf_sel_inst[2];
-	endmethod
-	method Vector#(FrontWidth,Bool) perf_get_taken();
-		return perf_sel_taken[2];
-	endmethod
+	interface cycArb      = deb_cyc_arbIfc;
 	`endif
 
 	// Stats
 	method Action startCore();
 		coreStarted <= True;
 	endmethod
-
+/*
 	`ifdef DEBUG_STATS
 	method ArbiterStat getStat();
 		return ArbiterStat{ memOvb  : numMemOvb  ,
@@ -288,5 +313,5 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 		                    empty   : numEmpty   };
 	endmethod
 	`endif
-
+*/
 endmodule

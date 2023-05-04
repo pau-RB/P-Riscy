@@ -6,7 +6,7 @@ typedef	16 MTHQ_LEN;
 `ifdef MMIO
 	Bool msg_ext_DEBUG = True;
 	Bool hex_ext_DEBUG = True;
-	Bool mem_ext_DEBUG = True;
+	Bool msr_ext_DEBUG = True;
 	Addr msg_ADDR      = 32'h7ffff000;
 	Addr hex_ADDR      = 32'h7ffff004;
 	Addr msr_ADDR      = 32'h7ffff008;

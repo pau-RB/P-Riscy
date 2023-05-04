@@ -13,7 +13,9 @@ interface Stream;
 	interface WideMemClient#(void) mem;
 
 	// Flow control
-	method ActionValue#(DecToken) fetch();
+	method Bool                   notEmptyInst();
+	method Action                 deqInst();
+	method DecToken               firstInst();
 	method Action                 redirect(Redirect r);
 
 	// Thread control - from upstream
@@ -184,10 +186,9 @@ module mkStream (Stream ifc);
 	endinterface
 
 	// Flow control
-	method ActionValue#(DecToken) fetch();
-		DecToken i = instQ.first(); instQ.deq();
-		return i;
-	endmethod	
+	method Bool     notEmptyInst = instQ.notEmpty;
+	method Action   deqInst      = instQ.deq;
+	method DecToken firstInst    = instQ.first;
 
 	method Action redirect(Redirect r);
 		redirectQ.enq(r);

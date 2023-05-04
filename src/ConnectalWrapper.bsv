@@ -80,11 +80,6 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	`ifdef DEBUG_CMR
 	FIFOF#(CommitReport) mainCMRQ <- mkSizedBRAMFIFOF(valueOf(MTHQ_LEN));
 	`endif
-	`ifdef MMIO
-	FIFOF#(Message)      mainMSGQ <- mkSizedBRAMFIFOF(valueOf(MTHQ_LEN));
-	FIFOF#(Message)      mainHEXQ <- mkSizedBRAMFIFOF(valueOf(MTHQ_LEN));
-	FIFOF#(MemStat)      mainMSRQ <- mkSizedBRAMFIFOF(valueOf(MTHQ_LEN));
-	`endif
 
 	//////////// MTQ ////////////
 
@@ -115,26 +110,6 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	endrule
 	`endif
 
-	`ifdef MMIO
-	rule getMSG if(msg_ext_DEBUG);
-		let latest <- core.getMSG();
-		mainMSGQ.enq(latest);
-	endrule
-	rule getHEX if(hex_ext_DEBUG);
-		let latest <- core.getHEX();
-		mainHEXQ.enq(latest);
-	endrule
-	rule getMSR if(mem_ext_DEBUG);
-		let latest <- core.getMSR();
-		`ifdef L2SC
-		latest.l2s = mainL2SC.getStat();
-		`else
-		latest.l2s = unpack('0);
-		`endif
-		mainMSRQ.enq(latest);
-	endrule
-	`endif
-
 	`ifdef MEMTEST
 	rule relayTST;
 		TestRes latest = mainTSTQ.first(); mainTSTQ.deq();
@@ -155,25 +130,30 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 	`ifdef MMIO
 	rule relayMSG if(msg_ext_DEBUG);
-		Message msg = mainMSGQ.first(); mainMSGQ.deq();
-		ind.reportMSG(msg.verifID, msg.cycle, msg.commit, msg.data);
+		StatReq latest <- core.getMSG();
+		ind.reportMSG(latest.verifID, latest.cycle, latest.commit, latest.data);
 	endrule
 	rule relayHEX if(hex_ext_DEBUG);
-		Message msg = mainHEXQ.first(); mainHEXQ.deq();
-		ind.reportHEX(msg.verifID, msg.cycle, msg.commit, msg.data);
+		StatReq latest <- core.getHEX();
+		ind.reportHEX(latest.verifID, latest.cycle, latest.commit, latest.data);
 	endrule
-	rule relayMSR if(mem_ext_DEBUG);
-		MemStat msr = mainMSRQ.first(); mainMSRQ.deq();
-		ind.reportMSR(msr.verifID,
-		              msr.cycle,          msr.commit,           msr.data,
-		              msr.fetch.hit,      msr.fetch.miss,       msr.fetch.empty,
-		              msr.arbiter.memOvb, msr.arbiter.arithOvb, msr.arbiter.empty,
-		              msr.lsu.hLd,        msr.lsu.hSt,          msr.lsu.hJoin,
-		              msr.lsu.mLd,        msr.lsu.mSt,          msr.lsu.mJoin,
-		              msr.lsu.dLd,        msr.lsu.dSt,          msr.lsu.dJoin,
-		              msr.l2s.hWR,        msr.l2s.mWR,
-		              msr.l2s.hRD,        msr.l2s.mRD,
-		              msr.l2s.tWB );
+	rule relayMSR if(msr_ext_DEBUG);
+		StatReq latest  <- core.getMSR();
+		L1IStat l1IStat  = core.getL1IStat();
+		L1DStat l1DStat  = core.getL1DStat();
+		`ifdef L2SC
+		WMCStat l2SStat  = mainL2SC.getStat();
+		`else
+		WMCStat l2SStat  = unpack('0);
+		`endif
+		ind.reportMSR(latest.verifID,
+		              latest.cycle  , latest.commit, latest.data  ,
+		              l1IStat.hRD   ,
+		              l1IStat.mRD   ,
+		              l1DStat.hLd   , l1DStat.hSt  , l1DStat.hJoin,
+		              l1DStat.mLd   , l1DStat.mSt  , l1DStat.mJoin,
+		              l2SStat.hRD   , l2SStat.hWR  , l2SStat.tWB  ,
+		              l2SStat.mRD   , l2SStat.mWR                   );
 	endrule
 	`endif
 
