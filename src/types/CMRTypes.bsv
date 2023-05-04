@@ -2,6 +2,9 @@ import Types::*;
 import Encodings::*;
 import ProcTypes::*;
 import Config::*;
+import Vector::*;
+
+//////////// CMR ////////////
 
 typedef struct {
 	PerfCnt cycle;
@@ -13,6 +16,8 @@ typedef struct {
 	Data    wbRes;   // ALU/Load result, childverifID for fork/forkr, memread for Join
 	Addr    addr;    // nextpc for branch, addr for LSU, nextpc for fork/forkr
 } CommitReport deriving (Bits, Eq, FShow);
+
+//////////// MMIO ////////////
 
 typedef struct {
 	VerifID verifID;
@@ -27,6 +32,8 @@ typedef struct {
 	PerfCnt commit ;
 	Data    data   ;
 } Message deriving (Bits, Eq);
+
+//////////// MSR ////////////
 
 typedef struct{
 	PerfCnt hRD  ; // Total hits on read
@@ -59,6 +66,35 @@ typedef struct{
 	L1DStat l1DStat;
 	WMCStat l2SStat;
 } MemStat deriving(Eq, Bits, FShow);
+
+//////////// CTR ////////////
+
+typedef struct{
+	Vector#(TAdd#(FrontWidth,1), PerfCnt) distFull  ; // Dist of full
+	Vector#(TAdd#(FrontWidth,1), PerfCnt) distFetch ; // Dist of fetch
+	Vector#(TAdd#(FrontWidth,1), PerfCnt) distDecode; // Dist of decode
+	Vector#(TAdd#(FrontWidth,1), PerfCnt) distWrong ; // Dist of wrong path
+	Vector#(TAdd#(FrontWidth,1), PerfCnt) distRedir ; // Dist of redirect
+	Vector#(TAdd#(FrontWidth,1), PerfCnt) distLock  ; // Dist of lock
+	Vector#(TAdd#(FrontWidth,1), PerfCnt) distStall ; // Dist of stall
+} FrontStat deriving(Eq, Bits, FShow);
+
+typedef struct{
+	Vector#(TAdd#(FrontWidth,1), PerfCnt) distWrong ; // Dist of wrong path
+	Vector#(TAdd#(FrontWidth,1), PerfCnt) distAri   ; // Dist of Ari
+	Vector#(TAdd#(FrontWidth,1), PerfCnt) distMem   ; // Dist of Mem
+} ArbiterStat deriving(Eq, Bits, FShow);
+
+typedef struct{
+	Vector#(TAdd#(FrontWidth,1), PerfCnt) distWrong ; // Dist of Wrong path inst
+	Vector#(TAdd#(FrontWidth,1), PerfCnt) distCommit; // Dist of Commit
+} BackStat deriving(Eq, Bits, FShow);
+
+typedef struct{
+	FrontStat   frontStat;
+	ArbiterStat arbiterStat;
+	BackStat    backStat;
+} CoreStat deriving(Eq, Bits, FShow);
 
 // Construct CMR
 `ifdef DEBUG_CMR

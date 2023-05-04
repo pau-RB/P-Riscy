@@ -28,6 +28,7 @@ interface L1D#(numeric type numHart, numeric type cacheRows, numeric type cacheC
 	interface WideMemClient#(Bit#(TLog#(numHart))) mem;
 	method Action req(L1DReq#(Bit#(TLog#(numHart))) r);
 	method Action confirm(Bool comm);
+	method Bool hasres();
 	method L1DResp#(Bit#(TLog#(numHart))) getres();
 	method L1DResp#(Bit#(TLog#(numHart))) getoldres();
 	method Action deqres();
@@ -301,6 +302,10 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 	method Action confirm(Bool comm);
 		dataCache.confirm(comm);
 		confirmQ.enq(comm);
+	endmethod
+
+	method Bool hasres();
+		return respQ.notEmpty();
 	endmethod
 
 	method L1DResp#(Bit#(TLog#(numHart))) getres();

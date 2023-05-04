@@ -10,6 +10,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <list>
 #include <signal.h>
@@ -187,6 +188,50 @@ class ToHost: public ToHostWrapper {
             msr.l2SStat.tWB    = l2StWB  ;
 
             inter->print_MSR_dut(msr);
+
+        }
+
+
+        virtual void reportCTR(const uint32_t verifID, const uint64_t index,
+                               const uint64_t cycle  , const uint64_t commit, const uint32_t data    ,const uint64_t distFrontFull    ,
+                               const uint64_t distFrontFetch   ,
+                               const uint64_t distFrontDecode  ,
+                               const uint64_t distFrontWrong   ,
+                               const uint64_t distFrontRedir   ,
+                               const uint64_t distFrontLock    ,
+                               const uint64_t distFrontStall   ,
+                               const uint64_t distArbiterWrong ,
+                               const uint64_t distArbiterAri   ,
+                               const uint64_t distArbiterMem   ,
+                               const uint64_t distBackWrong    ,
+                               const uint64_t distBackCommit   ) {
+
+            if(error_detected >= ERROR_THRESHOLD)
+                return;
+
+            if(index == 0) {
+                Message msg;
+                msg.verifID = verifID;
+                msg.cycle   = cycle  ;
+                msg.commit  = commit ;
+                msg.data    = data   ;
+
+                inter->print_CTR_dut(msg);
+            }
+
+            std::cout << std::setw(14) << std::right << distFrontFull    << ", ";
+            std::cout << std::setw(14) << std::right << distFrontFetch   << ", ";
+            std::cout << std::setw(14) << std::right << distFrontDecode  << ", ";
+            std::cout << std::setw(14) << std::right << distFrontWrong   << ", ";
+            std::cout << std::setw(14) << std::right << distFrontRedir   << ", ";
+            std::cout << std::setw(14) << std::right << distFrontLock    << ", ";
+            std::cout << std::setw(14) << std::right << distFrontStall   << ", ";
+            std::cout << std::setw(14) << std::right << distArbiterWrong << ", ";
+            std::cout << std::setw(14) << std::right << distArbiterAri   << ", ";
+            std::cout << std::setw(14) << std::right << distArbiterMem   << ", ";
+            std::cout << std::setw(14) << std::right << distBackWrong    << ", ";
+            std::cout << std::setw(14) << std::right << distBackCommit   << ", ";
+            std::cout << endl;
 
         }
 

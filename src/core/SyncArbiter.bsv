@@ -45,11 +45,11 @@ interface SyncArbiter;
 
 	// Stats
 	method Action startCore();
-/*
+
 	`ifdef DEBUG_STATS
-	method ArbiterStat getStat();
+	method ArbiterStat getArbiterStat();
 	`endif
-*/
+
 endinterface
 
 typedef Bit#(3) SpecLvl;
@@ -102,11 +102,12 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 	//////////// COUNTERS ////////////
 
 	Reg#(Bool) coreStarted <- mkReg(False);
-	Reg#(Data) numCycles   <- mkReg('0);
 
-	rule do_cnt_cycles if(coreStarted);
-		numCycles <= numCycles+1;
-	endrule
+	`ifdef DEBUG_STATS
+	Vector#(TAdd#(FrontWidth,1), Reg#(PerfCnt)) deb_stats_distWrong <- replicateM(mkReg('0)); // Dist of wrong path
+	Vector#(TAdd#(FrontWidth,1), Reg#(PerfCnt)) deb_stats_distAri   <- replicateM(mkReg('0)); // Dist of Ari
+	Vector#(TAdd#(FrontWidth,1), Reg#(PerfCnt)) deb_stats_distMem   <- replicateM(mkReg('0)); // Dist of Mem
+	`endif
 
 	//////////// SELECT ////////////
 
@@ -242,6 +243,28 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 	end
 	`endif
 
+	`ifdef DEBUG_STATS
+	rule do_FULLCNT if(coreStarted);
+
+		Bit#(TLog#(TAdd#(FrontWidth,1))) wrongCnt = 0;
+		Bit#(TLog#(TAdd#(FrontWidth,1))) ariCnt   = 0;
+		Bit#(TLog#(TAdd#(FrontWidth,1))) memCnt   = 0;
+		for (Integer i = 0; i < valueOf(FrontWidth); i = i+1) begin
+			if(inputQueue[i].notEmpty)
+				if(inputQueue[i].first.epoch !=  arbiterEpoch[i])
+					wrongCnt =  wrongCnt+1;
+				else if(isArithInst(inputQueue[i].first.iType))
+					ariCnt = ariCnt+1;
+				else if(isMemInst(inputQueue[i].first.iType))
+					memCnt = memCnt+1;
+		end
+		deb_stats_distWrong[wrongCnt] <= deb_stats_distWrong[wrongCnt]+1;
+		deb_stats_distAri  [ariCnt  ] <= deb_stats_distAri  [ariCnt  ]+1;
+		deb_stats_distMem  [memCnt  ] <= deb_stats_distMem  [memCnt  ]+1;
+
+	endrule
+	`endif
+
 	//////////// INTERFACE ////////////
 
 	// IO
@@ -305,13 +328,17 @@ module mkSyncArbiter(SyncArbiter ifc) provisos(Add#(a__,BackWidth,FrontWidth));
 	method Action startCore();
 		coreStarted <= True;
 	endmethod
-/*
+
 	`ifdef DEBUG_STATS
-	method ArbiterStat getStat();
-		return ArbiterStat{ memOvb  : numMemOvb  ,
-		                    arithOvb: numArithOvb,
-		                    empty   : numEmpty   };
+	method ArbiterStat getArbiterStat();
+		ArbiterStat latest;
+		for(Integer i = 0; i < valueOf(TAdd#(FrontWidth,1)); i = i+1) begin
+			latest.distWrong[i] = deb_stats_distWrong[i];
+			latest.distAri  [i] = deb_stats_distAri  [i];
+			latest.distMem  [i] = deb_stats_distMem  [i];
+		end
+		return latest;
 	endmethod
 	`endif
-*/
+
 endmodule

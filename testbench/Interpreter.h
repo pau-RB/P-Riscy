@@ -25,6 +25,7 @@ class Interpreter {
 		void print_MSG_dut(const Message msg);
 		void print_HEX_dut(const Message msg);
 		void print_MSR_dut(const MemStat msr);
+		void print_CTR_dut(const Message msg);
 		void print_stats(const std::map<VerifID, PerfCnt> commit_thread);
 
 	private:

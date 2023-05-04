@@ -21,4 +21,21 @@ interface ToHost;
 
 	                        Bit#(64) l2ShRD , Bit#(64) l2ShWR   , Bit#(64) l2StWB  ,
 	                        Bit#(64) l2SmRD , Bit#(64) l2SmWR                      );
+	method Action reportCTR(Bit#(32) verifID, Bit#(64) index    ,
+	                        Bit#(64) cycle  , Bit#(64) commit   , Bit#(32) data    ,
+	                        Bit#(64) distFrontFull    ,
+	                        Bit#(64) distFrontFetch   ,
+	                        Bit#(64) distFrontDecode  ,
+	                        Bit#(64) distFrontWrong   ,
+	                        Bit#(64) distFrontRedir   ,
+	                        Bit#(64) distFrontLock    ,
+	                        Bit#(64) distFrontStall   ,
+
+	                        Bit#(64) distArbiterWrong ,
+	                        Bit#(64) distArbiterAri   ,
+	                        Bit#(64) distArbiterMem   ,
+
+	                        Bit#(64) distBackWrong    ,
+	                        Bit#(64) distBackCommit   );
+
 endinterface

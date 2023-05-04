@@ -155,6 +155,36 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 		              l2SStat.hRD   , l2SStat.hWR  , l2SStat.tWB  ,
 		              l2SStat.mRD   , l2SStat.mWR                   );
 	endrule
+
+	Reg#(CoreStat) coreStatPending <- mkReg(?);
+	Reg#(StatReq ) coreStatReq <- mkReg(?);
+	Reg#(Maybe#(Bit#(TAdd#(FrontWidth,1)))) coreStatIndex <- mkReg(tagged Invalid);
+	rule relayCTR if(msr_ext_DEBUG &&& coreStatIndex matches tagged Invalid);
+		StatReq latest  <- core.getCTR();
+		coreStatPending <= core.getCoreStat;
+		coreStatReq     <= latest;
+		coreStatIndex   <= tagged Valid 0;
+	endrule
+	rule relayCTRPartial if(msr_ext_DEBUG &&& coreStatIndex matches tagged Valid .idx);
+		let latest = coreStatReq;
+		ind.reportCTR(latest.verifID, zeroExtend(idx), latest.cycle, latest.commit, latest.data,
+		              coreStatPending.frontStat.distFull   [idx],
+		              coreStatPending.frontStat.distFetch  [idx],
+		              coreStatPending.frontStat.distDecode [idx],
+		              coreStatPending.frontStat.distWrong  [idx],
+		              coreStatPending.frontStat.distRedir  [idx],
+		              coreStatPending.frontStat.distLock   [idx],
+		              coreStatPending.frontStat.distStall  [idx],
+		              coreStatPending.arbiterStat.distWrong[idx],
+		              coreStatPending.arbiterStat.distAri  [idx],
+		              coreStatPending.arbiterStat.distMem  [idx],
+		              coreStatPending.backStat.distWrong   [idx],
+		              coreStatPending.backStat.distCommit  [idx]);
+		if(idx == fromInteger(valueOf(FrontWidth)))
+			coreStatIndex <= tagged Invalid;
+		else
+			coreStatIndex <= tagged Valid (idx+1);
+	endrule
 	`endif
 
 	//////////// INTERFACE ////////////

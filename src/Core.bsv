@@ -42,12 +42,14 @@ interface Core;
 	method ActionValue#(StatReq) getMSG();
 	method ActionValue#(StatReq) getHEX();
 	method ActionValue#(StatReq) getMSR();
+	method ActionValue#(StatReq) getCTR();
 	`endif
 
 	// STAT
 	`ifdef DEBUG_STATS
-	method L1IStat getL1IStat();
-	method L1DStat getL1DStat();
+	method L1IStat     getL1IStat();
+	method L1DStat     getL1DStat();
+	method CoreStat    getCoreStat();
 	`endif
 
 endinterface
@@ -282,12 +284,18 @@ module mkCore7SS(Core ifc);
 	method ActionValue#(StatReq) getMSG() = backend.getMSG();
 	method ActionValue#(StatReq) getHEX() = backend.getHEX();
 	method ActionValue#(StatReq) getMSR() = backend.getMSR();
+	method ActionValue#(StatReq) getCTR() = backend.getCTR();
 	`endif
 
 	// STAT
 	`ifdef DEBUG_STATS
-	method L1IStat getL1IStat() = frontend.getL1IStat();
-	method L1DStat getL1DStat() = backend .getL1DStat();
+	method L1IStat     getL1IStat     = frontend.getL1IStat    ;
+	method L1DStat     getL1DStat     = backend .getL1DStat    ;
+	method CoreStat getCoreStat();
+		return CoreStat { frontStat  : frontend.getFrontStat  ,
+		                  arbiterStat: arbiter .getArbiterStat,
+		                  backStat   : backend .getBackStat   };
+	endmethod
 	`endif
 
 endmodule

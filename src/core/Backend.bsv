@@ -98,6 +98,7 @@ interface Backend;
 	method ActionValue#(StatReq) getMSG();
 	method ActionValue#(StatReq) getHEX();
 	method ActionValue#(StatReq) getMSR();
+	method ActionValue#(StatReq) getCTR();
 	`endif
 
 	// Performance Debug
@@ -111,6 +112,7 @@ interface Backend;
 
 	`ifdef DEBUG_STATS
 	method L1DStat getL1DStat();
+	method BackStat getBackStat();
 	`endif
 
 endinterface
@@ -158,6 +160,7 @@ module mkBackend (Backend ifc);
 	FIFOF#(StatReq)                                mmioMSGQ        <- mkFIFOF();
 	FIFOF#(StatReq)                                mmioHEXQ        <- mkFIFOF();
 	FIFOF#(StatReq)                                mmioMSRQ        <- mkFIFOF();
+	FIFOF#(StatReq)                                mmioCTRQ        <- mkFIFOF();
 	`endif
 
 	// Stats
@@ -171,6 +174,11 @@ module mkBackend (Backend ifc);
 	rule do_cnt_cycles if(coreStarted);
 		numCycles <= numCycles+1;
 	endrule
+
+	`ifdef DEBUG_STATS
+	Vector#(TAdd#(BackWidth,1), Reg#(PerfCnt)) deb_stats_distWrong  <- replicateM(mkReg('0)); // Dist of wrong path
+	Vector#(TAdd#(BackWidth,1), Reg#(PerfCnt)) deb_stats_distCommit <- replicateM(mkReg('0)); // Dist of Commit 
+	`endif
 
 	//////////// EXECUTE ////////////
 
@@ -461,6 +469,14 @@ module mkBackend (Backend ifc);
 						                       data   : cToken.res        });
 					end
 				end
+				if (ctr_ext_DEBUG == True) begin
+					if(cToken.iType == St && cToken.addr == ctr_ADDR) begin
+						mmioCTRQ.enq(StatReq { verifID: mapID[cToken.feID],
+						                       cycle  : numCycles         ,
+						                       commit : numCommit[1]      ,
+						                       data   : cToken.res        });
+					end
+				end
 				`endif
 
 				`ifdef DEBUG_CYC
@@ -652,6 +668,30 @@ module mkBackend (Backend ifc);
 		endrule
 
 	end
+
+	//////////// DEBUG STATS ////////////
+
+	`ifdef DEBUG_STATS
+	rule do_COMMITCNT if(coreStarted);
+
+		Bit#(TLog#(TAdd#(BackWidth,1))) wrongCnt  = 0;
+		Bit#(TLog#(TAdd#(BackWidth,1))) commitCnt = 0;
+		if(commitQ.notEmpty &&& commitQ.first[0] matches tagged Valid .cToken &&& cToken.iType != Ghost)
+			if(cToken.epoch != commitEpoch[cToken.feID][0])
+				wrongCnt = wrongCnt+1;
+			else if(cToken.iType==Fork && eforkQ.notFull || cToken.iType==Forkr && eforkQ.notFull || l1D.hasres)
+				commitCnt = commitCnt+1;
+		for (Integer i = 1; i < valueOf(BackWidth); i = i+1) begin
+			if(commitQ.notEmpty &&& commitQ.first[i] matches tagged Valid .cToken)
+				if(cToken.epoch != commitEpoch[cToken.feID][0])
+					wrongCnt = wrongCnt+1;
+				else
+					commitCnt = commitCnt+1;
+		end
+		deb_stats_distWrong [wrongCnt ] <= deb_stats_distWrong [wrongCnt ]+1;
+		deb_stats_distCommit[commitCnt] <= deb_stats_distCommit[commitCnt]+1;
+
+	endrule
 
 	//////////// INTERFACE ////////////
 
@@ -888,6 +928,7 @@ module mkBackend (Backend ifc);
 	method ActionValue#(StatReq) getMSG(); mmioMSGQ.deq(); return mmioMSGQ.first(); endmethod
 	method ActionValue#(StatReq) getHEX(); mmioHEXQ.deq(); return mmioHEXQ.first(); endmethod
 	method ActionValue#(StatReq) getMSR(); mmioMSRQ.deq(); return mmioMSRQ.first(); endmethod
+	method ActionValue#(StatReq) getCTR(); mmioCTRQ.deq(); return mmioCTRQ.first(); endmethod
 	`endif
 
 	`ifdef DEBUG_CYC
@@ -904,6 +945,18 @@ module mkBackend (Backend ifc);
 
 	`ifdef DEBUG_STATS
 	method L1DStat getL1DStat() = l1D.getStat();
+	method BackStat getBackStat();
+		BackStat latest;
+		for(Integer i = 0; i < valueOf(TAdd#(BackWidth,1)); i = i+1) begin
+			latest.distWrong [i] = deb_stats_distWrong [i];
+			latest.distCommit[i] = deb_stats_distCommit[i];
+		end
+		for(Integer i = valueOf(TAdd#(BackWidth,1)); i < valueOf(TAdd#(FrontWidth,1)); i = i+1) begin
+			latest.distWrong [i] = 0;
+			latest.distCommit[i] = 0;
+		end
+		return latest;
+	endmethod
 	`endif
 
 endmodule

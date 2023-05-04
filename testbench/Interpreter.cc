@@ -106,7 +106,7 @@ void Interpreter::print_HEX_dut(const Message msg) {
     phrase = "---------------------------------------------------------------------------------------------------";
     printf("%s \n", phrase.c_str());
 
-    phrase = " [id:        ] MESSAGE | cycle :                | commit:                |                        |";
+    phrase = " [id:        ] HEX     | cycle :                | commit:                |                        |";
     overwrite(phrase, std::to_string(msg.verifID)        ,  6,  6 );
     overwrite(phrase, std::to_string(msg.cycle  )        , 33, 14 );
     overwrite(phrase, std::to_string(msg.commit )        , 58, 14 );
@@ -190,6 +190,27 @@ void Interpreter::print_MSR_dut(const MemStat msr) {
     overwrite(phrase, std::to_string(l2S.tWB          ),  33, 14 );
     printf("%s \n", phrase.c_str());
 
+
+    phrase = "---------------------------------------------------------------------------------------------------";
+    printf("%s \n", phrase.c_str());
+
+    fflush(stdout);
+
+}
+
+void Interpreter::print_CTR_dut(const Message msg) {
+
+    std::string phrase;
+
+    phrase = "---------------------------------------------------------------------------------------------------";
+    printf("%s \n", phrase.c_str());
+
+    phrase = " [id:        ] CTR     | cycle :                | commit:                |                        |";
+    overwrite(phrase, std::to_string(msg.verifID)        ,  6,  6 );
+    overwrite(phrase, std::to_string(msg.cycle  )        , 33, 14 );
+    overwrite(phrase, std::to_string(msg.commit )        , 58, 14 );
+    overwrite(phrase, std::string(1,(char)msg.data)      , 83, 14 );
+    printf("%s \n", phrase.c_str());
 
     phrase = "---------------------------------------------------------------------------------------------------";
     printf("%s \n", phrase.c_str());
