@@ -692,6 +692,7 @@ module mkBackend (Backend ifc);
 		deb_stats_distCommit[commitCnt] <= deb_stats_distCommit[commitCnt]+1;
 
 	endrule
+	`endif
 
 	//////////// INTERFACE ////////////
 
