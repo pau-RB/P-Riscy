@@ -27,8 +27,8 @@ CPPFILES +=                          \
 	testbench/Tandem.cc              \
 	testbench/Interpreter.cc
 
-XILINX_INT_MUL_LATENCY = 2
-XILINX_INT_DIV_LATENCY = 8
+XILINX_INT_MUL_LATENCY = 1 # The BSV wrapper adds 1 cycle
+XILINX_INT_DIV_LATENCY = 8 # The BSV wrapper adds 1 cycle
 
 ######### Xilinx DDR4 #########
 
