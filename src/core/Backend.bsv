@@ -144,8 +144,8 @@ module mkBackend (Backend ifc);
 	Vector#(TSub#(BackWidth,1), XilinxIntDiv#(void)) divArray <- replicateM(mkDiv);
 
 	// Upstream
-	Vector#(FrontWidth, FIFOF#(RFwb))              rfWriteBackQ    <- replicateM(mkFIFOF());
-	Vector#(FrontWidth, FIFOF#(Redirect))          redirectQ       <- replicateM(mkFIFOF());
+	Vector#(FrontWidth, FIFOF#(RFwb))              rfWriteBackQ    <- replicateM(mkBypassFIFOF());
+	Vector#(FrontWidth, FIFOF#(Redirect))          redirectQ       <- replicateM(mkBypassFIFOF());
 
 	// CMR
 	Vector#(FrontWidth, Reg#(VerifID))             mapID           <- replicateM(mkRegU());

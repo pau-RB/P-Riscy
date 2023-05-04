@@ -31,13 +31,13 @@ typedef 256 L1ICacheRows;       // Must be power of 2
 typedef 1   L1ICacheColumns;    // Must be power of 2
 
 // L1D
-typedef 256 L1DCacheRows;       // Must be power of 2
+typedef 512 L1DCacheRows;       // Must be power of 2
 typedef 1   L1DCacheColumns;    // Must be power of 2
 typedef 256 L1DCacheHashBlocks; // Must be power of 2
 
 // L2
 `ifdef L2SC
-typedef 256  L2CacheRows;       // Must be power of 2
+typedef 512  L2CacheRows;       // Must be power of 2
 typedef 4    L2CacheColumns;    // Must be power of 2
 typedef 16   L2CacheHashBlocks; // Must be power of 2
 `endif
