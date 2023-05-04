@@ -24,6 +24,7 @@
 #include "Interpreter.h"
 
 
+#define PRINT_RAW_STATS false
 #define PRINT_COMMIT false
 #define ERROR_THRESHOLD  4
 
@@ -189,6 +190,24 @@ class ToHost: public ToHostWrapper {
 
             inter->print_MSR_dut(msr);
 
+            if(PRINT_RAW_STATS) {
+                std::cout << std::setw(14) << std::right << l1IhRD   << ", ";
+                std::cout << std::setw(14) << std::right << l1DhLd   << ", ";
+                std::cout << std::setw(14) << std::right << l1DhSt   << ", ";
+                std::cout << std::setw(14) << std::right << l1DhJoin << ", ";
+                std::cout << std::setw(14) << std::right << l2ShRD   << ", ";
+                std::cout << std::setw(14) << std::right << l2ShWR   << ", ";
+                std::cout << std::setw(14) << std::right << l2StWB   << ", ";
+                std::cout << std::endl;
+                std::cout << std::setw(14) << std::right << l1ImRD   << ", ";
+                std::cout << std::setw(14) << std::right << l1DmLd   << ", ";
+                std::cout << std::setw(14) << std::right << l1DmSt   << ", ";
+                std::cout << std::setw(14) << std::right << l1DmJoin << ", ";
+                std::cout << std::setw(14) << std::right << l2SmRD   << ", ";
+                std::cout << std::setw(14) << std::right << l2SmWR   << ", ";
+                std::cout << std::endl;
+            }
+
         }
 
 
@@ -219,19 +238,21 @@ class ToHost: public ToHostWrapper {
                 inter->print_CTR_dut(msg);
             }
 
-            std::cout << std::setw(14) << std::right << distFrontFull    << ", ";
-            std::cout << std::setw(14) << std::right << distFrontFetch   << ", ";
-            std::cout << std::setw(14) << std::right << distFrontDecode  << ", ";
-            std::cout << std::setw(14) << std::right << distFrontWrong   << ", ";
-            std::cout << std::setw(14) << std::right << distFrontRedir   << ", ";
-            std::cout << std::setw(14) << std::right << distFrontLock    << ", ";
-            std::cout << std::setw(14) << std::right << distFrontStall   << ", ";
-            std::cout << std::setw(14) << std::right << distArbiterWrong << ", ";
-            std::cout << std::setw(14) << std::right << distArbiterAri   << ", ";
-            std::cout << std::setw(14) << std::right << distArbiterMem   << ", ";
-            std::cout << std::setw(14) << std::right << distBackWrong    << ", ";
-            std::cout << std::setw(14) << std::right << distBackCommit   << ", ";
-            std::cout << endl;
+            if(PRINT_RAW_STATS) {
+                std::cout << std::setw(14) << std::right << distFrontFull    << ", ";
+                std::cout << std::setw(14) << std::right << distFrontFetch   << ", ";
+                std::cout << std::setw(14) << std::right << distFrontDecode  << ", ";
+                std::cout << std::setw(14) << std::right << distFrontWrong   << ", ";
+                std::cout << std::setw(14) << std::right << distFrontRedir   << ", ";
+                std::cout << std::setw(14) << std::right << distFrontLock    << ", ";
+                std::cout << std::setw(14) << std::right << distFrontStall   << ", ";
+                std::cout << std::setw(14) << std::right << distArbiterWrong << ", ";
+                std::cout << std::setw(14) << std::right << distArbiterAri   << ", ";
+                std::cout << std::setw(14) << std::right << distArbiterMem   << ", ";
+                std::cout << std::setw(14) << std::right << distBackWrong    << ", ";
+                std::cout << std::setw(14) << std::right << distBackCommit   << ", ";
+                std::cout << endl;
+            }
 
         }
 
