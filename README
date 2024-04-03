@@ -37,9 +37,53 @@
 	make build.vcu108
 
 
+############### Build Rocket-Tile ###############
+
+1 - Clone the rocket-chip repo (included as submodule)
+
+	git clone https://github.com/chipsalliance/rocket-chip
+
+2 - Clone the millw build tool (included as submodule)
+
+	git clone https://github.com/lefou/millw
+
+3 - Create symlink to mill inside rocket-chip
+
+	ln -s ../millw/millw rocket-chip/mill
+
+4 - Modify the rocket-chip Makefile to point to the mill symlink
+
+	MILL ?= ./mill
+
+5 - Get the firtool build tool
+
+	curl -L https://github.com/llvm/circt/releases/download/firtool-1.40.0/firrtl-bin-ubuntu-20.04.tar.gz > firrtl-bin-ubuntu-20.04.tar.gz
+
+6 - Extract girtool
+
+	tar -xf firrtl-bin-ubuntu-20.04.tar.gz
+
+7 - Add firtool to path
+
+	export PATH=$PATH:$PWD/firtool-1.40.0/bin
+
+8 - Set desired Config in rocket-chip Makefile
+
+	CONFIG ?= $(CFG_PROJECT).DefaultSmallConfig
+
+9 - cd rocket-chip
+
+10 - make verilog
+
+11 - wait
+
+12 - SV output in the following path :)
+
+	/rocket-chip/out/emulator/freechips.rocketchip.system.TestHarness/freechips.rocketchip.system.DefaultSmallConfig/mfccompiler/compile.dest
+
 ############### Build SPIKE ###############
 
-1- Clone the spike repo
+1- Clone the spike repo (included as submodule)
 
 	git clone https://github.com/pau-RB/riscv-isa-sim
 

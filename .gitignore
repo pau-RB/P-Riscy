@@ -12,3 +12,6 @@ test/MMIO/*.o
 test/build
 test/dump
 test/hex
+firrtl-bin-ubuntu-20.04.tar.gz
+firtool-1.40.0/
+out/
