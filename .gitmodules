@@ -16,3 +16,6 @@
 [submodule "bsc-contrib"]
 	path = bsc-contrib
 	url = https://github.com/B-Lang-org/bsc-contrib
+[submodule "rocket-chip"]
+	path = rocket-chip
+	url = https://github.com/chipsalliance/rocket-chip
