@@ -19,3 +19,6 @@
 [submodule "rocket-chip"]
 	path = rocket-chip
 	url = https://github.com/chipsalliance/rocket-chip
+[submodule "millw"]
+	path = millw
+	url = https://github.com/lefou/millw
