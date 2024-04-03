@@ -13,3 +13,6 @@
 [submodule "buildcache"]
 	path = buildcache
 	url = https://github.com/cambridgehackers/buildcache
+[submodule "bsc-contrib"]
+	path = bsc-contrib
+	url = https://github.com/B-Lang-org/bsc-contrib

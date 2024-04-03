@@ -18,7 +18,10 @@ BSVPATH += /    \
 	src/DDR4/xilinx_ddr4_v2_2 \
 	src/DDR4/sim \
 	src/DDR4/bsvlib \
-	$(CONNECTALDIR)/bsv
+	$(CONNECTALDIR)/bsv\
+    $(PWD)/bsc-contrib/Libraries/FPGA/Xilinx/\
+    $(PWD)/bsc-contrib/Libraries/FPGA/Misc/
+
 CPPFILES +=                          \
 	main.cpp                         \
 	riscv-isa-sim/build/isa_parser.o \
