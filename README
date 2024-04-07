@@ -39,19 +39,19 @@
 
 ############### Build Rocket-Tile ###############
 
-1 - Clone the rocket-chip repo (included as submodule)
+1 - Clone the rocket-chip-big32 repo (included as submodule)
 
-	git clone https://github.com/chipsalliance/rocket-chip
+	git clone https://github.com/pau-RB/rocket-chip-big32.git
 
 2 - Clone the millw build tool (included as submodule)
 
 	git clone https://github.com/lefou/millw
 
-3 - Create symlink to mill inside rocket-chip
+3 - Create symlink to mill inside rocket-chip-big32
 
-	ln -s ../millw/millw rocket-chip/mill
+	ln -s ../millw/millw rocket-chip-big32/mill
 
-4 - Modify the rocket-chip Makefile to point to the mill symlink
+4 - Modify the rocket-chip-big32 Makefile to point to the mill symlink
 
 	MILL ?= ./mill
 
@@ -67,11 +67,11 @@
 
 	export PATH=$PATH:$PWD/firtool-1.40.0/bin
 
-8 - Set desired Config in rocket-chip Makefile
+8 - Set desired Config in rocket-chip-big32 Makefile
 
-	CONFIG ?= $(CFG_PROJECT).DefaultSmallConfig
+	CONFIG ?= $(CFG_PROJECT).Big32Config
 
-9 - cd rocket-chip
+9 - cd rocket-chip-big32
 
 10 - make verilog
 
@@ -79,7 +79,7 @@
 
 12 - SV output in the following path :)
 
-	/rocket-chip/out/emulator/freechips.rocketchip.system.TestHarness/freechips.rocketchip.system.DefaultSmallConfig/mfccompiler/compile.dest
+	/rocket-chip/out/emulator/freechips.rocketchip.system.TestHarness/freechips.rocketchip.system.Big32Config/mfccompiler/compile.dest
 
 ############### Build SPIKE ###############
 

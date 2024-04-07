@@ -16,9 +16,9 @@
 [submodule "bsc-contrib"]
 	path = bsc-contrib
 	url = https://github.com/B-Lang-org/bsc-contrib
-[submodule "rocket-chip"]
-	path = rocket-chip
-	url = https://github.com/chipsalliance/rocket-chip
 [submodule "millw"]
 	path = millw
 	url = https://github.com/lefou/millw
+[submodule "rocket-chip-big32"]
+	path = rocket-chip-big32
+	url = git@github.com:pau-RB/rocket-chip-big32.git
