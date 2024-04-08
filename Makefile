@@ -14,6 +14,7 @@ BSVPATH += /    \
 	src/frontend\
 	src/backend \
 	src/MulDiv  \
+	src/TileLink\
 	src/DDR4    \
 	src/DDR4/xilinx_ddr4_v2_2 \
 	src/DDR4/sim \
