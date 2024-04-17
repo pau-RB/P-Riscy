@@ -15,6 +15,7 @@ BSVPATH += /    \
 	src/backend \
 	src/MulDiv  \
 	src/TileLink\
+	src/RocketTile\
 	src/DDR4    \
 	src/DDR4/xilinx_ddr4_v2_2 \
 	src/DDR4/sim \
@@ -33,6 +34,10 @@ CPPFILES +=                          \
 
 XILINX_INT_MUL_LATENCY = 1 # The BSV wrapper adds 1 cycle
 XILINX_INT_DIV_LATENCY = 8 # The BSV wrapper adds 1 cycle
+
+######### Import RocketTile #########
+
+CONNECTALFLAGS += --verilog /rocket-chip-big32/out/emulator/freechips.rocketchip.system.TestHarness/freechips.rocketchip.system.Big32Config/mfccompiler/compile.dest/
 
 ######### Xilinx DDR4 #########
 

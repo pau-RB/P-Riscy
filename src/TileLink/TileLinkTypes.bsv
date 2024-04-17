@@ -1,34 +1,36 @@
+//////////// TL STRUCTS UNPACKED ////////////
+
 typedef struct {
     Bit#(3)             bits_opcode ;
     Bit#(3)             bits_param  ;
     Bit#(4)             bits_size   ;
     Bit#(2)             bits_source ;
-    Bit#(a)             bits_address;
-    Bit#(w)             bits_mask   ;
-    Bit#(TMul#(w, 8))   bits_data   ;
+    Bit#(32)            bits_address;
+    Bit#(64)            bits_mask   ;
+    Bit#(512)           bits_data   ;
     Bit#(1)             bits_corrupt;
-} TLreqA#(numeric type w, numeric type a) deriving(Eq,Bits);
+} TLreqA deriving(Eq,Bits);
 
 typedef struct {
     Bit#(3)             bits_opcode ;
     Bit#(2)             bits_param  ;
     Bit#(4)             bits_size   ;
     Bit#(2)             bits_source ;
-    Bit#(a)             bits_address;
-    Bit#(w)             bits_mask   ;
-    Bit#(TMul#(w, 8))   bits_data   ;
+    Bit#(32)            bits_address;
+    Bit#(64)            bits_mask   ;
+    Bit#(512)           bits_data   ;
     Bit#(1)             bits_corrupt; 
-} TLreqB#(numeric type w, numeric type a) deriving(Eq,Bits);
+} TLreqB deriving(Eq,Bits);
 
 typedef struct {
     Bit#(3)             bits_opcode ;
     Bit#(3)             bits_param  ;
     Bit#(4)             bits_size   ;
     Bit#(2)             bits_source ;
-    Bit#(a)             bits_address;
-    Bit#(TMul#(w, 8))   bits_data   ;
+    Bit#(32)            bits_address;
+    Bit#(512)           bits_data   ;
     Bit#(1)             bits_corrupt; 
-} TLreqC#(numeric type w, numeric type a)deriving(Eq,Bits);
+} TLreqC deriving(Eq,Bits);
 
 typedef struct {
     Bit#(3)             bits_opcode ;
@@ -37,10 +39,18 @@ typedef struct {
     Bit#(2)             bits_source ;
     Bit#(2)             bits_sink   ;
     Bit#(1)             bits_denied ;
-    Bit#(TMul#(w, 8))   bits_data   ;
+    Bit#(512)           bits_data   ;
     Bit#(1)             bits_corrupt; 
-} TLreqD#(numeric type w) deriving(Eq,Bits);
+} TLreqD deriving(Eq,Bits);
 
 typedef struct {
     Bit#(2)             bits_sink   ;
 } TLreqE deriving(Eq,Bits);
+
+//////////// TL STRUCTS PACKED ////////////
+
+typedef Bit#(SizeOf#(TLreqA)) TLreqApacked;
+typedef Bit#(SizeOf#(TLreqB)) TLreqBpacked;
+typedef Bit#(SizeOf#(TLreqC)) TLreqCpacked;
+typedef Bit#(SizeOf#(TLreqD)) TLreqDpacked;
+typedef Bit#(SizeOf#(TLreqE)) TLreqEpacked;

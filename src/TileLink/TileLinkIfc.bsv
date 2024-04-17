@@ -1,52 +1,51 @@
 import TileLinkTypes::*;
 
-
 //////////// CAHCED TL ////////////
 
-interface TileLinkMasterCached #(numeric type w, numeric type a);
+interface TileLinkMasterCached;
 
     // Master to Slave
-    method ActionValue#(TLreqA#(w,a)) getA();
-    method ActionValue#(TLreqC#(w,a)) getC();
-    method ActionValue#(TLreqE      ) getE();
+    method ActionValue#(TLreqApacked) getA();
+    method ActionValue#(TLreqCpacked) getC();
+    method ActionValue#(TLreqEpacked) getE();
 
     // Slave to master
-    method Action putB(TLreqB#(w,a) beat);
-    method Action putD(TLreqD#(w) beat);
+    method Action putB(TLreqB beat);
+    method Action putD(TLreqD beat);
 
 endinterface : TileLinkMasterCached
 
-interface TileLinkSlaveCached #(numeric type w, numeric type a);
+interface TileLinkSlaveCached;
 
     // Slave to master
-    method ActionValue#(TLreqB#(w,a)) getB();
-    method ActionValue#(TLreqD#(w)  ) getD();
+    method ActionValue#(TLreqBpacked) getB();
+    method ActionValue#(TLreqDpacked) getD();
 
     // Master to Slave
-    method Action putA(TLreqA#(w,a) beat);
-    method Action putC(TLreqC#(w,a) beat);
+    method Action putA(TLreqA beat);
+    method Action putC(TLreqC beat);
     method Action putE(TLreqE beat);
 
 endinterface : TileLinkSlaveCached
 
 //////////// UNCACHED TL ////////////
 
-interface TileLinkMasterUncached #(numeric type w, numeric type a);
+interface TileLinkMasterUncached;
 
     // Master to Slave
-    method ActionValue#(TLreqA#(w,a)) getA();
+    method ActionValue#(TLreqApacked) getA();
 
     // Slave to master
-    method Action putD(TLreqD#(w) beat);
+    method Action putD(TLreqD beat);
 
 endinterface : TileLinkMasterUncached
 
-interface TileLinkSlaveUncached #(numeric type w, numeric type a);
+interface TileLinkSlaveUncached;
 
     // Slave to master
-    method ActionValue#(TLreqD#(w)  ) getD();
+    method ActionValue#(TLreqDpacked) getD();
 
     // Master to Slave
-    method Action putA(TLreqA#(w,a) beat);
+    method Action putA(TLreqA beat);
 
 endinterface : TileLinkSlaveUncached
