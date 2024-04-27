@@ -36,4 +36,42 @@ module mkPackedRocketTile (PackedRocketTileIfc);
 
     port auto_hartid_in_i = instance_hartid;
 
+    // TL channels conflict with themselves
+    schedule ( tlc_link.getA ) C  ( tlc_link.getA );
+    schedule ( tlc_link.putB ) C  ( tlc_link.putB );
+    schedule ( tlc_link.getC ) C  ( tlc_link.getC );
+    schedule ( tlc_link.putD ) C  ( tlc_link.putD );
+    schedule ( tlc_link.getE ) C  ( tlc_link.getE );
+
+    // TL channels do not conflict with each other
+    schedule ( tlc_link.getA ) CF ( tlc_link.putB, tlc_link.getC, tlc_link.putD, tlc_link.getE );
+    schedule ( tlc_link.putB ) CF (                tlc_link.getC, tlc_link.putD, tlc_link.getE );
+    schedule ( tlc_link.getC ) CF (                               tlc_link.putD, tlc_link.getE );
+    schedule ( tlc_link.putD ) CF (                                              tlc_link.getE );
+    schedule ( tlc_link.getE ) CF (                                                            );
+
+    // TL channels do conflict with interrupts
+    schedule ( tlc_link.getA ) C  ( put_auto_int_local_in_2_0, put_auto_int_local_in_1_0, put_auto_int_local_in_1_1, put_auto_int_local_in_0_0 );
+    schedule ( tlc_link.putB ) C  ( put_auto_int_local_in_2_0, put_auto_int_local_in_1_0, put_auto_int_local_in_1_1, put_auto_int_local_in_0_0 );
+    schedule ( tlc_link.getC ) C  ( put_auto_int_local_in_2_0, put_auto_int_local_in_1_0, put_auto_int_local_in_1_1, put_auto_int_local_in_0_0 );
+    schedule ( tlc_link.putD ) C  ( put_auto_int_local_in_2_0, put_auto_int_local_in_1_0, put_auto_int_local_in_1_1, put_auto_int_local_in_0_0 );
+    schedule ( tlc_link.getE ) C  ( put_auto_int_local_in_2_0, put_auto_int_local_in_1_0, put_auto_int_local_in_1_1, put_auto_int_local_in_0_0 );
+
+    // TL channels do not conflict with bcast or wfi
+    schedule ( tlc_link.getA ) CF ( get_rocket_bcast, get_auto_wfi_out_0 );
+    schedule ( tlc_link.putB ) CF ( get_rocket_bcast, get_auto_wfi_out_0 );
+    schedule ( tlc_link.getC ) CF ( get_rocket_bcast, get_auto_wfi_out_0 );
+    schedule ( tlc_link.putD ) CF ( get_rocket_bcast, get_auto_wfi_out_0 );
+    schedule ( tlc_link.getE ) CF ( get_rocket_bcast, get_auto_wfi_out_0 );
+
+    // bcast and wfi do not conflict with each other nor interrupts
+    schedule ( get_rocket_bcast   ) CF ( get_rocket_bcast, get_auto_wfi_out_0, put_auto_int_local_in_2_0, put_auto_int_local_in_1_0, put_auto_int_local_in_1_1, put_auto_int_local_in_0_0);
+    schedule ( get_auto_wfi_out_0 ) CF (                   get_auto_wfi_out_0, put_auto_int_local_in_2_0, put_auto_int_local_in_1_0, put_auto_int_local_in_1_1, put_auto_int_local_in_0_0);
+
+    // interrupts do conflict with each other
+    schedule ( put_auto_int_local_in_2_0 ) C ( put_auto_int_local_in_2_0, put_auto_int_local_in_1_0, put_auto_int_local_in_1_1, put_auto_int_local_in_0_0);
+    schedule ( put_auto_int_local_in_1_0 ) C (                            put_auto_int_local_in_1_0, put_auto_int_local_in_1_1, put_auto_int_local_in_0_0);
+    schedule ( put_auto_int_local_in_1_1 ) C (                                                       put_auto_int_local_in_1_1, put_auto_int_local_in_0_0);
+    schedule ( put_auto_int_local_in_0_0 ) C (                                                                                  put_auto_int_local_in_0_0);
+
 endmodule : mkPackedRocketTile
