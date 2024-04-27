@@ -5,8 +5,8 @@ import Types::*;
 import WideMemTypes::*;
 import TileLinkTypes::*;
 import TileLinkIfc::*;
-import RawRocketTileIfc::*;
-import RawRocketTile::*;
+import PackedRocketTileIfc::*;
+import PackedRocketTile::*;
 import ClientServer::*;
 import Connectable::*;
 import GetPut::*;
@@ -61,6 +61,10 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	`endif
 
 	Core core <- mkCore7SS();
+
+
+	PackedRocketTileIfc rocket <- mkPackedRocketTile();
+
 
 	`ifdef L2SC
 	mkConnection(mainL2SC.mem, mainDDR4.portA  );

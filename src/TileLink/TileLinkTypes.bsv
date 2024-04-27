@@ -8,7 +8,6 @@ typedef struct {
     Bit#(32)            bits_address;
     Bit#(64)            bits_mask   ;
     Bit#(512)           bits_data   ;
-    Bit#(1)             bits_corrupt;
 } TLreqA deriving(Eq,Bits);
 
 typedef struct {
@@ -19,7 +18,7 @@ typedef struct {
     Bit#(32)            bits_address;
     Bit#(64)            bits_mask   ;
     Bit#(512)           bits_data   ;
-    Bit#(1)             bits_corrupt; 
+    Bit#(1)             bits_corrupt;
 } TLreqB deriving(Eq,Bits);
 
 typedef struct {
@@ -29,7 +28,6 @@ typedef struct {
     Bit#(2)             bits_source ;
     Bit#(32)            bits_address;
     Bit#(512)           bits_data   ;
-    Bit#(1)             bits_corrupt; 
 } TLreqC deriving(Eq,Bits);
 
 typedef struct {
@@ -40,7 +38,7 @@ typedef struct {
     Bit#(2)             bits_sink   ;
     Bit#(1)             bits_denied ;
     Bit#(512)           bits_data   ;
-    Bit#(1)             bits_corrupt; 
+    Bit#(1)             bits_corrupt;
 } TLreqD deriving(Eq,Bits);
 
 typedef struct {
