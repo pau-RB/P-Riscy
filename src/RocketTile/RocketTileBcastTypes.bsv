@@ -10,7 +10,7 @@ typedef struct {
     Bit#(32) bits_insns_0_cause    ;
     Bit#(32) bits_insns_0_tval     ;
     Bit#(64) bits_time             ;
-} RocketBcast deriving(Eq,Bits);
+} RocketBcast deriving(Eq,Bits,FShow);
 
 //////////// RocketTile STRUCTS PACKED ////////////
 

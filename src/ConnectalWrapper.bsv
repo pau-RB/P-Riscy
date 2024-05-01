@@ -3,10 +3,8 @@ import HostInterface::*;
 import Core::*;
 import Types::*;
 import WideMemTypes::*;
-import TileLinkTypes::*;
-import TileLinkIfc::*;
-import PackedRocketTileIfc::*;
-import PackedRocketTile::*;
+import WMRocketTileIfc::*;
+import WMRocketTile::*;
 import ClientServer::*;
 import Connectable::*;
 import GetPut::*;
@@ -63,7 +61,7 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	Core core <- mkCore7SS();
 
 
-	PackedRocketTileIfc rocket <- mkPackedRocketTile();
+	WMRocketTileIfc wm_rocket_tile <- mkWMRocketTile();
 
 
 	`ifdef L2SC

@@ -10,8 +10,8 @@ interface TileLinkMasterCached;
     method ActionValue#(TLreqEpacked) getE();
 
     // Slave to master
-    method Action putB(TLreqB beat);
-    method Action putD(TLreqD beat);
+    method Action putB(TLreqBpacked beat);
+    method Action putD(TLreqDpacked beat);
 
 endinterface : TileLinkMasterCached
 
@@ -22,9 +22,9 @@ interface TileLinkSlaveCached;
     method ActionValue#(TLreqDpacked) getD();
 
     // Master to Slave
-    method Action putA(TLreqA beat);
-    method Action putC(TLreqC beat);
-    method Action putE(TLreqE beat);
+    method Action putA(TLreqApacked beat);
+    method Action putC(TLreqCpacked beat);
+    method Action putE(TLreqEpacked beat);
 
 endinterface : TileLinkSlaveCached
 
@@ -36,7 +36,7 @@ interface TileLinkMasterUncached;
     method ActionValue#(TLreqApacked) getA();
 
     // Slave to master
-    method Action putD(TLreqD beat);
+    method Action putD(TLreqDpacked beat);
 
 endinterface : TileLinkMasterUncached
 
@@ -46,6 +46,6 @@ interface TileLinkSlaveUncached;
     method ActionValue#(TLreqDpacked) getD();
 
     // Master to Slave
-    method Action putA(TLreqA beat);
+    method Action putA(TLreqApacked beat);
 
 endinterface : TileLinkSlaveUncached
