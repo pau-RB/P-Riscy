@@ -197,10 +197,11 @@ module mkDirectDataCache (BareDataCache#(cacheRows, cacheColumns, cacheHash) ifc
 		if(req.op == PUT) begin
 
 			if(meta.valid && meta.dirty) begin // old line is dirty
-				wbQ.enq(WideMemReq { tag  : ?,
-				                     write: True,
-				                     num  : tag, //{tag,index},
-				                     line : data });
+				wbQ.enq(WideMemReq { tag        : ?    ,
+				                     write      : True ,
+				                     addr       : tag  , //{tag,index},
+				                     data       : data ,
+				                     byte_enable: '1   });
 			end
 
 			bramReqB.enq(req); // delay actual wr to next cycle

@@ -26,10 +26,11 @@ module mkSplitWideMem(WideMemSplit#(n, m, tagT) ifc) provisos(Bits#(tagT, t__), 
         if( req_index matches tagged Valid .src) begin
             let req = reqFifos[ fromMaybe(?,req_index) ].first;
             reqFifos[ fromMaybe(?,req_index) ].deq();
-            memreq.enq(WideMemReq{ tag  : tuple2(src,req.tag),
-                                   write: req.write    ,
-                                   num  : req.num      ,
-                                   line : req.line     });
+            memreq.enq(WideMemReq{ tag        : tuple2(src,req.tag),
+                                   write      : req.write          ,
+                                   addr       : req.addr           ,
+                                   data       : req.data           ,
+                                   byte_enable: req.byte_enable    });
         end
     endrule
 
@@ -37,7 +38,7 @@ module mkSplitWideMem(WideMemSplit#(n, m, tagT) ifc) provisos(Bits#(tagT, t__), 
         WideMemRes#(Tuple2#(srcT,tagT)) res = memres.first(); memres.deq();
         if(res.tag matches {.src, .tag})
             resFifos[src].enq(WideMemRes{ tag : tag     ,
-                                          line: res.line});
+                                          data: res.data});
     endrule
 
     Vector#(n, WideMemServer#(tagT)) wideMemIfcs = newVector;

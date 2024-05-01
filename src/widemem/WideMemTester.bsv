@@ -112,10 +112,11 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 		case(testtyp)
 			RDLAT: begin
 				// Send rx one by one, use timmer0 for latency
-				memreq.enq(WideMemReq{ tag  : ?      ,
-				                       write: False  ,
-				                       num  : baseadd,
-				                       line : ?      });
+				memreq.enq(WideMemReq{ tag          : ?      ,
+				                       write        : False  ,
+				                       addr         : baseadd,
+				                       data         : ?      ,
+				                       byte_enable  : ?      });
 				testwait[1]<= True           ;
 				baseadd    <= baseadd+teststr;
 				numtx      <= numtx+1        ;
@@ -125,15 +126,17 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 				// Send rx two by two, use timmer0 for latency
 				// Alternate between wr and rd to same addr
 				if(numtx[0] == 1'b0) begin
-					memreq.enq(WideMemReq{ tag  : ?      ,
-					                       write: True   ,
-					                       num  : baseadd,
-					                       line : ?      });
+					memreq.enq(WideMemReq{ tag          : ?      ,
+					                       write        : True   ,
+					                       addr         : baseadd,
+					                       data         : ?      ,
+					                       byte_enable  : -1     });
 				end else begin
-					memreq.enq(WideMemReq{ tag  : ?      ,
-					                       write: False  ,
-					                       num  : baseadd,
-					                       line : ?      });
+					memreq.enq(WideMemReq{ tag          : ?      ,
+					                       write        : False  ,
+					                       addr         : baseadd,
+					                       data         : ?      ,
+					                       byte_enable  : ?      });
 					testwait[1]<= True           ;
 					baseadd    <= baseadd+teststr;
 					timmer0[0] <= '0             ;
@@ -142,10 +145,11 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 			end
 			RDTHP: begin
 				// Send all read btb, use timmer0 for send thpt
-				memreq.enq(WideMemReq{ tag  : ?      ,
-				                       write: False  ,
-				                       num  : baseadd,
-				                       line : ?      });
+				memreq.enq(WideMemReq{ tag          : ?      ,
+				                       write        : False  ,
+				                       addr         : baseadd,
+				                       data         : ?      ,
+				                       byte_enable  : ?      });
 				baseadd  <= baseadd+teststr;
 				numtx    <= numtx+1        ;
 				if(numtx == '0)
@@ -157,16 +161,18 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 			WRTHP: begin
 				if(numtx+1 == exptx) begin
 					// Last tx, send a rd
-					memreq.enq(WideMemReq{ tag  : ?      ,
-					                       write: False   ,
-					                       num  : baseadd,
-					                       line : ?      });
+					memreq.enq(WideMemReq{ tag          : ?      ,
+					                       write        : False  ,
+					                       addr         : baseadd,
+					                       data         : ?      ,
+					                       byte_enable  : ?      });
 				end else begin
 					// Else, send all wr btb
-					memreq.enq(WideMemReq{ tag  : ?      ,
-					                       write: True   ,
-					                       num  : baseadd,
-					                       line : ?      });
+					memreq.enq(WideMemReq{ tag          : ?      ,
+					                       write        : True   ,
+					                       addr         : baseadd,
+					                       data         : ?      ,
+					                       byte_enable  : -1     });
 					baseadd  <= baseadd+teststr;
 				end
 				numtx <= numtx+1;
@@ -179,15 +185,17 @@ module mkWideMemTester(WideMemTester#(tagT) ifc) provisos(Bits#(tagT, t__));
 			MXTHP: begin
 				// Send all wr and rd btb
 				if(numtx[0] == 1'b0) begin
-					memreq.enq(WideMemReq{ tag  : ?      ,
-					                       write: True   ,
-					                       num  : baseadd,
-					                       line : ?      });
+					memreq.enq(WideMemReq{ tag          : ?      ,
+					                       write        : True   ,
+					                       addr         : baseadd,
+					                       data         : ?      ,
+					                       byte_enable  : -1     });
 				end else begin
-					memreq.enq(WideMemReq{ tag  : ?      ,
-					                       write: False  ,
-					                       num  : baseadd,
-					                       line : ?      });
+					memreq.enq(WideMemReq{ tag          : ?      ,
+					                       write        : False  ,
+					                       addr         : baseadd,
+					                       data         : ?      ,
+					                       byte_enable  : ?      });
 					baseadd  <= baseadd+teststr;
 				end
 				numtx <= numtx+1;

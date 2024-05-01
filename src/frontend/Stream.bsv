@@ -149,7 +149,7 @@ module mkStream (Stream ifc);
 		l1Ireq.deq();
 
 		if(l1Ireq.first() == nextpcline) begin
-			l0I        <= res.line;
+			l0I        <= res.data;
 			l0Iline[0] <= l1Ireq.first();
 			l0Ival [0] <= True;
 		end
@@ -160,10 +160,11 @@ module mkStream (Stream ifc);
 
 	rule do_l1Ireq if (state[3] == Full && !nextl0Ihit);
 
-		memreq.enq(WideMemReq { tag  : ?,
-		                        write: False,
-		                        num  : nextpcline,
-		                        line : ? } );
+		memreq.enq(WideMemReq { tag        : ?         ,
+		                        write      : False     ,
+		                        addr       : nextpcline,
+		                        data       : ?         ,
+		                        byte_enable: '0        });
 		l1Ireq.enq(nextpcline);
 
 	endrule

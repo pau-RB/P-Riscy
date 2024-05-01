@@ -61,18 +61,19 @@ module mkL1I(L1I#(numHart, cacheRows, cacheColumns) ifc) provisos(Add#(a__, TLog
         bramReq      req =  brmQ.first(); brmQ.deq();
         InstCacheRes res <- instCache.resp();
 
-        if(res matches tagged Valid .line) // read hit
-            resQ[req.transID].enq(WideMemRes{tag: ?, line: line});
+        if(res matches tagged Valid .data) // read hit
+            resQ[req.transID].enq(WideMemRes{tag: ?, data: data});
         else begin // read miss
-            memreq.enq(WideMemReq{ tag  : req.transID,
-                                   write: False,
-                                   num  : req.num,
-                                   line : ? });
+            memreq.enq(WideMemReq{ tag        : req.transID,
+                                   write      : False      ,
+                                   addr       : req.num    ,
+                                   data       : ?          ,
+                                   byte_enable: '0         });
             mshrLine[req.transID] <= req.num;
         end
 
         `ifdef DEBUG_STATS
-        if (res matches tagged Valid .line)
+        if (res matches tagged Valid .data)
             hRD <= hRD+1;
         else
             mRD <= mRD+1;
@@ -85,11 +86,11 @@ module mkL1I(L1I#(numHart, cacheRows, cacheColumns) ifc) provisos(Add#(a__, TLog
         WideMemRes#(hartID) res = memres.first(); memres.deq();
         CacheLineNum        num = mshrLine[res.tag];
 
-        resQ[res.tag].enq(WideMemRes{tag: ?, line: res.line});
+        resQ[res.tag].enq(WideMemRes{tag: ?, data: res.data});
 
         instCache.req(InstCacheReq{ write: True,
                                     num  : num,
-                                    line : res.line });
+                                    line : res.data });
 
     endrule
 
@@ -103,7 +104,7 @@ module mkL1I(L1I#(numHart, cacheRows, cacheColumns) ifc) provisos(Add#(a__, TLog
                 interface request = (interface Put#(WideMemReq#(void));
                     method Action put(WideMemReq#(void) r);
                         reqQ.enq(BramReq{ transID: fromInteger(i),
-                                          num    : r.num });
+                                          num    : r.addr });
                     endmethod
                 endinterface);
                 interface response = (interface Get#(WidememRes#(void));

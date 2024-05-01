@@ -38,6 +38,7 @@ typedef Bit#( TLog#(CacheLineWords) )             CacheWordSelect;
 typedef TSub#(AddrSz,TLog#(CacheLineBytes))       CacheLineNumSz;
 typedef Bit#(CacheLineNumSz)                      CacheLineNum;
 typedef Vector#(CacheLineWords, Data)             CacheLine;
+typedef Bit#(CacheLineBytes)                      CacheLineMask;
 
 typedef enum{Ld, St, Join} MemOp deriving(Eq, Bits, FShow);
 typedef enum{SB,SH,SW} StoreFunc deriving(Bits, Eq, FShow);

@@ -213,17 +213,18 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 		method Action setMem (Bit#(32) addr, Bit#(32) word);
 		`endif
 
-			CacheLine line = lineSend;
-			line[offsetOf(addr)] = word;
-			lineSend <= line;
+			CacheLine data = lineSend;
+			data[offsetOf(addr)] = word;
+			lineSend <= data;
 
 			if(addr == max_ADDR) begin
 				memInit <= True;
 			end else if(offsetOf(addr) == '1) begin
-				mainDDR4.portA.request.put(WideMemReq { tag  : ?,
-				                                        write: True,
-				                                        num  : lineNumOf(addr),
-				                                        line : line });
+				mainDDR4.portA.request.put(WideMemReq { tag        : ?              ,
+				                                        write      : True           ,
+				                                        addr       : lineNumOf(addr),
+				                                        data       : data           ,
+				                                        byte_enable: '1             });
 			end
 
 		endmethod

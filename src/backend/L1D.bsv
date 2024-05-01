@@ -198,10 +198,11 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 						mshrArray[idMatch].enq(req);
 					end else begin
 						mshrArray[req.transId].enq(req);
-						memreq.enq(WideMemReq{ tag  : req.transId,
-						                       write: False,
-						                       num  : lineNumOf(req.addr),
-						                       line : ? });
+						memreq.enq(WideMemReq{ tag        : req.transId        ,
+						                       write      : False              ,
+						                       addr       : lineNumOf(req.addr),
+						                       data       : ?                  ,
+						                       byte_enable: '0                 });
 					end
 				end
 			end
@@ -233,12 +234,12 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 		dataCache.req(DataCacheReq{ op   : PUT,
 		                            addr : {mshrArray[res.tag].cacheLineNum,'0},
 		                            data : ?,
-		                            line : res.line,
+		                            line : res.data,
 		                            isOld: True});
 		hartID mshrId = res.tag;
 		if(!mshrArray[mshrId].isEmpty && mshrArray[mshrId].first.op == Ld) begin
 			let  req = mshrArray[mshrId].first(); mshrArray[mshrId].deq();
-			Data dat = extendLoad( res.line[wordSelectOf(req.addr)],
+			Data dat = extendLoad( res.data[wordSelectOf(req.addr)],
 			                       req.addr,
 			                       cacheOpOf(req.op, req.ldFunc, req.stFunc));
 			oldRespQ.enq(L1DResp{ valid  : True,
@@ -272,10 +273,11 @@ module mkL1D (L1D#(numHart, cacheRows, cacheColumns, cacheHash) ifc) provisos(Ad
 
 		let req <- dataCache.getWB();
 
-		memreq.enq(WideMemReq{ tag  : ?,
-		                       write: True,
-		                       num  : req.num,
-		                       line : req.line });
+		memreq.enq(WideMemReq{ tag        : ?               ,
+		                       write      : True            ,
+		                       addr       : req.addr        ,
+		                       data       : req.data        ,
+		                       byte_enable: req.byte_enable });
 
 	endrule
 

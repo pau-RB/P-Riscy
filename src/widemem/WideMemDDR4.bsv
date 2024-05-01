@@ -93,9 +93,9 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency, vcuLatency, ta
 			porQ.enq(True   );
 		end
 		if(req.write)
-			ddr4_req[0].enq(DDRRequest{address: extend(req.num<<3), writeen: {16'b0,-1}, datain: {?,pack(req.line)} });
+			ddr4_req[0].enq(DDRRequest{address: extend(req.addr<<3), writeen: {16'b0,req.byte_enable}, datain: {?,pack(req.data)} });
 		else
-			ddr4_req[0].enq(DDRRequest{address: extend(req.num<<3), writeen: 80'b0, datain:?});
+			ddr4_req[0].enq(DDRRequest{address: extend(req.addr<<3), writeen: 80'b0, datain:?});
 	endrule
 
 	rule do_ddr4_reqB;
@@ -105,9 +105,9 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency, vcuLatency, ta
 			porQ.enq(False  );
 		end
 		if(req.write)
-			ddr4_req[0].enq(DDRRequest{address: extend(req.num<<3), writeen: {16'b0,-1}, datain: {?,pack(req.line)} });
+			ddr4_req[0].enq(DDRRequest{address: extend(req.addr<<3), writeen: {16'b0,req.byte_enable}, datain: {?,pack(req.data)} });
 		else
-			ddr4_req[0].enq(DDRRequest{address: extend(req.num<<3), writeen: 80'b0, datain:?});
+			ddr4_req[0].enq(DDRRequest{address: extend(req.addr<<3), writeen: 80'b0, datain:?});
 	endrule
 
 	rule do_ddr4_res;
@@ -115,9 +115,9 @@ module mkWideMemDDR4(HostInterface host, WideMemDDR4#(simLatency, vcuLatency, ta
 		tagT tag = tagQ.first(); tagQ.deq();
 		Bool por = porQ.first(); porQ.deq();
 		if(por) begin
-			resAQ.enq(WideMemRes{ tag: tag, line: unpack(truncate(res)) });
+			resAQ.enq(WideMemRes{ tag: tag, data: unpack(truncate(res)) });
 		end else begin
-			resBQ.enq(WideMemRes{ tag: tag, line: unpack(truncate(res)) });
+			resBQ.enq(WideMemRes{ tag: tag, data: unpack(truncate(res)) });
 		end
 	endrule
 

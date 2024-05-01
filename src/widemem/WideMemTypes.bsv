@@ -2,15 +2,16 @@ import Types::*;
 import ClientServer::*;
 
 typedef struct {
-	tagT         tag;
-	Bool         write;
-	CacheLineNum num;
-	CacheLine    line;
+    tagT            tag         ;
+    Bool            write       ;
+    CacheLineNum    addr        ;
+    CacheLine       data        ;
+    CacheLineMask   byte_enable ;
 } WideMemReq#(type tagT) deriving(Eq,Bits);
 
 typedef struct {
-	tagT         tag;
-	CacheLine    line;
+    tagT            tag         ;
+    CacheLine       data        ;
 } WideMemRes#(type tagT) deriving(Eq,Bits);
 
 typedef Server#(WideMemReq#(tagT), WideMemRes#(tagT)) WideMemServer#(type tagT);
