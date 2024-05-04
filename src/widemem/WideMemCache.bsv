@@ -89,7 +89,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 
 	Reg#(cacheColIdx) replaceIndex <- mkReg(0);
 
-	Vector#(numT,Reg#(CacheLineNum)) mshrArray <- replicateM(mkReg('0));
+	Vector#(numT,Ehr#(3,Maybe#(CacheLineNum))) mshrArray <- replicateM(mkEhr(tagged Invalid));
 
 	//////////// QUEUES ////////////
 
@@ -99,6 +99,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 	Vector#(cacheColumns, FIFOF#(WideMemReq#(tagT))) colWBQ  <- replicateM(mkPipelineFIFOF());
 
 	FIFOF#(WMCReq#(tagT))      reqQ   <- mkFIFOF();
+	FIFOF#(WMCReq#(tagT))      putQ   <- mkFIFOF();
 	FIFOF#(WMCReq#(tagT))      brmQ   <- mkSizedFIFOF(5);
 	FIFOF#(WideMemReq#(tagT))  memreq <- mkBypassFIFOF();
 	FIFOF#(WideMemRes#(tagT))  memres <- mkBypassFIFOF();
@@ -142,9 +143,10 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 
 	rule do_ISSUEREQ;
 
-		WMCReq#(tagT) req = reqQ.first(); reqQ.deq();
+		if(putQ.notEmpty()) begin // We only put to one column
 
-		if(req.op == PUT) begin // We only put to one column
+			WMCReq#(tagT) req = putQ.first(); putQ.deq();
+
 			colReqQ[replaceIndex].enq(WMCReq{ tag        : ?               ,
 			                                  op         : req.op          ,
 			                                  dirty      : req.dirty       ,
@@ -152,16 +154,37 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 			                                  data       : req.data        ,
 			                                  byte_enable: req.byte_enable });
 			replaceIndex <= replaceIndex+1;
-		end else begin // We try to read/inv/write from all of them
-			for (Integer i = 0; i < valueOf(cacheColumns); i=i+1)
-				colReqQ[i].enq(WMCReq{ tag        : ?               ,
-				                       op         : req.op          ,
-				                       dirty      : req.dirty       ,
-				                       addr       : req.addr        ,
-				                       data       : req.data        ,
-				                       byte_enable: req.byte_enable });
-			if(req.op == RD || req.op == WR)
-				brmQ.enq(req);
+
+		end else if(reqQ.notEmpty()) begin
+
+			Bool mshrConflict = False;
+
+			WMCReq#(tagT) req = reqQ.first();
+
+			for (Integer j = 0; j < valueOf(numT); j=j+1) begin
+				if (mshrArray[j][1] matches tagged Valid .mshrAddr) begin
+					if (hashOf(0,mshrAddr) == hashOf(0,req.addr)) begin
+						mshrConflict = True;
+					end
+				end
+			end
+
+			if(!mshrConflict) begin // We try to read/inv/write from all of them
+				reqQ.deq();
+				for (Integer i = 0; i < valueOf(cacheColumns); i=i+1)
+					colReqQ[i].enq(WMCReq{ tag        : ?               ,
+					                       op         : req.op          ,
+					                       dirty      : req.dirty       ,
+					                       addr       : req.addr        ,
+					                       data       : req.data        ,
+					                       byte_enable: req.byte_enable });
+				if(req.op == RD || req.op == WR)
+					brmQ.enq(req);
+				if(req.op == RD) begin
+					mshrArray[pack(req.tag)][1] <= tagged Valid req.addr;
+				end
+			end
+
 		end
 
 	endrule
@@ -351,8 +374,8 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 		end else if(req.op == RD) begin
 			if(val) begin // hit
 				resQ.enq(WideMemRes{ tag: req.tag, data: data });
+				mshrArray[pack(req.tag)][0] <= tagged Invalid;
 			end else begin // miss
-				mshrArray[pack(req.tag)] <= req.addr;
 				memreq.enq(WideMemReq { tag        : req.tag  ,
 				                        write      : False    ,
 				                        addr       : req.addr ,
@@ -383,9 +406,9 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 	rule do_MEMRESP;
 
 		WideMemRes#(tagT) res  = memres.first(); memres.deq();
-		CacheLineNum      addr = mshrArray[pack(res.tag)];
+		CacheLineNum      addr = fromMaybe(?, mshrArray[pack(res.tag)][2]);
 
-		reqQ.enq( WMCReq { tag        : ?       ,
+		putQ.enq( WMCReq { tag        : ?       ,
 		                   op         : PUT     ,
 		                   dirty      : False   ,
 		                   addr       : addr    ,
@@ -393,6 +416,7 @@ module mkWideMemCache(WideMemCache#(cacheRows, cacheColumns, cacheHash, tagT) if
 		                   byte_enable: '1      });
 
 		resQ.enq(res);
+		mshrArray[pack(res.tag)][2] <= tagged Invalid;
 
 	endrule
 
