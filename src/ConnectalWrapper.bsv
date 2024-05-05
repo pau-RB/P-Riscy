@@ -48,17 +48,20 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	Reg#(Bool) memInit <- mkReg(False);
 	Reg#(Bool) cpuInit <- mkReg(False);
 
-	WideMemDDR4#(SimDDRLatency, VCUDDRLatency, Tuple2#(Bit#(TLog#(2)),FrontID))                    mainDDR4 <- mkWideMemDDR4(host);
+	//WideMemDDR4#(SimDDRLatency, VCUDDRLatency, Tuple2#(Bit#(TLog#(2)),FrontID))                    mainDDR4 <- mkWideMemDDR4(host);
+	WideMemDDR4#(SimDDRLatency, VCUDDRLatency, Bit#(3)) mainDDR4 <- mkWideMemDDR4(host);
 	`ifdef L2SC
-	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, Tuple2#(Bit#(TLog#(2)),FrontID)) mainL2SC <- mkWideMemCache();
+	//WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, Tuple2#(Bit#(TLog#(2)),FrontID)) mainL2SC <- mkWideMemCache();
+	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, Bit#(3)) mainL2SC <- mkWideMemCache();
 	`endif
-	WideMemSplit#(2,TMul#(2,FrontWidth), FrontID)                                                  mainL2SB <- mkSplitWideMem();
+	//WideMemSplit#(2,TMul#(2,FrontWidth), FrontID)                                                  mainL2SB <- mkSplitWideMem();
 
 	`ifdef MEMTEST
-	WideMemTester#(Tuple2#(Bit#(TLog#(2)),FrontID))                                                memTest  <- mkWideMemTester();
+	//WideMemTester#(Tuple2#(Bit#(TLog#(2)),FrontID))                                                memTest  <- mkWideMemTester();
+	WideMemTester#(Bit#(3))                                                memTest  <- mkWideMemTester();
 	`endif
 
-	Core core <- mkCore7SS();
+	// Core core <- mkCore7SS();
 
 
 	WMRocketTileIfc wm_rocket_tile <- mkWMRocketTile();
@@ -66,13 +69,15 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 	`ifdef L2SC
 	mkConnection(mainL2SC.mem, mainDDR4.portA  );
-	mkConnection(mainL2SB.mem, mainL2SC.portA  );
+	//mkConnection(mainL2SB.mem, mainL2SC.portA  );
+	mkConnection(wm_rocket_tile.wm_client, mainL2SC.portA  );
 	`else
-	mkConnection(mainL2SB.mem, mainDDR4.portA  );
+	//mkConnection(mainL2SB.mem, mainDDR4.portA  );
+	mkConnection(wm_rocket_tile.wm_client, mainDDR4.portA  );
 	`endif
 
-	mkConnection(core.instMem, mainL2SB.port[0]);
-	mkConnection(core.dataMem, mainL2SB.port[1]);
+	//mkConnection(core.instMem, mainL2SB.port[0]);
+	//mkConnection(core.dataMem, mainL2SB.port[1]);
 
 	`ifdef MEMTEST
 	mkConnection(memTest.mem, mainDDR4.portB);
@@ -89,13 +94,13 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 	//////////// MTQ ////////////
 
-	rule do_core_to_MTQ;
-		mainTokenQ.enq(core.toMTQ.first()); core.toMTQ.deq();
-	endrule
+	//rule do_core_to_MTQ;
+	//	mainTokenQ.enq(core.toMTQ.first()); core.toMTQ.deq();
+	//endrule
 
-	rule do_MTQ_to_core;
-		core.toMTQ.enq(mainTokenQ.first()); mainTokenQ.deq();
-	endrule
+	//rule do_MTQ_to_core;
+	//	core.toMTQ.enq(mainTokenQ.first()); mainTokenQ.deq();
+	//endrule
 
 	//////////// RELAY REPORTS ////////////
 
@@ -109,12 +114,12 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	endrule
 	`endif
 
-	`ifdef DEBUG_CMR
-	rule getCMR;
-		let latest <- core.getCMR();
-		mainCMRQ.enq(latest);
-	endrule
-	`endif
+	//`ifdef DEBUG_CMR
+	//rule getCMR;
+	//	let latest <- core.getCMR();
+	//	mainCMRQ.enq(latest);
+	//endrule
+	//`endif
 
 	`ifdef MEMTEST
 	rule relayTST;
@@ -135,42 +140,42 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	`endif
 
 	`ifdef MMIO
-	rule relayMSG if(msg_ext_DEBUG);
-		StatReq latest <- core.getMSG();
-		ind.reportMSG(latest.verifID, latest.cycle, latest.commit, latest.data);
-	endrule
-	rule relayHEX if(hex_ext_DEBUG);
-		StatReq latest <- core.getHEX();
-		ind.reportHEX(latest.verifID, latest.cycle, latest.commit, latest.data);
-	endrule
-	rule relayMSR if(msr_ext_DEBUG);
-		StatReq latest  <- core.getMSR();
-		L1IStat l1IStat  = core.getL1IStat();
-		L1DStat l1DStat  = core.getL1DStat();
-		`ifdef L2SC
-		WMCStat l2SStat  = mainL2SC.getStat();
-		`else
-		WMCStat l2SStat  = unpack('0);
-		`endif
-		ind.reportMSR(latest.verifID,
-		              latest.cycle  , latest.commit, latest.data  ,
-		              l1IStat.hRD   ,
-		              l1IStat.mRD   ,
-		              l1DStat.hLd   , l1DStat.hSt  , l1DStat.hJoin,
-		              l1DStat.mLd   , l1DStat.mSt  , l1DStat.mJoin,
-		              l2SStat.hRD   , l2SStat.hWR  , l2SStat.tWB  ,
-		              l2SStat.mRD   , l2SStat.mWR                   );
-	endrule
+	//rule relayMSG if(msg_ext_DEBUG);
+	//	StatReq latest <- core.getMSG();
+	//	ind.reportMSG(latest.verifID, latest.cycle, latest.commit, latest.data);
+	//endrule
+	//rule relayHEX if(hex_ext_DEBUG);
+	//	StatReq latest <- core.getHEX();
+	//	ind.reportHEX(latest.verifID, latest.cycle, latest.commit, latest.data);
+	//endrule
+	//rule relayMSR if(msr_ext_DEBUG);
+	//	StatReq latest  <- core.getMSR();
+	//	L1IStat l1IStat  = core.getL1IStat();
+	//	L1DStat l1DStat  = core.getL1DStat();
+	//	`ifdef L2SC
+	//	WMCStat l2SStat  = mainL2SC.getStat();
+	//	`else
+	//	WMCStat l2SStat  = unpack('0);
+	//	`endif
+	//	ind.reportMSR(latest.verifID,
+	//	              latest.cycle  , latest.commit, latest.data  ,
+	//	              l1IStat.hRD   ,
+	//	              l1IStat.mRD   ,
+	//	              l1DStat.hLd   , l1DStat.hSt  , l1DStat.hJoin,
+	//	              l1DStat.mLd   , l1DStat.mSt  , l1DStat.mJoin,
+	//	              l2SStat.hRD   , l2SStat.hWR  , l2SStat.tWB  ,
+	//	              l2SStat.mRD   , l2SStat.mWR                   );
+	//endrule
 
 	Reg#(CoreStat) coreStatPending <- mkReg(?);
 	Reg#(StatReq ) coreStatReq <- mkReg(?);
 	Reg#(Maybe#(Bit#(TAdd#(FrontWidth,1)))) coreStatIndex <- mkReg(tagged Invalid);
-	rule relayCTR if(msr_ext_DEBUG &&& coreStatIndex matches tagged Invalid);
-		StatReq latest  <- core.getCTR();
-		coreStatPending <= core.getCoreStat;
-		coreStatReq     <= latest;
-		coreStatIndex   <= tagged Valid 0;
-	endrule
+	//rule relayCTR if(msr_ext_DEBUG &&& coreStatIndex matches tagged Invalid);
+	//	StatReq latest  <- core.getCTR();
+	//	coreStatPending <= core.getCoreStat;
+	//	coreStatReq     <= latest;
+	//	coreStatIndex   <= tagged Valid 0;
+	//endrule
 	rule relayCTRPartial if(msr_ext_DEBUG &&& coreStatIndex matches tagged Valid .idx);
 		let latest = coreStatReq;
 		ind.reportCTR(latest.verifID, zeroExtend(idx), latest.cycle, latest.commit, latest.data,

@@ -14,7 +14,7 @@ typedef	16 MTHQ_LEN;
 	Addr ctr_ADDR      = 32'h7ffff00c;
 `endif
 
-Addr max_ADDR  = 32'h80000000;
+Addr max_ADDR  = 32'hFFFF0000;
 
 // Main Token Queue
 typedef 512 MTQ_LEN;

@@ -6,9 +6,9 @@ typedef enum {
     ArithmeticData  = 2,
     LogicalData     = 3,
     Get             = 4,
-    Intent          = 5,
-    Acquire         = 6,
-    Illegal7        = 7
+    Hint            = 5,
+    AcquireBlock    = 6,
+    AcquirePerm     = 7
 } TLopcodeA deriving(Bits, Eq, FShow);
 
 typedef enum {
@@ -17,9 +17,9 @@ typedef enum {
     ArithmeticData  = 2,
     LogicalData     = 3,
     Get             = 4,
-    Intent          = 5,
-    Probe           = 6,
-    Illegal7        = 7
+    Hint            = 5,
+    ProbeBlock      = 6,
+    ProbePerm       = 7
 } TLopcodeB deriving(Bits, Eq, FShow);
 
 typedef enum {
@@ -46,51 +46,89 @@ typedef enum {
 
 // TLopcodeE = GrantAck
 
+//////////// TL Permissions Transitions ////////////
+
+typedef enum {
+    NtoB            = 0,
+    NtoT            = 1,
+    BtoT            = 2,
+    Illegal3        = 3,
+    Illegal4        = 4,
+    Illegal5        = 5,
+    Illegal6        = 6,
+    Illegal7        = 7
+} TLparamA deriving(Bits, Eq, FShow);
+
+typedef enum {
+    ToT             = 0,
+    ToB             = 1,
+    ToN             = 2,
+    Illegal3        = 3
+} TLparamB deriving(Bits, Eq, FShow);
+
+typedef enum {
+    TtoB            = 0,
+    TtoN            = 1,
+    BtoN            = 2,
+    TtoT            = 3,
+    BtoB            = 4,
+    NtoN            = 5,
+    Illegal6        = 6,
+    Illegal7        = 7
+} TLparamC deriving(Bits, Eq, FShow);
+
+typedef enum {
+    ToT             = 0,
+    ToB             = 1,
+    ToN             = 2,
+    Illegal3        = 3
+} TLparamD deriving(Bits, Eq, FShow);
+
 //////////// TL STRUCTS UNPACKED ////////////
 
 typedef struct {
-    TLopcodeA           bits_opcode ;
-    Bit#(3)             bits_param  ;
-    Bit#(4)             bits_size   ;
-    Bit#(2)             bits_source ;
-    Bit#(32)            bits_address;
-    Bit#(64)            bits_mask   ;
-    Bit#(512)           bits_data   ;
+    TLopcodeA           opcode ;
+    TLparamA            param  ;
+    Bit#(4)             size   ;
+    Bit#(2)             source ;
+    Bit#(32)            address;
+    Bit#(64)            mask   ;
+    Bit#(512)           data   ;
 } TLreqA deriving(Eq,Bits,FShow);
 
 typedef struct {
-    TLopcodeB           bits_opcode ;
-    Bit#(2)             bits_param  ;
-    Bit#(4)             bits_size   ;
-    Bit#(2)             bits_source ;
-    Bit#(32)            bits_address;
-    Bit#(64)            bits_mask   ;
-    Bit#(512)           bits_data   ;
-    Bit#(1)             bits_corrupt;
+    TLopcodeB           opcode ;
+    TLparamB            param  ;
+    Bit#(4)             size   ;
+    Bit#(2)             source ;
+    Bit#(32)            address;
+    Bit#(64)            mask   ;
+    Bit#(512)           data   ;
+    Bit#(1)             corrupt;
 } TLreqB deriving(Eq,Bits,FShow);
 
 typedef struct {
-    TLopcodeC           bits_opcode ;
-    Bit#(3)             bits_param  ;
-    Bit#(4)             bits_size   ;
-    Bit#(2)             bits_source ;
-    Bit#(32)            bits_address;
-    Bit#(512)           bits_data   ;
+    TLopcodeC           opcode ;
+    TLparamC            param  ;
+    Bit#(4)             size   ;
+    Bit#(2)             source ;
+    Bit#(32)            address;
+    Bit#(512)           data   ;
 } TLreqC deriving(Eq,Bits,FShow);
 
 typedef struct {
-    TLopcodeD           bits_opcode ;
-    Bit#(2)             bits_param  ;
-    Bit#(4)             bits_size   ;
-    Bit#(2)             bits_source ;
-    Bit#(2)             bits_sink   ;
-    Bit#(1)             bits_denied ;
-    Bit#(512)           bits_data   ;
-    Bit#(1)             bits_corrupt;
+    TLopcodeD           opcode ;
+    TLparamD            param  ;
+    Bit#(4)             size   ;
+    Bit#(2)             source ;
+    Bit#(2)             sink   ;
+    Bit#(1)             denied ;
+    Bit#(512)           data   ;
+    Bit#(1)             corrupt;
 } TLreqD deriving(Eq,Bits,FShow);
 
 typedef struct {
-    Bit#(2)             bits_sink   ;
+    Bit#(2)             sink   ;
 } TLreqE deriving(Eq,Bits,FShow);
 
 //////////// TL STRUCTS PACKED ////////////

@@ -20,147 +20,167 @@ import PackedRocketTileIfc::*;
 import PackedRocketTile::*;
 import WMRocketTileIfc::*;
 
+// Bridge
+import TL2WMBridgeIfc::*;
+import TL2WMBridge::*;
+
+
 (*synthesize*)
 module mkWMRocketTile(WMRocketTileIfc ifc);
 
-	//////////// ROCKET INSTANCE ////////////
+    //////////// ROCKET INSTANCE ////////////
 
-	PackedRocketTileIfc rocket_tile <- mkPackedRocketTile;
+    PackedRocketTileIfc rocket_tile <- mkPackedRocketTile;
 
-	//////////// BRIDGE FIFOS ////////////
+    //////////// BRIDGE ////////////
 
-	FIFOF#(WideMemReq#(Bit#(2))) wm_mem_req <- mkBypassFIFOF();
-	FIFOF#(WideMemRes#(Bit#(2))) wm_mem_res <- mkBypassFIFOF();
+    TL2WMBridgeIfc bridge <- mkTL2WMBridge;
 
-	FIFOF#(TLreqA) tl_reqA <- mkBypassFIFOF();
-	FIFOF#(TLreqB) tl_reqB <- mkBypassFIFOF();
-	FIFOF#(TLreqC) tl_reqC <- mkBypassFIFOF();
-	FIFOF#(TLreqD) tl_reqD <- mkBypassFIFOF();
-	FIFOF#(TLreqE) tl_reqE <- mkBypassFIFOF();
+    //////////// "bootROM" ////////////
 
-	//////////// TL2FF ////////////
+    FIFOF#(TLreqApacked) to_bootROM <- mkPipelineFIFOF();
 
-	rule do_get_reqA;
+    //////////// TL2Bridge ////////////
 
-		TLreqApacked reqApacked <- rocket_tile.tlc_link.getA();
-		TLreqA reqA = unpack(reqApacked);
-		tl_reqA.enq(reqA);
+    rule do_put_reqA;
 
-		`ifdef DEBUG_RCKT
-		$display("get channel A = ", fshow(reqA));
-		`endif
+        TLreqApacked beat_packed <- rocket_tile.tlc_link.getA();
+        TLreqA beat = unpack(beat_packed);
 
-	endrule
+        if(beat.address == 32'h00010040) begin
 
-	rule do_put_reqB;
+            to_bootROM.enq(beat_packed);
 
-		TLreqB reqB = tl_reqB.first(); tl_reqB.deq();
-		TLreqBpacked reqBpacked = pack(reqB);
-		rocket_tile.tlc_link.putB(reqBpacked);
+        end else begin
 
-		`ifdef DEBUG_RCKT
-		$display("put channel B = ", fshow(reqB));
-		`endif
+            bridge.tl_slave.putA(beat_packed);
 
-	endrule
+        end
 
-	rule do_get_reqC;
+        `ifdef DEBUG_RCKT
+        $display("get channel A = ", fshow(beat));
+        `endif
 
-		TLreqCpacked reqCpacked <- rocket_tile.tlc_link.getC();
-		TLreqC reqC = unpack(reqCpacked);
-		tl_reqC.enq(reqC);
+    endrule
 
-		`ifdef DEBUG_RCKT
-		$display("get channel C = ", fshow(reqC));
-		`endif
+    rule do_get_reqB;
 
-	endrule
+        TLreqBpacked beat_packed <- bridge.tl_slave.getB();
+        rocket_tile.tlc_link.putB(beat_packed);
 
-	rule do_put_reqD;
+        `ifdef DEBUG_RCKT
+        TLreqB beat = unpack(beat_packed);
+        $display("put channel B = ", fshow(beat));
+        `endif
 
-		TLreqD reqD = tl_reqD.first(); tl_reqD.deq();
-		TLreqDpacked reqDpacked = pack(reqD);
-		rocket_tile.tlc_link.putD(reqDpacked);
+    endrule
 
-		`ifdef DEBUG_RCKT
-		$display("put channel D = ", fshow(reqD));
-		`endif
+    rule do_put_reqC;
 
-	endrule
+        TLreqCpacked beat_packed <- rocket_tile.tlc_link.getC();
+        bridge.tl_slave.putC(beat_packed);
 
-	rule do_get_reqE;
+        `ifdef DEBUG_RCKT
+        TLreqC beat = unpack(beat_packed);
+        $display("get channel C = ", fshow(beat));
+        `endif
 
-		TLreqEpacked reqEpacked <- rocket_tile.tlc_link.getE();
-		TLreqE reqE = unpack(reqEpacked);
-		tl_reqE.enq(reqE);
+    endrule
 
-		`ifdef DEBUG_RCKT
-		$display("get channel E = ", fshow(reqE));
-		`endif
+    rule do_get_reqD;
 
-	endrule
+        TLreqDpacked beat_packed <- bridge.tl_slave.getD();
+        rocket_tile.tlc_link.putD(beat_packed);
 
-	//////////// TL-WM conversion ////////////
+        `ifdef DEBUG_RCKT
+        TLreqD beat = unpack(beat_packed);
+        $display("put channel D = ", fshow(beat));
+        `endif
 
-	// TODO: TL-WM conversion logic
+    endrule
 
+    rule do_put_reqE;
 
+        TLreqEpacked beat_packed <- rocket_tile.tlc_link.getE();
+        bridge.tl_slave.putE(beat_packed);
 
+        `ifdef DEBUG_RCKT
+        TLreqE beat = unpack(beat_packed);
+        $display("get channel E = ", fshow(beat));
+        `endif
 
+    endrule
 
-	//////////// DEBUG MONITORS ////////////
+    //////////// TL-WM conversion "bootROM" ////////////
 
-	`ifdef DEBUG_RCKT
+    rule do_bootROM;
 
-	rule do_DEBUG_RCKT_CYC_WFI;
+        TLreqApacked beat_packed = to_bootROM.first();
+        to_bootROM.deq();
+        TLreqA beat = unpack(beat_packed);
 
-		$display("WFI : %b",rocket_tile.get_auto_wfi_out_0);
+        // "BootROM"
+        // 0x800000b7 lui x1, -524288
+        // 0x00008067 jalr x0, 0(x1) 
+        // Just jump to 0x80000000
 
-		$write("----------------------------------------------------------------------------------------------------------------------------------------\n");
+        TLreqD reqD = TLreqD { opcode : TileLinkTypes::AccessAckData    ,
+                               param  : TileLinkTypes::ToT              ,
+                               size   : 6                               ,
+                               source : beat.source                     ,
+                               sink   : 0                               ,
+                               denied : 0                               ,
+                               data   : {'0, 32'h00008067, 32'h800000b7},
+                               corrupt: 0                               };
 
-	endrule
+        rocket_tile.tlc_link.putD(pack(reqD));
 
-	rule do_DEBUG_RCKT_CYC_INSNS;
+        `ifdef DEBUG_RCKT
+        $display("put channel D = ", fshow(reqD));
+        `endif
 
-		RocketBcastPacked bcastPacked = rocket_tile.get_rocket_bcast();
-		RocketBcast bcast = unpack(bcastPacked);
+    endrule
 
-		$display("bcast = ", fshow(bcast));
+    //////////// DEBUG MONITORS ////////////
 
-	endrule
+    `ifdef DEBUG_RCKT
 
-	`endif
+    rule do_DEBUG_RCKT_CYC_WFI;
 
-	//////////// INTERFACE ////////////
+        if(rocket_tile.get_auto_wfi_out_0 == 1'b1)
+           $error("WFI is set!");
 
-	interface WideMemClient uniMem;
-        interface request = (interface Get#(WideMemReq#(Bit#(2)));
-            method ActionValue#(WideMemReq#(Bit#(2))) get();
-                wm_mem_req.deq();
-                return wm_mem_req.first();
-            endmethod
-        endinterface);
-        interface response = (interface Put#(WidememRes#(Tuple2#(srcT,tagT)));
-            method Action put(WideMemRes#(Bit#(2)) resp);
-                wm_mem_res.enq(resp);
-            endmethod
-        endinterface);
-    endinterface
+    endrule
+
+    rule do_DEBUG_RCKT_CYC_INSNS;
+
+        RocketBcastPacked bcastPacked = rocket_tile.get_rocket_bcast();
+        RocketBcast bcast = unpack(bcastPacked);
+
+        $display("bcast = ", fshow(bcast));
+
+    endrule
+
+    `endif
+
+    //////////// INTERFACE ////////////
+
+    interface WideMemClient wm_client = bridge.wm_client;
 
 /*
-	// CMR
-	`ifdef DEBUG_CMR
-	method ActionValue#(CommitReport) getCMR = backend.getCMR;
-	`endif
+    // CMR
+    `ifdef DEBUG_CMR
+    method ActionValue#(CommitReport) getCMR = backend.getCMR;
+    `endif
 
-	// MMIO
-	`ifdef MMIO
-	method ActionValue#(StatReq) getMSG() = backend.getMSG();
-	method ActionValue#(StatReq) getHEX() = backend.getHEX();
-	method ActionValue#(StatReq) getMSR() = backend.getMSR();
-	method ActionValue#(StatReq) getCTR() = backend.getCTR();
-	`endif
+    // MMIO
+    `ifdef MMIO
+    method ActionValue#(StatReq) getMSG() = backend.getMSG();
+    method ActionValue#(StatReq) getHEX() = backend.getHEX();
+    method ActionValue#(StatReq) getMSR() = backend.getMSR();
+    method ActionValue#(StatReq) getCTR() = backend.getCTR();
+    `endif
 
-	*/
+    */
 
 endmodule
