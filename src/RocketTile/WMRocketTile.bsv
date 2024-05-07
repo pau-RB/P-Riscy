@@ -35,6 +35,7 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
     //////////// BRIDGE ////////////
 
     TL2WMBridgeIfc bridge <- mkTL2WMBridge;
+    Reg#(Bool) bridgeStarted <- mkReg(False);
 
     //////////// "bootROM" ////////////
 
@@ -42,7 +43,7 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
     //////////// TL2Bridge ////////////
 
-    rule do_put_reqA;
+    rule do_put_reqA if(bridgeStarted);
 
         TLreqApacked beat_packed <- rocket_tile.tlc_link.getA();
         TLreqA beat = unpack(beat_packed);
@@ -120,18 +121,19 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
         TLreqA beat = unpack(beat_packed);
 
         // "BootROM"
+        // 0x30001073 CSRW mstatus, x0
         // 0x800000b7 lui x1, -524288
         // 0x00008067 jalr x0, 0(x1) 
         // Just jump to 0x80000000
 
-        TLreqD reqD = TLreqD { opcode : TileLinkTypes::AccessAckData    ,
-                               param  : TileLinkTypes::ToT              ,
-                               size   : 6                               ,
-                               source : beat.source                     ,
-                               sink   : 0                               ,
-                               denied : 0                               ,
-                               data   : {'0, 32'h00008067, 32'h800000b7},
-                               corrupt: 0                               };
+        TLreqD reqD = TLreqD { opcode : TileLinkTypes::AccessAckData                    ,
+                               param  : TileLinkTypes::ToT                              ,
+                               size   : 6                                               ,
+                               source : beat.source                                     ,
+                               sink   : 0                                               ,
+                               denied : 0                                               ,
+                               data   : {'0, 32'h00008067, 32'h800000b7, 32'h30001073}  ,
+                               corrupt: 0                                               };
 
         rocket_tile.tlc_link.putD(pack(reqD));
 
@@ -166,6 +168,10 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
     //////////// INTERFACE ////////////
 
     interface WideMemClient wm_client = bridge.wm_client;
+
+    method Action startBridge();
+        bridgeStarted <= True;
+    endmethod
 
 /*
     // CMR

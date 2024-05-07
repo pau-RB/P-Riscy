@@ -326,7 +326,7 @@ module mkTL2WMBridge (TL2WMBridgeIfc ifc);
                                           source : res.tag[1:0]                ,
                                           sink   : 0                           ,
                                           denied : 0                           ,
-                                          data   : 0                           ,
+                                          data   : pack(res.data)              ,
                                           corrupt: 0                           });
 
         end else begin
@@ -341,7 +341,7 @@ module mkTL2WMBridge (TL2WMBridgeIfc ifc);
                                           source : res.tag[1:0]                ,
                                           sink   : 0                           ,
                                           denied : 0                           ,
-                                          data   : 0                           ,
+                                          data   : pack(res.data)              ,
                                           corrupt: 0                           });
 
         end

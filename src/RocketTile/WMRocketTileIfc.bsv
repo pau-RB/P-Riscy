@@ -9,6 +9,9 @@ interface WMRocketTileIfc;
 
 	// Bit#(3) WM tags to match TL 2-bit source ID + 1 additional MSB
 	interface WideMemClient#(Bit#(3)) wm_client;
+
+	method Action startBridge();
+
 /*
 	// CMR
 	`ifdef DEBUG_CMR

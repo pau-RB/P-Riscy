@@ -7,12 +7,12 @@ typedef struct {
     CacheLineNum    addr        ;
     CacheLine       data        ;
     CacheLineMask   byte_enable ;
-} WideMemReq#(type tagT) deriving(Eq,Bits);
+} WideMemReq#(type tagT) deriving(FShow,Eq,Bits);
 
 typedef struct {
     tagT            tag         ;
     CacheLine       data        ;
-} WideMemRes#(type tagT) deriving(Eq,Bits);
+} WideMemRes#(type tagT) deriving(FShow,Eq,Bits);
 
 typedef Server#(WideMemReq#(tagT), WideMemRes#(tagT)) WideMemServer#(type tagT);
 

@@ -23,6 +23,7 @@ import FIFO::*;
 import BRAMFIFO::*;
 import Config::*;
 import Vector::*;
+import FShow::*;
 
 typedef Bit#(TLog#(CacheLineWords)) CacheOffset;
 
@@ -70,10 +71,10 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	`ifdef L2SC
 	mkConnection(mainL2SC.mem, mainDDR4.portA  );
 	//mkConnection(mainL2SB.mem, mainL2SC.portA  );
-	mkConnection(wm_rocket_tile.wm_client, mainL2SC.portA  );
+	mkConnection(wm_rocket_tile.wm_client, mainL2SC.portA);
 	`else
 	//mkConnection(mainL2SB.mem, mainDDR4.portA  );
-	mkConnection(wm_rocket_tile.wm_client, mainDDR4.portA  );
+	mkConnection(wm_rocket_tile.wm_client, mainDDR4.portA);
 	`endif
 
 	//mkConnection(core.instMem, mainL2SB.port[0]);
@@ -230,6 +231,7 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 				                                        addr       : lineNumOf(addr),
 				                                        data       : data           ,
 				                                        byte_enable: '1             });
+
 			end
 
 		endmethod
@@ -247,6 +249,8 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 			                  pc     : startpc,
 			                  rfL    : replicate('0),
 			                  rfH    : replicate('0)  });
+
+			wm_rocket_tile.startBridge();
 
 		endmethod
 

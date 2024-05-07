@@ -3,6 +3,7 @@
 
 #define CacheLineWords 16
 #define CacheLineBytes 64
+#define MEM_MIN_ADDR 0x80000000
 #define MEM_MAX_ADDR 0xFFFF0000
 
 #define StartPC 0x80000000
