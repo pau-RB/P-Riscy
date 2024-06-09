@@ -70,7 +70,7 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
         end
 
-        `ifdef DEBUG_RCKT
+        `ifdef DEBUG_RCKT_TL
         $display("get channel A = ", fshow(beat));
         `endif
 
@@ -81,7 +81,7 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
         TLreqBpacked beat_packed <- bridge.tl_slave.getB();
         rocket_tile.tlc_link.putB(beat_packed);
 
-        `ifdef DEBUG_RCKT
+        `ifdef DEBUG_RCKT_TL
         TLreqB beat = unpack(beat_packed);
         $display("put channel B = ", fshow(beat));
         `endif
@@ -93,7 +93,7 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
         TLreqCpacked beat_packed <- rocket_tile.tlc_link.getC();
         bridge.tl_slave.putC(beat_packed);
 
-        `ifdef DEBUG_RCKT
+        `ifdef DEBUG_RCKT_TL
         TLreqC beat = unpack(beat_packed);
         $display("get channel C = ", fshow(beat));
         `endif
@@ -105,7 +105,7 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
         TLreqDpacked beat_packed <- bridge.tl_slave.getD();
         rocket_tile.tlc_link.putD(beat_packed);
 
-        `ifdef DEBUG_RCKT
+        `ifdef DEBUG_RCKT_TL
         TLreqD beat = unpack(beat_packed);
         $display("put channel D = ", fshow(beat));
         `endif
@@ -117,7 +117,7 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
         TLreqEpacked beat_packed <- rocket_tile.tlc_link.getE();
         bridge.tl_slave.putE(beat_packed);
 
-        `ifdef DEBUG_RCKT
+        `ifdef DEBUG_RCKT_TL
         TLreqE beat = unpack(beat_packed);
         $display("get channel E = ", fshow(beat));
         `endif
@@ -149,7 +149,7 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
         rocket_tile.tlc_link.putD(pack(reqD));
 
-        `ifdef DEBUG_RCKT
+        `ifdef DEBUG_RCKT_TL
         $display("put channel D = ", fshow(reqD));
         `endif
 
@@ -157,7 +157,7 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
     //////////// DEBUG MONITORS ////////////
 
-    `ifdef DEBUG_RCKT
+    `ifdef DEBUG_RCKT_WFI
 
     rule do_DEBUG_RCKT_CYC_WFI;
 
