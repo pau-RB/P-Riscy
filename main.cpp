@@ -301,18 +301,18 @@ void testMem() {
 
 }
 
-void initMemOBJ(string path) {
+void initMemELF(string path) {
 
     std::ifstream input( path, std::ios::binary );
 
     std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(input), {});
 
-    for (uint32_t addr = 0; (addr < MEM_MAX_ADDR) && (addr<(0+(uint32_t)buffer.size())); addr=addr+4) {
+    for (uint32_t addr = 0; addr < MEM_MAX_ADDR && addr<(uint32_t)buffer.size(); addr=addr+4) {
 
-        uint32_t byte0 = (addr+0<(uint32_t)buffer.size()) ? buffer[addr+0] : 0;
-        uint32_t byte1 = (addr+1<(uint32_t)buffer.size()) ? buffer[addr+1] : 0;
-        uint32_t byte2 = (addr+2<(uint32_t)buffer.size()) ? buffer[addr+2] : 0;
-        uint32_t byte3 = (addr+3<(uint32_t)buffer.size()) ? buffer[addr+3] : 0;
+        uint32_t byte0 = (addr+4096+0<(uint32_t)buffer.size()) ? buffer[addr+4096+0] : 0;
+        uint32_t byte1 = (addr+4096+1<(uint32_t)buffer.size()) ? buffer[addr+4096+1] : 0;
+        uint32_t byte2 = (addr+4096+2<(uint32_t)buffer.size()) ? buffer[addr+4096+2] : 0;
+        uint32_t byte3 = (addr+4096+3<(uint32_t)buffer.size()) ? buffer[addr+4096+3] : 0;
         Data word = byte3<<24|byte2<<16|byte1<<8|byte0;
 
         connectalProc->setMem(addr, word);
@@ -342,7 +342,7 @@ int main(int argc, char * const *argv) {
 
     printf("------------ Initializing memory ------------\n"); fflush(stdout);
         string test = all_args[0];
-        initMemOBJ(test);
+        initMemELF(test);
 
     printf("------------ Setup Spike         ------------\n"); fflush(stdout);
         isa   = new isa_parser_t("RV32IM", "m");

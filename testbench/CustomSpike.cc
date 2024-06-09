@@ -39,7 +39,7 @@ CustomSpike::CustomSpike(isa_parser_t *isa, const std::string elf_file, uint32_t
     this->mmio_void    = 0;
     this->mem          = (char*) calloc(max_addr_mem-min_addr_mem, 1);
 
-    this->load_obj(elf_file);
+    this->load_elf(elf_file);
 
     this->cycleCnt = 0;
 
@@ -178,7 +178,7 @@ IType CustomSpike::getIType(const Data uinst) {
 
 }
 
-void CustomSpike::load_obj(std::string path) {
+void CustomSpike::load_elf(std::string path) {
 
     std::ifstream input( path, std::ios::binary );
 
@@ -186,10 +186,10 @@ void CustomSpike::load_obj(std::string path) {
 
     for (uint32_t addr = 0; addr < max_addr_mem-min_addr_mem; addr=addr+4) {
 
-        uint32_t byte0 = (addr+0<(uint32_t)buffer.size()) ? buffer[addr+0] : 0;
-        uint32_t byte1 = (addr+1<(uint32_t)buffer.size()) ? buffer[addr+1] : 0;
-        uint32_t byte2 = (addr+2<(uint32_t)buffer.size()) ? buffer[addr+2] : 0;
-        uint32_t byte3 = (addr+3<(uint32_t)buffer.size()) ? buffer[addr+3] : 0;
+        uint32_t byte0 = (addr+4096+0<(uint32_t)buffer.size()) ? buffer[addr+4096+0] : 0;
+        uint32_t byte1 = (addr+4096+1<(uint32_t)buffer.size()) ? buffer[addr+4096+1] : 0;
+        uint32_t byte2 = (addr+4096+2<(uint32_t)buffer.size()) ? buffer[addr+4096+2] : 0;
+        uint32_t byte3 = (addr+4096+3<(uint32_t)buffer.size()) ? buffer[addr+4096+3] : 0;
         Data word = byte3<<24|byte2<<16|byte1<<8|byte0;
 
         memcpy(((char*) mem) + addr, &word, 4);

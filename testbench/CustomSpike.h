@@ -50,7 +50,7 @@ class CustomSpike : public simif_t {
         storeTracer  st;
 
         IType getIType(const Data uinst);
-        void load_obj(std::string path);
+        void load_elf(std::string path);
         void add_proc(VerifID id);
         void remove_proc(VerifID id);
 
