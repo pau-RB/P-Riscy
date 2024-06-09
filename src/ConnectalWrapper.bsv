@@ -140,6 +140,15 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	endrule
 	`endif
 
+	`ifdef DEBUG_RCKT_CMR
+	rule relayCMR;
+		CommitReport cmr <- wm_rocket_tile.getCMR();
+		Bit#(8) iType = zeroExtend(pack(cmr.iType));
+		Bit#(8) wbDst = zeroExtend(pack(cmr.wbDst));
+		ind.reportCMR(cmr.cycle, cmr.verifID, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
+	endrule
+	`endif
+
 	`ifdef MMIO
 	//rule relayMSG if(msg_ext_DEBUG);
 	//	StatReq latest <- core.getMSG();

@@ -109,3 +109,22 @@ tandem_mm tandem_compare(CommitReport spike, CommitReport dut) {
 	return tandem_mm::correct;
 
 }
+
+tandem_mm tandem_compare_trace(CommitReport spike, CommitReport dut) {
+
+	// Instrucion fetch and suport
+	if(dut.pc != spike.pc) {
+		tandem_report("PC mismatch!");
+		return tandem_mm::pc;
+	}
+
+	if(dut.rawInst != spike.rawInst) {
+		tandem_report("Raw instruction mismatch!");
+		tandem_data("Spike inst", spike.rawInst);
+		tandem_data("Dut inst  ", dut.rawInst);
+		return tandem_mm::rawInst;
+	}
+
+	return tandem_mm::correct;
+
+}

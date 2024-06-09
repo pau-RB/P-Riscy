@@ -5,10 +5,14 @@ import SpecialFIFOs::*;
 import Connectable::*;
 import ClientServer::*;
 import GetPut::*;
+import BRAMFIFO::*;
+import Ehr::*;
 
 // Platform types
 import Types::*;
+import ProcTypes::*;
 import WideMemTypes::*;
+import CMRTypes::*;
 
 // TL types
 import TileLinkTypes::*;
@@ -19,6 +23,8 @@ import RocketTileBcastTypes::*;
 import PackedRocketTileIfc::*;
 import PackedRocketTile::*;
 import WMRocketTileIfc::*;
+import RocketConfig::*;
+
 
 // Bridge
 import TL2WMBridgeIfc::*;
@@ -40,6 +46,12 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
     //////////// "bootROM" ////////////
 
     FIFOF#(TLreqApacked) to_bootROM <- mkPipelineFIFOF();
+
+    //////////// CMR relay ////////////
+
+    `ifdef DEBUG_RCKT_CMR
+
+    FIFOF#(CommitReport) commitReportQ <- mkSizedBRAMFIFOF(valueOf(CMRTHQ_LEN));
 
     //////////// TL2Bridge ////////////
 
@@ -158,7 +170,7 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
     `ifdef DEBUG_RCKT_TRACE
 
-    rule do_DEBUG_RCKT_CYC_INSNS;
+    rule do_DEBUG_RCKT_TRACE;
 
         RocketBcastPacked bcastPacked = rocket_tile.get_rocket_bcast();
         RocketBcast bcast = unpack(bcastPacked);
@@ -169,6 +181,27 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
     `endif
 
+    `ifdef DEBUG_RCKT_CMR
+    rule do_DEBUG_RCKT_CMR;
+
+        RocketBcastPacked bcastPacked = rocket_tile.get_rocket_bcast();
+        RocketBcast bcast = unpack(bcastPacked);
+
+        if(bcast.bits_insns_0_iaddr[31:16] != 16'h0001) begin
+            // Skip the tiny bootROM
+            commitReportQ.enq(CommitReport {cycle  : bcast.bits_time            ,
+                                            verifID: '0                         ,
+                                            pc     : bcast.bits_insns_0_iaddr   ,
+                                            rawInst: bcast.bits_insns_0_insn    ,
+                                            iType  : Unsupported                ,
+                                            wbDst  : '0                         ,
+                                            wbRes  : '0                         ,
+                                            addr   : '0                         });
+        end
+
+    endrule
+    `endif
+
     //////////// INTERFACE ////////////
 
     interface WideMemClient wm_client = bridge.wm_client;
@@ -177,12 +210,14 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
         bridgeStarted <= True;
     endmethod
 
-/*
     // CMR
-    `ifdef DEBUG_CMR
-    method ActionValue#(CommitReport) getCMR = backend.getCMR;
+    `ifdef DEBUG_RCKT_CMR
+    method ActionValue#(CommitReport) getCMR();
+        let latest = commitReportQ.first(); commitReportQ.deq();
+        return latest;
+    endmethod
     `endif
-
+/*
     // MMIO
     `ifdef MMIO
     method ActionValue#(StatReq) getMSG() = backend.getMSG();

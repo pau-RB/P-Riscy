@@ -1,0 +1,1 @@
+typedef	1024 CMRTHQ_LEN;

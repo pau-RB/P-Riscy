@@ -110,6 +110,7 @@ endif
 #CONNECTALFLAGS += -D DEBUG_CMR 	-D DEBUG_RAW_INST 							 	# FPGA and simulation - Report commits to host server through Connectal for tandem verification
 #CONNECTALFLAGS += -D DEBUG_CYC 	-D DEBUG_RAW_INST 							 	# simulation only     - Report cycle-accurate status of the pipeline
  CONNECTALFLAGS += -D DEBUG_RCKT 	#-D DEBUG_RCKT_TRACE  	-d DEBUG_TL2WM_BRIDGE 	# simulation only     - Report cycle-accurate status of the rocket tile interface
+ CONNECTALFLAGS += -D DEBUG_RCKT_CMR 												# FPGA and simulation - Report commits to host server through Connectal for tandem verification
 
  CONNECTALFLAGS += -D L2SC                        # FPGA and simulation - Add L2 cache to the memory hierarchy
  CONNECTALFLAGS += -D VCUDDRDELAY                 # FPGA only           - Add latency to DDR4 artificially

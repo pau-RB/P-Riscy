@@ -25,7 +25,7 @@ CustomSpike::~CustomSpike() {
     }
 }
 
-CustomSpike::CustomSpike(isa_parser_t *isa, const std::string elf_file, size_t memory_sz):
+CustomSpike::CustomSpike(isa_parser_t *isa, const std::string elf_file, uint32_t min_addr_mem, uint32_t max_addr_mem):
 	sout_(nullptr),
     lt(),
     st()
@@ -33,9 +33,11 @@ CustomSpike::CustomSpike(isa_parser_t *isa, const std::string elf_file, size_t m
 
 	sout_.rdbuf(std::cerr.rdbuf()); // debug output goes to stderr by default
 
-    this->isa    = isa;
-	this->mem_sz = memory_sz;
-    this->mem    = (char*) calloc(memory_sz, 1);
+    this->isa          = isa;
+    this->min_addr_mem = min_addr_mem;
+    this->max_addr_mem = max_addr_mem;
+    this->mmio_void    = 0;
+    this->mem          = (char*) calloc(max_addr_mem-min_addr_mem, 1);
 
     this->load_obj(elf_file);
 
@@ -48,7 +50,13 @@ CustomSpike::CustomSpike(isa_parser_t *isa, const std::string elf_file, size_t m
 // If it return NULL, it will be considered as an MMIO region and will call
 // mmio_load/mmio_store to request the operaton to the sim.
 
-char* CustomSpike::addr_to_mem(reg_t addr) { return ((char*)mem) + (addr%mem_sz);}
+char* CustomSpike::addr_to_mem(reg_t addr) {
+    if(addr >= min_addr_mem && addr < max_addr_mem )
+        return ((char*)mem) + (addr - min_addr_mem);
+    else
+        return ((char*)(&mmio_void));
+
+}
 
 bool CustomSpike::mmio_load(reg_t addr, size_t len, uint8_t* bytes) { return true; }
 
@@ -176,7 +184,7 @@ void CustomSpike::load_obj(std::string path) {
 
     std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(input), {});
 
-    for (uint32_t addr = 0; addr < mem_sz; addr=addr+4) {
+    for (uint32_t addr = 0; addr < max_addr_mem-min_addr_mem; addr=addr+4) {
 
         uint32_t byte0 = (addr+0<(uint32_t)buffer.size()) ? buffer[addr+0] : 0;
         uint32_t byte1 = (addr+1<(uint32_t)buffer.size()) ? buffer[addr+1] : 0;

@@ -15,7 +15,7 @@ class CustomSpike : public simif_t {
     public:
 
     	// class
-        CustomSpike(isa_parser_t *isa, const std::string elf_file, size_t memory_sz);
+        CustomSpike(isa_parser_t *isa, const std::string elf_file, uint32_t min_addr_mem, uint32_t max_addr_mem);
         ~CustomSpike();
 
         // simif_t
@@ -41,7 +41,9 @@ class CustomSpike : public simif_t {
         std::map<VerifID, PerfCnt> commit_thread;
 
         char*        mem;
-        size_t       mem_sz;
+        uint32_t     mmio_void;
+        uint32_t     min_addr_mem;
+        uint32_t     max_addr_mem;
 
         Data         cycleCnt;
         loadTracer   lt;

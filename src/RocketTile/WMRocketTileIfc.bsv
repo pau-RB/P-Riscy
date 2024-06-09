@@ -2,6 +2,7 @@ import Types::*;
 import WideMemTypes::*;
 import TileLinkIfc::*;
 import RocketTileBcastTypes::*;
+import CMRTypes::*;
 
 //////////// Interface adpated to WM ////////////
 
@@ -12,12 +13,11 @@ interface WMRocketTileIfc;
 
 	method Action startBridge();
 
-/*
 	// CMR
-	`ifdef DEBUG_CMR
+	`ifdef DEBUG_RCKT_CMR
 	method ActionValue#(CommitReport) getCMR();
 	`endif
-
+/*
 	// MMIO
 	`ifdef MMIO
 	method ActionValue#(StatReq) getMSG();

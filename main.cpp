@@ -94,10 +94,20 @@ class ToHost: public ToHostWrapper {
             }
 
             // Check
-            tandem_mm mm = tandem_compare(cmrSpike, cmrDut);
-            if(mm != tandem_mm::correct) {
-                ++error_detected;
-            }
+            #ifdef DEBUG_CMR // Full CMR for P-Riscy
+                tandem_mm mm = tandem_compare(cmrSpike, cmrDut);
+                if(mm != tandem_mm::correct) {
+                    ++error_detected;
+                }
+            #endif
+
+            // Check
+            #ifdef DEBUG_RCKT_CMR // Only trace for Rocket
+                tandem_mm mm = tandem_compare_trace(cmrSpike, cmrDut);
+                if(mm != tandem_mm::correct) {
+                    ++error_detected;
+                }
+            #endif
 
             if(iType == iTypeFork || iType == iTypeForkr) {
                 spike->fork(verifID, wbRes, addr);
@@ -336,7 +346,7 @@ int main(int argc, char * const *argv) {
 
     printf("------------ Setup Spike         ------------\n"); fflush(stdout);
         isa   = new isa_parser_t("RV32IM", "m");
-        spike = new CustomSpike(isa, test, MEM_MAX_ADDR);
+        spike = new CustomSpike(isa, test, MEM_MIN_ADDR, MEM_MAX_ADDR);
         inter = new Interpreter(isa);
 
     printf("------------ Start core          ------------\n"); fflush(stdout);

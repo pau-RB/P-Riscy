@@ -24,4 +24,6 @@ void tandem_data(std::string msg, uint32_t data);
 
 tandem_mm tandem_compare(CommitReport spike, CommitReport dut);
 
+tandem_mm tandem_compare_trace(CommitReport spike, CommitReport dut);
+
 #endif
