@@ -45,7 +45,7 @@ module mkTL2WMBridge (TL2WMBridgeIfc ifc);
 
             // TLA to WM req
 
-            `ifdef DEBUG_RCKT
+            `ifdef DEBUG_TL2WM_BRIDGE
             $display("mkTL2WMBridge do_wm_req - do_wm_req from channel A!");
             `endif
 
@@ -187,7 +187,7 @@ module mkTL2WMBridge (TL2WMBridgeIfc ifc);
 
             // TLC to WM req
 
-            `ifdef DEBUG_RCKT
+            `ifdef DEBUG_TL2WM_BRIDGE
             $display("mkTL2WMBridge do_wm_req - do_wm_req from channel C!");
             `endif
 
@@ -316,7 +316,7 @@ module mkTL2WMBridge (TL2WMBridgeIfc ifc);
 
         if(res.tag[2] == 1'b0) begin
 
-            `ifdef DEBUG_RCKT
+            `ifdef DEBUG_TL2WM_BRIDGE
             $display("mkTL2WMBridge do_wm_res - do_wm_res AccessAckData!");
             `endif
 
@@ -331,7 +331,7 @@ module mkTL2WMBridge (TL2WMBridgeIfc ifc);
 
         end else begin
 
-            `ifdef DEBUG_RCKT
+            `ifdef DEBUG_TL2WM_BRIDGE
             $display("mkTL2WMBridge do_wm_res - do_wm_res GrantData!");
             `endif
 
@@ -354,7 +354,7 @@ module mkTL2WMBridge (TL2WMBridgeIfc ifc);
 
             // WM req to TLD (write acknowledgement)
 
-            `ifdef DEBUG_RCKT
+            `ifdef DEBUG_TL2WM_BRIDGE
             $display("mkTL2WMBridge do_mux_tl_reqD - do_mux_tl_reqD from REQ!");
             `endif
 
@@ -367,7 +367,7 @@ module mkTL2WMBridge (TL2WMBridgeIfc ifc);
 
             // WM resp to TLD (read data)
 
-            `ifdef DEBUG_RCKT
+            `ifdef DEBUG_TL2WM_BRIDGE
             $display("mkTL2WMBridge do_mux_tl_reqD - do_mux_tl_reqD from RES!");
             `endif
 

@@ -154,12 +154,16 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
     endrule
 
+    `endif
+
+    `ifdef DEBUG_RCKT_TRACE
+
     rule do_DEBUG_RCKT_CYC_INSNS;
 
         RocketBcastPacked bcastPacked = rocket_tile.get_rocket_bcast();
         RocketBcast bcast = unpack(bcastPacked);
 
-        $display("bcast = ", fshow(bcast));
+        $display("WMRocketTile bcast = ", fshow(bcast));
 
     endrule
 
