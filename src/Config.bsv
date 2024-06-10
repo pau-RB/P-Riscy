@@ -8,10 +8,10 @@ typedef	16 MTHQ_LEN;
 	Bool hex_ext_DEBUG = True;
 	Bool msr_ext_DEBUG = True;
 	Bool ctr_ext_DEBUG = True;
-	Addr msg_ADDR      = 32'h7ffff000;
-	Addr hex_ADDR      = 32'h7ffff004;
-	Addr msr_ADDR      = 32'h7ffff008;
-	Addr ctr_ADDR      = 32'h7ffff00c;
+	Addr msg_ADDR      = 32'h60000000;
+	Addr hex_ADDR      = 32'h60000004;
+	Addr msr_ADDR      = 32'h60000008;
+	Addr ctr_ADDR      = 32'h6000000c;
 `endif
 
 Addr max_ADDR  = 32'hFFFF0000;

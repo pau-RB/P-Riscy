@@ -1,6 +1,7 @@
 import Ifc::*;
 import HostInterface::*;
-import Core::*;
+import WideMemPRiscy::*;
+import WideMemPRiscyIfc::*;
 import Types::*;
 import WideMemTypes::*;
 import WMRocketTileIfc::*;
@@ -17,16 +18,22 @@ import DDR4Controller::*;
 import WideMemDDR4::*;
 import WideMemBRAM::*;
 import WideMemCache::*;
-import WideMemSplit::*;
 import WideMemTester::*;
 import FIFOF::*;
 import FIFO::*;
-import BRAMFIFO::*;
 import Config::*;
 import Vector::*;
 import FShow::*;
 
 typedef Bit#(TLog#(CacheLineWords)) CacheOffset;
+
+`ifdef PRISCY
+	typedef Tuple2#(Bit#(TLog#(2)),Config::FrontID) MemTag;
+`elsif ROCKET
+	typedef Bit#(3) MemTag;
+`else
+	typedef Bit#(8) MemTag;
+`endif
 
 function CacheOffset offsetOf(Addr addr);
 	return truncate(addr >> 2);
@@ -50,201 +57,197 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 	Reg#(Bool) memInit <- mkReg(False);
 	Reg#(Bool) cpuInit <- mkReg(False);
 
-	//WideMemDDR4#(SimDDRLatency, VCUDDRLatency, Tuple2#(Bit#(TLog#(2)),FrontID))                    mainDDR4 <- mkWideMemDDR4(host);
-	WideMemDDR4#(SimDDRLatency, VCUDDRLatency, Bit#(3)) mainDDR4 <- mkWideMemDDR4(host);
-	`ifdef L2SC
-	//WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, Tuple2#(Bit#(TLog#(2)),FrontID)) mainL2SC <- mkWideMemCache();
-	WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, Bit#(3)) mainL2SC <- mkWideMemCache();
-	`endif
-	//WideMemSplit#(2,TMul#(2,FrontWidth), FrontID)                                                  mainL2SB <- mkSplitWideMem();
+    //////////// Core ////////////
 
-	`ifdef MEMTEST
-	//WideMemTester#(Tuple2#(Bit#(TLog#(2)),FrontID))                                                memTest  <- mkWideMemTester();
-	WideMemTester#(Bit#(3))                                                memTest  <- mkWideMemTester();
+	`ifdef PRISCY
+		WideMemPRiscy wm_priscy_i <- mkWideMemPRiscy();
+	`elsif ROCKET
+		WMRocketTileIfc wm_rocket_i <- mkWMRocketTile();
 	`endif
 
-	// Core core <- mkCore7SS();
+    //////////// Memory hiearchy ////////////
 
+	WideMemDDR4#(SimDDRLatency, VCUDDRLatency, MemTag) mainDDR4 <- mkWideMemDDR4(host);
 
-	WMRocketTileIfc wm_rocket_tile <- mkWMRocketTile();
-
-
-	`ifdef L2SC
-	mkConnection(mainL2SC.mem, mainDDR4.portA  );
-	//mkConnection(mainL2SB.mem, mainL2SC.portA  );
-	mkConnection(wm_rocket_tile.wm_client, mainL2SC.portA);
-	`else
-	//mkConnection(mainL2SB.mem, mainDDR4.portA  );
-	mkConnection(wm_rocket_tile.wm_client, mainDDR4.portA);
-	`endif
-
-	//mkConnection(core.instMem, mainL2SB.port[0]);
-	//mkConnection(core.dataMem, mainL2SB.port[1]);
-
-	`ifdef MEMTEST
-	mkConnection(memTest.mem, mainDDR4.portB);
-	`endif
-
-	FIFOF#(ContToken) mainTokenQ <- mkSizedBRAMFIFOF(valueOf(MTQ_LEN));
-
-	`ifdef MEMTEST
-	FIFOF#(TestRes)      mainTSTQ <- mkSizedBRAMFIFOF(valueOf(MTHQ_LEN));
-	`endif
-	`ifdef DEBUG_CMR
-	FIFOF#(CommitReport) mainCMRQ <- mkSizedBRAMFIFOF(valueOf(MTHQ_LEN));
-	`endif
-
-	//////////// MTQ ////////////
-
-	//rule do_core_to_MTQ;
-	//	mainTokenQ.enq(core.toMTQ.first()); core.toMTQ.deq();
-	//endrule
-
-	//rule do_MTQ_to_core;
-	//	core.toMTQ.enq(mainTokenQ.first()); mainTokenQ.deq();
-	//endrule
-
-	//////////// RELAY REPORTS ////////////
-
-	`ifdef MEMTEST
-	rule getTST;
-		memTest.deq();
-		if(memTest.first.testtyp == TTEND)
-			tstInit <= True;
-		else
-			mainTSTQ.enq(memTest.first());
-	endrule
-	`endif
-
-	//`ifdef DEBUG_CMR
-	//rule getCMR;
-	//	let latest <- core.getCMR();
-	//	mainCMRQ.enq(latest);
-	//endrule
-	//`endif
-
-	`ifdef MEMTEST
-	rule relayTST;
-		TestRes latest = mainTSTQ.first(); mainTSTQ.deq();
-		Bit#(8)  testtyp = zeroExtend(pack(latest.testtyp));
-		Bit#(32) teststr = zeroExtend(pack(latest.teststr));
-		ind.testMem(latest.testlen, testtyp, teststr,latest.latency, latest.delayTX, latest.delayRX);
-	endrule
-	`endif
-
-	`ifdef DEBUG_CMR
-	rule relayCMR;
-		CommitReport cmr = mainCMRQ.first(); mainCMRQ.deq();
-		Bit#(8) iType = zeroExtend(pack(cmr.iType));
-		Bit#(8) wbDst = zeroExtend(pack(cmr.wbDst));
-		ind.reportCMR(cmr.cycle, cmr.verifID, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
-	endrule
-	`endif
-
-	`ifdef DEBUG_RCKT_CMR
-	rule relayCMR;
-		CommitReport cmr <- wm_rocket_tile.getCMR();
-		Bit#(8) iType = zeroExtend(pack(cmr.iType));
-		Bit#(8) wbDst = zeroExtend(pack(cmr.wbDst));
-		ind.reportCMR(cmr.cycle, cmr.verifID, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
-	endrule
-	`endif
-
-	`ifdef RCKT_MMIO
-
-	rule relayMSG;
-		StatReq latest <- wm_rocket_tile.getMSG();
-		ind.reportMSG(latest.verifID, latest.cycle, latest.commit, latest.data);
-	endrule
-
-	rule relayHEX;
-		StatReq latest <- wm_rocket_tile.getHEX();
-		ind.reportHEX(latest.verifID, latest.cycle, latest.commit, latest.data);
-	endrule
-
-	rule relayMSR;
-		StatReq latest  <- wm_rocket_tile.getMSR();
-		L1IStat l1IStat = L1IStat{hRD:'0,mRD:'0}; // TODO: No L1I stats for Rocket
-		L1DStat l1DStat = L1DStat{hLd:'0,hSt:'0,hJoin:'0,mLd:'0,mSt:'0,mJoin:'0}; // TODO: No L1D stats for Rocket
+	`ifdef PRISCY
 		`ifdef L2SC
-		WMCStat l2SStat  = mainL2SC.getStat();
-		`else
-		WMCStat l2SStat  = unpack('0);
+			WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, MemTag) mainL2SC <- mkWideMemCache();
+			mkConnection(mainL2SC.mem, mainDDR4.portA  );
+			mkConnection(wm_priscy_i.wm_client, mainL2SC.portA);
+		`else 
+			mkConnection(wm_priscy_i.wm_client, mainDDR4.portA);
 		`endif
-		ind.reportMSR(latest.verifID,
-		              latest.cycle  , latest.commit, latest.data  ,
-		              l1IStat.hRD   ,
-		              l1IStat.mRD   ,
-		              l1DStat.hLd   , l1DStat.hSt  , l1DStat.hJoin,
-		              l1DStat.mLd   , l1DStat.mSt  , l1DStat.mJoin,
-		              l2SStat.hRD   , l2SStat.hWR  , l2SStat.tWB  ,
-		              l2SStat.mRD   , l2SStat.mWR                   );
-	endrule
+	`elsif ROCKET
+		`ifdef L2SC
+			WideMemCache#(L2CacheRows, L2CacheColumns, L2CacheHashBlocks, MemTag) mainL2SC <- mkWideMemCache();
+			mkConnection(mainL2SC.mem, mainDDR4.portA  );
+			mkConnection(wm_rocket_i.wm_client, mainL2SC.portA);
+		`else 
+			mkConnection(wm_rocket_i.wm_client, mainDDR4.portA);
+		`endif
+	`endif
 
-	rule relayCTR; // TODO: no proper CTR for Rocket
-		StatReq latest  <- wm_rocket_tile.getCTR();
-		ind.reportCTR(latest.verifID, '0, latest.cycle, latest.commit, latest.data, '0, '0, '0, '0, '0, '0, '0, '0, '0, '0, '0, '0);
-	endrule
+	`ifdef MEMTEST
+		FIFOF#(TestRes) mainTSTQ <- mkSizedBRAMFIFOF(valueOf(MTHQ_LEN));
+		WideMemTester#(MemTag) memTest  <- mkWideMemTester();
+		mkConnection(memTest.mem, mainDDR4.portB);
+	`endif
+
+	//////////// RELAY REPORTS ROCKET ////////////
+
+	`ifdef PRISCY
+
+		`ifdef DEBUG_CMR
+
+			rule relayCMR;
+				CommitReport cmr <- wm_priscy_i.getCMR();
+				Bit#(8) iType = zeroExtend(pack(cmr.iType));
+				Bit#(8) wbDst = zeroExtend(pack(cmr.wbDst));
+				ind.reportCMR(cmr.cycle, cmr.verifID, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
+			endrule
+
+		`endif
+
+		`ifdef MMIO
+
+			Reg#(CoreStat) coreStatPending <- mkReg(?);
+			Reg#(StatReq ) coreStatReq <- mkReg(?);
+			Reg#(Maybe#(Bit#(TAdd#(FrontWidth,1)))) coreStatIndex <- mkReg(tagged Invalid);
+
+			rule relayMSG if(Config::msg_ext_DEBUG);
+				StatReq latest <- wm_priscy_i.getMSG();
+				ind.reportMSG(latest.verifID, latest.cycle, latest.commit, latest.data);
+			endrule
+			
+			rule relayHEX if(Config::hex_ext_DEBUG);
+				StatReq latest <- wm_priscy_i.getHEX();
+				ind.reportHEX(latest.verifID, latest.cycle, latest.commit, latest.data);
+			endrule
+			
+			rule relayMSR if(Config::msr_ext_DEBUG);
+				StatReq latest  <- wm_priscy_i.getMSR();
+				L1IStat l1IStat  = wm_priscy_i.getL1IStat();
+				L1DStat l1DStat  = wm_priscy_i.getL1DStat();
+				`ifdef L2SC
+				WMCStat l2SStat  = mainL2SC.getStat();
+				`else
+				WMCStat l2SStat  = unpack('0);
+				`endif
+				ind.reportMSR(latest.verifID,
+				              latest.cycle  , latest.commit, latest.data  ,
+				              l1IStat.hRD   ,
+				              l1IStat.mRD   ,
+				              l1DStat.hLd   , l1DStat.hSt  , l1DStat.hJoin,
+				              l1DStat.mLd   , l1DStat.mSt  , l1DStat.mJoin,
+				              l2SStat.hRD   , l2SStat.hWR  , l2SStat.tWB  ,
+				              l2SStat.mRD   , l2SStat.mWR                   );
+			endrule
+
+
+			rule relayCTR if(Config::msr_ext_DEBUG &&& coreStatIndex matches tagged Invalid);
+				StatReq latest  <- wm_priscy_i.getCTR();
+				coreStatPending <= wm_priscy_i.getCoreStat;
+				coreStatReq     <= latest;
+				coreStatIndex   <= tagged Valid 0;
+			endrule
+
+			rule relayCTRPartial if(Config::msr_ext_DEBUG &&& coreStatIndex matches tagged Valid .idx);
+				let latest = coreStatReq;
+				ind.reportCTR(latest.verifID, zeroExtend(idx), latest.cycle, latest.commit, latest.data,
+				              coreStatPending.frontStat.distFull   [idx],
+				              coreStatPending.frontStat.distFetch  [idx],
+				              coreStatPending.frontStat.distDecode [idx],
+				              coreStatPending.frontStat.distWrong  [idx],
+				              coreStatPending.frontStat.distRedir  [idx],
+				              coreStatPending.frontStat.distLock   [idx],
+				              coreStatPending.frontStat.distStall  [idx],
+				              coreStatPending.arbiterStat.distWrong[idx],
+				              coreStatPending.arbiterStat.distAri  [idx],
+				              coreStatPending.arbiterStat.distMem  [idx],
+				              coreStatPending.backStat.distWrong   [idx],
+				              coreStatPending.backStat.distCommit  [idx]);
+				if(idx == fromInteger(valueOf(FrontWidth)))
+					coreStatIndex <= tagged Invalid;
+				else
+					coreStatIndex <= tagged Valid (idx+1);
+			endrule
+
+		`endif
 
 	`endif
 
-	`ifdef MMIO
-	//rule relayMSG if(msg_ext_DEBUG);
-	//	StatReq latest <- core.getMSG();
-	//	ind.reportMSG(latest.verifID, latest.cycle, latest.commit, latest.data);
-	//endrule
-	//rule relayHEX if(hex_ext_DEBUG);
-	//	StatReq latest <- core.getHEX();
-	//	ind.reportHEX(latest.verifID, latest.cycle, latest.commit, latest.data);
-	//endrule
-	//rule relayMSR if(msr_ext_DEBUG);
-	//	StatReq latest  <- core.getMSR();
-	//	L1IStat l1IStat  = core.getL1IStat();
-	//	L1DStat l1DStat  = core.getL1DStat();
-	//	`ifdef L2SC
-	//	WMCStat l2SStat  = mainL2SC.getStat();
-	//	`else
-	//	WMCStat l2SStat  = unpack('0);
-	//	`endif
-	//	ind.reportMSR(latest.verifID,
-	//	              latest.cycle  , latest.commit, latest.data  ,
-	//	              l1IStat.hRD   ,
-	//	              l1IStat.mRD   ,
-	//	              l1DStat.hLd   , l1DStat.hSt  , l1DStat.hJoin,
-	//	              l1DStat.mLd   , l1DStat.mSt  , l1DStat.mJoin,
-	//	              l2SStat.hRD   , l2SStat.hWR  , l2SStat.tWB  ,
-	//	              l2SStat.mRD   , l2SStat.mWR                   );
-	//endrule
+	//////////// RELAY REPORTS ROCKET ////////////
 
-	Reg#(CoreStat) coreStatPending <- mkReg(?);
-	Reg#(StatReq ) coreStatReq <- mkReg(?);
-	Reg#(Maybe#(Bit#(TAdd#(FrontWidth,1)))) coreStatIndex <- mkReg(tagged Invalid);
-	//rule relayCTR if(msr_ext_DEBUG &&& coreStatIndex matches tagged Invalid);
-	//	StatReq latest  <- core.getCTR();
-	//	coreStatPending <= core.getCoreStat;
-	//	coreStatReq     <= latest;
-	//	coreStatIndex   <= tagged Valid 0;
-	//endrule
-	rule relayCTRPartial if(msr_ext_DEBUG &&& coreStatIndex matches tagged Valid .idx);
-		let latest = coreStatReq;
-		ind.reportCTR(latest.verifID, zeroExtend(idx), latest.cycle, latest.commit, latest.data,
-		              coreStatPending.frontStat.distFull   [idx],
-		              coreStatPending.frontStat.distFetch  [idx],
-		              coreStatPending.frontStat.distDecode [idx],
-		              coreStatPending.frontStat.distWrong  [idx],
-		              coreStatPending.frontStat.distRedir  [idx],
-		              coreStatPending.frontStat.distLock   [idx],
-		              coreStatPending.frontStat.distStall  [idx],
-		              coreStatPending.arbiterStat.distWrong[idx],
-		              coreStatPending.arbiterStat.distAri  [idx],
-		              coreStatPending.arbiterStat.distMem  [idx],
-		              coreStatPending.backStat.distWrong   [idx],
-		              coreStatPending.backStat.distCommit  [idx]);
-		if(idx == fromInteger(valueOf(FrontWidth)))
-			coreStatIndex <= tagged Invalid;
-		else
-			coreStatIndex <= tagged Valid (idx+1);
-	endrule
+	`ifdef ROCKET
+	
+		`ifdef DEBUG_RCKT_CMR
+			rule relayCMR;
+				CommitReport cmr <- wm_rocket_i.getCMR();
+				Bit#(8) iType = zeroExtend(pack(cmr.iType));
+				Bit#(8) wbDst = zeroExtend(pack(cmr.wbDst));
+				ind.reportCMR(cmr.cycle, cmr.verifID, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
+			endrule
+		`endif
+	
+		`ifdef RCKT_MMIO
+	
+			rule relayMSG;
+				StatReq latest <- wm_rocket_i.getMSG();
+				ind.reportMSG(latest.verifID, latest.cycle, latest.commit, latest.data);
+			endrule
+	
+			rule relayHEX;
+				StatReq latest <- wm_rocket_i.getHEX();
+				ind.reportHEX(latest.verifID, latest.cycle, latest.commit, latest.data);
+			endrule
+	
+			rule relayMSR;
+				StatReq latest  <- wm_rocket_i.getMSR();
+				L1IStat l1IStat = L1IStat{hRD:'0,mRD:'0}; // TODO: NO L1I stats for Rocket
+				L1DStat l1DStat = L1DStat{hLd:'0,hSt:'0,hJoin:'0,mLd:'0,mSt:'0,mJoin:'0}; // TODO: No L1D stats for Rocket
+				`ifdef L2SC
+				WMCStat l2SStat  = mainL2SC.getStat();
+				`else
+				WMCStat l2SStat  = unpack('0);
+				`endif
+				ind.reportMSR(latest.verifID,
+				              latest.cycle  , latest.commit, latest.data  ,
+				              l1IStat.hRD   ,
+				              l1IStat.mRD   ,
+				              l1DStat.hLd   , l1DStat.hSt  , l1DStat.hJoin,
+				              l1DStat.mLd   , l1DStat.mSt  , l1DStat.mJoin,
+				              l2SStat.hRD   , l2SStat.hWR  , l2SStat.tWB  ,
+				              l2SStat.mRD   , l2SStat.mWR                   );
+			endrule
+	
+			rule relayCTR; // NO proper CTR for Rocket
+				StatReq latest  <- wm_rocket_i.getCTR();
+				ind.reportCTR(latest.verifID, '0, latest.cycle, latest.commit, latest.data, '0, '0, '0, '0, '0, '0, '0, '0, '0, '0, '0, '0);
+			endrule
+	
+		`endif
+
+	`endif
+
+	//////////// RELAY REPORTS MEMTEST ////////////
+
+	`ifdef MEMTEST
+
+		rule getTST;
+			memTest.deq();
+			if(memTest.first.testtyp == TTEND)
+				tstInit <= True;
+			else
+				mainTSTQ.enq(memTest.first());
+		endrule
+
+		rule relayTST;
+			TestRes latest = mainTSTQ.first(); mainTSTQ.deq();
+			Bit#(8)  testtyp = zeroExtend(pack(latest.testtyp));
+			Bit#(32) teststr = zeroExtend(pack(latest.teststr));
+			ind.testMem(latest.testlen, testtyp, teststr,latest.latency, latest.delayTX, latest.delayRX);
+		endrule
+
 	`endif
 
 	//////////// INTERFACE ////////////
@@ -292,13 +295,16 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 
 			cpuInit <= True;
 
-			mainTokenQ.enq(ContToken{
-			                  verifID: '0,
-			                  pc     : startpc,
-			                  rfL    : replicate('0),
-			                  rfH    : replicate('0)  });
+			`ifdef PRISCY
+				wm_priscy_i.toMTQ.enq(ContToken{ verifID: '0           ,
+				                                 pc     : startpc      ,
+				                                 rfL    : replicate('0),
+				                                 rfH    : replicate('0)});
+			`endif
 
-			wm_rocket_tile.startBridge();
+			`ifdef ROCKET
+				wm_rocket_i.startBridge();
+			`endif
 
 		endmethod
 
