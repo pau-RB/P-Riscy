@@ -5,6 +5,7 @@ import Types::*;
 import WideMemTypes::*;
 import WMRocketTileIfc::*;
 import WMRocketTile::*;
+import RocketConfig::*;
 import ClientServer::*;
 import Connectable::*;
 import GetPut::*;
@@ -147,6 +148,44 @@ module mkConnectalWrapper#(HostInterface host, ToHost ind)(ConnectalWrapper);
 		Bit#(8) wbDst = zeroExtend(pack(cmr.wbDst));
 		ind.reportCMR(cmr.cycle, cmr.verifID, cmr.pc, cmr.rawInst, iType, wbDst, cmr.wbRes, cmr.addr);
 	endrule
+	`endif
+
+	`ifdef RCKT_MMIO
+
+	rule relayMSG;
+		StatReq latest <- wm_rocket_tile.getMSG();
+		ind.reportMSG(latest.verifID, latest.cycle, latest.commit, latest.data);
+	endrule
+
+	rule relayHEX;
+		StatReq latest <- wm_rocket_tile.getHEX();
+		ind.reportHEX(latest.verifID, latest.cycle, latest.commit, latest.data);
+	endrule
+
+	rule relayMSR;
+		StatReq latest  <- wm_rocket_tile.getMSR();
+		L1IStat l1IStat = L1IStat{hRD:'0,mRD:'0}; // TODO: No L1I stats for Rocket
+		L1DStat l1DStat = L1DStat{hLd:'0,hSt:'0,hJoin:'0,mLd:'0,mSt:'0,mJoin:'0}; // TODO: No L1D stats for Rocket
+		`ifdef L2SC
+		WMCStat l2SStat  = mainL2SC.getStat();
+		`else
+		WMCStat l2SStat  = unpack('0);
+		`endif
+		ind.reportMSR(latest.verifID,
+		              latest.cycle  , latest.commit, latest.data  ,
+		              l1IStat.hRD   ,
+		              l1IStat.mRD   ,
+		              l1DStat.hLd   , l1DStat.hSt  , l1DStat.hJoin,
+		              l1DStat.mLd   , l1DStat.mSt  , l1DStat.mJoin,
+		              l2SStat.hRD   , l2SStat.hWR  , l2SStat.tWB  ,
+		              l2SStat.mRD   , l2SStat.mWR                   );
+	endrule
+
+	rule relayCTR; // TODO: no proper CTR for Rocket
+		StatReq latest  <- wm_rocket_tile.getCTR();
+		ind.reportCTR(latest.verifID, '0, latest.cycle, latest.commit, latest.data, '0, '0, '0, '0, '0, '0, '0, '0, '0, '0, '0, '0);
+	endrule
+
 	`endif
 
 	`ifdef MMIO

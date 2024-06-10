@@ -17,13 +17,13 @@ interface WMRocketTileIfc;
 	`ifdef DEBUG_RCKT_CMR
 	method ActionValue#(CommitReport) getCMR();
 	`endif
-/*
+
 	// MMIO
-	`ifdef MMIO
+	`ifdef RCKT_MMIO
 	method ActionValue#(StatReq) getMSG();
 	method ActionValue#(StatReq) getHEX();
 	method ActionValue#(StatReq) getMSR();
 	method ActionValue#(StatReq) getCTR();
 	`endif
-*/
+
 endinterface : WMRocketTileIfc

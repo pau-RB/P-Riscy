@@ -49,9 +49,22 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
     //////////// CMR relay ////////////
 
-    `ifdef DEBUG_RCKT_CMR
+    Ehr#(2,PerfCnt) latest_insns_cycle  <- mkEhr('0);
+    Ehr#(2,PerfCnt) latest_insns_commit <- mkEhr('0);
 
+    `ifdef DEBUG_RCKT_CMR
     FIFOF#(CommitReport) commitReportQ <- mkSizedBRAMFIFOF(valueOf(CMRTHQ_LEN));
+    `endif
+
+    //////////// MMIO ////////////
+
+    `ifdef RCKT_MMIO
+    FIFOF#(TLreqApacked) to_MMIO <- mkPipelineFIFOF();
+    FIFOF#(StatReq) mmio_MSGQ <- mkFIFOF();
+    FIFOF#(StatReq) mmio_HEXQ <- mkFIFOF();
+    FIFOF#(StatReq) mmio_MSRQ <- mkFIFOF();
+    FIFOF#(StatReq) mmio_CTRQ <- mkFIFOF();
+    `endif
 
     //////////// TL2Bridge ////////////
 
@@ -63,6 +76,12 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
         if(beat.address == 32'h00010040) begin
 
             to_bootROM.enq(beat_packed);
+
+        end else if (beat.address[31:28] == 4'h6) begin
+
+            `ifdef RCKT_MMIO
+            to_MMIO.enq(beat_packed);
+            `endif
 
         end else begin
 
@@ -155,6 +174,59 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
     endrule
 
+    //////////// TL-WM conversion MMIO ////////////
+
+    `ifdef RCKT_MMIO
+
+    rule do_latest_insns;
+
+        RocketBcastPacked bcastPacked = rocket_tile.get_rocket_bcast();
+        RocketBcast bcast = unpack(bcastPacked);
+
+        latest_insns_cycle [1] <= bcast.bits_time;
+        latest_insns_commit[1] <= latest_insns_commit[1]+1;
+
+    endrule
+
+    rule do_MMIO;
+
+        // get reqA
+        TLreqApacked beat_packed = to_MMIO.first();
+        to_MMIO.deq();
+        TLreqA beat = unpack(beat_packed);
+
+        // Check params
+        if(beat.opcode != TileLinkTypes::PutFullData) $error("WMRocketTile MMIO - Only expected PutFullData!"   );
+        if(beat.size   != 2                         ) $error("WMRocketTile MMIO - Only expected 8-bit requests!");
+
+        // Send reqD response
+        TLreqD reqD = TLreqD { opcode : TileLinkTypes::AccessAck,
+                               param  : TileLinkTypes::ToT      ,
+                               size   : 2                       ,
+                               source : beat.source             ,
+                               sink   : 0                       ,
+                               denied : 0                       ,
+                               data   : '0                      ,
+                               corrupt: 0                       };
+
+        rocket_tile.tlc_link.putD(pack(reqD));
+
+        Bit#(6) offset = beat.address[5:0];
+        StatReq stat_req = StatReq { verifID: '0                             ,
+                                     cycle  : latest_insns_cycle [0]         ,
+                                     commit : latest_insns_commit[0]         ,
+                                     data   : beat.data[offset*8+31:offset*8]};
+
+             if(RocketConfig::msg_ext_DEBUG && beat.address ==  msg_ADDR) mmio_MSGQ.enq(stat_req);
+        else if(RocketConfig::hex_ext_DEBUG && beat.address ==  hex_ADDR) mmio_HEXQ.enq(stat_req);
+        else if(RocketConfig::msr_ext_DEBUG && beat.address ==  msr_ADDR) mmio_MSRQ.enq(stat_req);
+        else if(RocketConfig::ctr_ext_DEBUG && beat.address ==  ctr_ADDR) mmio_CTRQ.enq(stat_req);
+        else $error("WMRocketTile MMIO - MMIO dropped due to unknown address!");
+
+    endrule
+
+    `endif
+
     //////////// DEBUG MONITORS ////////////
 
     `ifdef DEBUG_RCKT_WFI
@@ -217,15 +289,30 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
         return latest;
     endmethod
     `endif
-/*
-    // MMIO
-    `ifdef MMIO
-    method ActionValue#(StatReq) getMSG() = backend.getMSG();
-    method ActionValue#(StatReq) getHEX() = backend.getHEX();
-    method ActionValue#(StatReq) getMSR() = backend.getMSR();
-    method ActionValue#(StatReq) getCTR() = backend.getCTR();
-    `endif
 
-    */
+    // MMIO
+    `ifdef RCKT_MMIO
+
+    method ActionValue#(StatReq) getMSG();
+        mmio_MSGQ.deq();
+        return mmio_MSGQ.first();
+    endmethod
+
+    method ActionValue#(StatReq) getHEX();
+        mmio_HEXQ.deq();
+        return mmio_HEXQ.first();
+    endmethod
+
+    method ActionValue#(StatReq) getMSR();
+        mmio_MSRQ.deq();
+        return mmio_MSRQ.first();
+    endmethod
+
+    method ActionValue#(StatReq) getCTR();
+        mmio_CTRQ.deq();
+        return mmio_CTRQ.first();
+    endmethod
+
+    `endif
 
 endmodule

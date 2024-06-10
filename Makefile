@@ -112,10 +112,11 @@ endif
 #CONNECTALFLAGS += -D DEBUG_RCKT_TL         -D DEBUG_TL2WM_BRIDGE                   # simulation only     - Report cycle-accurate status of the rocket tile interface
 #CONNECTALFLAGS += -D DEBUG_RCKT_TRACE                                              # simulation only     - Report cycle-accurate status of the rocket tile interface
  CONNECTALFLAGS += -D DEBUG_RCKT_WFI                                                # simulation only     - Report cycle-accurate status of the rocket tile interface
- CONNECTALFLAGS += -D DEBUG_RCKT_CMR                                                # FPGA and simulation - Report commits to host server through Connectal for tandem verification
+#CONNECTALFLAGS += -D DEBUG_RCKT_CMR                                                # FPGA and simulation - Report commits to host server through Connectal for tandem verification
+ CONNECTALFLAGS += -D RCKT_MMIO             -D DEBUG_STATS                          # FPGA and simulation - Report MMIO messages to host server through Connectal
 
  CONNECTALFLAGS += -D L2SC                        # FPGA and simulation - Add L2 cache to the memory hierarchy
- CONNECTALFLAGS += -D VCUDDRDELAY                 # FPGA only           - Add latency to DDR4 artificially
+ CONNECTALFLAGS += -D VCUDDRDELAY                 # FPGA and simulation - Add latency to DDR4 artificially
 #CONNECTALFLAGS += -D MEMTEST                     # FPGA and simulation - Test main memory performance before start
 
 CONNECTALFLAGS += --mainclockperiod=16

@@ -24,7 +24,7 @@ typedef struct {
 	PerfCnt cycle  ;
 	PerfCnt commit ;
 	Data    data   ;
-} StatReq deriving (Bits, Eq);
+} StatReq deriving (Bits, Eq, FShow);
 
 typedef struct {
 	VerifID verifID;
