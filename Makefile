@@ -37,7 +37,10 @@ XILINX_INT_DIV_LATENCY = 8 # The BSV wrapper adds 1 cycle
 
 ######### Import RocketTile #########
 
-CONNECTALFLAGS += --verilog rocket-chip-big32/out/emulator/freechips.rocketchip.system.TestHarness/freechips.rocketchip.system.Big32Config/mfccompiler/compile.dest/
+# To use pregenerated Verilog
+CONNECTALFLAGS += --verilog pregen_rocket/big32-D32-I16-53295d9/
+# To use custom RocketTile builds
+# CONNECTALFLAGS += --verilog rocket-chip-big32/out/emulator/freechips.rocketchip.system.TestHarness/freechips.rocketchip.system.Big32Config/mfccompiler/compile.dest/
 CONNECTALFLAGS += --verilog src/TileLink/
 CONNECTALFLAGS += --verilog src/RocketTile/
 
