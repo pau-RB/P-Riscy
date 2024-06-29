@@ -71,73 +71,92 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
     rule do_put_reqA if(bridgeStarted);
 
-        TLreqApacked beat_packed <- rocket_tile.tlc_link.getA();
+        TLreqApacked beat_packed = rocket_tile.tlc_link.getA();
         TLreqA beat = unpack(beat_packed);
 
         if(beat.address == 32'h00010040) begin
 
             to_bootROM.enq(beat_packed);
 
+            rocket_tile.tlc_link.readyA();
+
         end else if (beat.address[31:28] == 4'h6) begin
 
             to_MMIO.enq(beat_packed);
 
+            rocket_tile.tlc_link.readyA();
+
         end else begin
 
             bridge.tl_slave.putA(beat_packed);
+            if(bridge.tl_slave.readyA())
+                rocket_tile.tlc_link.readyA();
 
         end
 
         `ifdef DEBUG_RCKT_TL
         $display("get channel A = ", fshow(beat));
+        $display("bridge.tl_slave.readyA() = ", fshow(bridge.tl_slave.readyA()));
         `endif
 
     endrule
 
     rule do_get_reqB;
 
-        TLreqBpacked beat_packed <- bridge.tl_slave.getB();
+        TLreqBpacked beat_packed = bridge.tl_slave.getB();
         rocket_tile.tlc_link.putB(beat_packed);
+        if(rocket_tile.tlc_link.readyB())
+            bridge.tl_slave.readyB();
 
         `ifdef DEBUG_RCKT_TL
         TLreqB beat = unpack(beat_packed);
         $display("put channel B = ", fshow(beat));
+        $display("rocket_tile.tlc_link.readyB() = ", fshow(rocket_tile.tlc_link.readyB()));
         `endif
 
     endrule
 
     rule do_put_reqC;
 
-        TLreqCpacked beat_packed <- rocket_tile.tlc_link.getC();
+        TLreqCpacked beat_packed = rocket_tile.tlc_link.getC();
         bridge.tl_slave.putC(beat_packed);
+        if(bridge.tl_slave.readyC())
+            rocket_tile.tlc_link.readyC();
 
         `ifdef DEBUG_RCKT_TL
         TLreqC beat = unpack(beat_packed);
         $display("get channel C = ", fshow(beat));
+        $display("(bridge.tl_slave.readyC() = ", fshow(bridge.tl_slave.readyC()));
         `endif
 
     endrule
 
     rule do_get_reqD;
 
-        TLreqDpacked beat_packed <- bridge.tl_slave.getD();
+        TLreqDpacked beat_packed = bridge.tl_slave.getD();
         rocket_tile.tlc_link.putD(beat_packed);
+        if(rocket_tile.tlc_link.readyD())
+            bridge.tl_slave.readyD();
 
         `ifdef DEBUG_RCKT_TL
         TLreqD beat = unpack(beat_packed);
         $display("put channel D = ", fshow(beat));
+        $display("rocket_tile.tlc_link.readyD() = ", fshow(rocket_tile.tlc_link.readyD()));
         `endif
 
     endrule
 
     rule do_put_reqE;
 
-        TLreqEpacked beat_packed <- rocket_tile.tlc_link.getE();
+        TLreqEpacked beat_packed = rocket_tile.tlc_link.getE();
         bridge.tl_slave.putE(beat_packed);
+        if(bridge.tl_slave.readyE())
+            rocket_tile.tlc_link.readyE();
 
         `ifdef DEBUG_RCKT_TL
         TLreqE beat = unpack(beat_packed);
         $display("get channel E = ", fshow(beat));
+        $display("bridge.tl_slave.readyE() = ", fshow(bridge.tl_slave.readyE()));
         `endif
 
     endrule

@@ -392,31 +392,53 @@ module mkTL2WMBridge (TL2WMBridgeIfc ifc);
 
         // Slave to master
 
-        method ActionValue#(TLreqBpacked) getB();
+        method TLreqBpacked getB();
             TLreqB beat = tl_reqB.first();
-            tl_reqB.deq();
             return pack(beat);
         endmethod
 
-        method ActionValue#(TLreqDpacked) getD();
+        method TLreqDpacked getD();
             TLreqD beat = tl_reqD.first();
-            tl_reqD.deq();
             return pack(beat);
+        endmethod
+
+        method Action readyB();
+            tl_reqB.deq();
+        endmethod
+
+        method Action readyD();
+            tl_reqD.deq();
         endmethod
 
         // Master to Slave
 
         method Action putA(TLreqApacked beat);
-            tl_reqA.enq(unpack(beat));
+            if(tl_reqA.notFull())
+               tl_reqA.enq(unpack(beat));
         endmethod
 
         method Action putC(TLreqCpacked beat);
-            tl_reqC.enq(unpack(beat));
+            if(tl_reqC.notFull())
+               tl_reqC.enq(unpack(beat));
         endmethod
 
         method Action putE(TLreqEpacked beat);
-            tl_reqE.enq(unpack(beat));
+            if(tl_reqE.notFull())
+               tl_reqE.enq(unpack(beat));
         endmethod
+
+        method Bool readyA();
+            return tl_reqA.notFull();
+        endmethod
+
+        method Bool readyC();
+            return tl_reqC.notFull();
+        endmethod
+
+        method Bool readyE();
+            return tl_reqE.notFull();
+        endmethod
+
 
     endinterface
 
