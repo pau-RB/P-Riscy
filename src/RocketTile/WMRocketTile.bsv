@@ -58,8 +58,9 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
     //////////// MMIO ////////////
 
-    `ifdef RCKT_MMIO
     FIFOF#(TLreqApacked) to_MMIO <- mkPipelineFIFOF();
+
+    `ifdef RCKT_MMIO
     FIFOF#(StatReq) mmio_MSGQ <- mkFIFOF();
     FIFOF#(StatReq) mmio_HEXQ <- mkFIFOF();
     FIFOF#(StatReq) mmio_MSRQ <- mkFIFOF();
@@ -79,9 +80,7 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
         end else if (beat.address[31:28] == 4'h6) begin
 
-            `ifdef RCKT_MMIO
             to_MMIO.enq(beat_packed);
-            `endif
 
         end else begin
 
@@ -176,8 +175,6 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
     //////////// TL-WM conversion MMIO ////////////
 
-    `ifdef RCKT_MMIO
-
     rule do_latest_insns;
 
         RocketBcastPacked bcastPacked = rocket_tile.get_rocket_bcast();
@@ -211,6 +208,8 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
 
         rocket_tile.tlc_link.putD(pack(reqD));
 
+        `ifdef RCKT_MMIO
+
         Bit#(6) offset = beat.address[5:0];
         StatReq stat_req = StatReq { verifID: '0                             ,
                                      cycle  : latest_insns_cycle [0]         ,
@@ -223,9 +222,9 @@ module mkWMRocketTile(WMRocketTileIfc ifc);
         else if(RocketConfig::ctr_ext_DEBUG && beat.address ==  ctr_ADDR) mmio_CTRQ.enq(stat_req);
         else $error("WMRocketTile MMIO - MMIO dropped due to unknown address!");
 
-    endrule
+        `endif
 
-    `endif
+    endrule
 
     //////////// DEBUG MONITORS ////////////
 
