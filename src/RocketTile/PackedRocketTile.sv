@@ -1,6 +1,6 @@
 
-`include "TileLinkTypes"
-`include "RocketTileBcastTypes"
+`include "TileLinkTypes.sv"
+`include "RocketTileBcastTypes.sv"
 
 module PackedRocketTile (
 

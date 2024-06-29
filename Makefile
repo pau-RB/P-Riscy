@@ -39,10 +39,15 @@ XILINX_INT_DIV_LATENCY = 8 # The BSV wrapper adds 1 cycle
 
 # To use pregenerated Verilog
 CONNECTALFLAGS += --verilog pregen_rocket/big32-D32-I16-53295d9/
+include $(PWD)/pregen_rocket/big32-D32-I16-53295d9.mcflist
+
 # To use custom RocketTile builds
 # CONNECTALFLAGS += --verilog rocket-chip-big32/out/emulator/freechips.rocketchip.system.TestHarness/freechips.rocketchip.system.Big32Config/mfccompiler/compile.dest/
 CONNECTALFLAGS += --verilog src/TileLink/
 CONNECTALFLAGS += --verilog src/RocketTile/
+CONNECTALFLAGS += --verilog src/TileLink/TileLinkTypes.sv
+CONNECTALFLAGS += --verilog src/RocketTile/RocketTileBcastTypes.sv
+CONNECTALFLAGS += --verilog src/RocketTile/PackedRocketTile.sv
 
 ######### Xilinx DDR4 #########
 
@@ -131,7 +136,7 @@ endif
 
 # BSC and platform
 
-CONNECTALFLAGS += --mainclockperiod=16
+CONNECTALFLAGS += --mainclockperiod=24
 CONNECTALFLAGS += --bscflags="-show-schedule"
 CONNECTALFLAGS += --bscflags="-aggressive-conditions"
 CONNECTALFLAGS += --bscflags="-steps-warn-interval 1000000"
