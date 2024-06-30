@@ -1,40 +1,109 @@
-############### Repo Setup ###############
+############### Prerequisites ###############
 
-1 - git submodule update --init --recursive
+For simulation or FPGA:
 
-2 - Export BSC (Change to proper BSC installation directory)
+1 - Install the Bluespec Compiler (BSC) in the host machine from:
+
+	https://github.com/B-Lang-org/bsc
+
+2 - Export BLUESPECDIR pointing to BSC installation directory (change to the proper path)
 
 	export BLUESPECDIR=/opt/tools/bsc/bsc-2022.01-ubuntu-20.04/lib/
+
+3 - Add BSC bin to PATH (change to the proper path)
+
 	export PATH=/opt/tools/bsc/latest/bin:$PATH
 
-3 - Build spike
+For FPGA additionally
 
-4 - src/Config.bsv contains main configuration (need to recompile)
+1 - Add license server if required
 
-	- wb_ext_DEBUG  -> will print each commit through Connectal and compare to Spike
+	export LM_LICENSE_FILE=port@machine:$LM_LICENSE_FILE
 
-	- msg_ext_DEBUG -> will print stores into msg_ADDR through Connectal
+2 - Add BSC to CPATH
 
-	- msg_DEBUG     -> will print each commit through SystemVerilog simulation
+	export CPATH=$CPATH:$BLUESPECDIR/board_support/drivers
 
-	- perf_DEBUG    -> will print the state of the pipeline in every cycle through SystemVerilog simulation
+3 - Export Xilinx home (change to the proper path)
 
-	Debug through Connectal will affect performance.
-	Debug through SystemVerilog simulation is not available in FPGA.
+	export XILINX_HOME=/opt/Xilinx/
 
-5 - Build tests:
+4 - Add Xilinx home to PATH
 
-		cd test
+	export PATH=$PATH:$XILINX_HOME/Vivado/2019.1/bin
 
-		make all
 
-6 - Compile simulation:
+############### Repo Setup ###############
+
+1 - Clone all submodules
+
+	git submodule update --init --recursive
+
+2 - Build a local copy of the modified Spike model as described in "Build Spike"
+
+3 - Build tests (make all rebuilds the tests but preserves the random data sets for testing consistency)
+
+	cd P-RISC-TEST
+
+	make data
+
+	make DATA
+
+	make all
+
+	cd ..
+
+4 - Tune the "hardware config" section of the Makefile to select the desired hardware and environment
+
+5 - For RocketTile, tune the "source RocketTile" section to choose a pre-generated RockeTile Verilog
+	(default option) or build a custom configuration from the Chisel sources as explained in "Build Rocket-Tile"
+
+6 - src/Config.bsv and src/RocketTile/RocketConfig.bsv contain further configuration parameters for the hardware internals 
+
+7 - Compile simulation:
 
 	make build.verilator
 
-7 - Compile FPGA:
+8 - Run simulation:
+
+	make sim
+
+9 - Compile for FPGA:
 
 	make build.vcu108
+
+10- Run FPGA:
+
+	make vcu
+
+
+############### Build Spike ###############
+
+1 - Clone the fork of the Spike repo (already included as a submodule)
+
+	git clone https://github.com/pau-RB/riscv-isa-sim
+
+2 - Create spike_install and build folders
+
+	mkdir spike_install
+
+	mkdir riscv-isa-sim/build
+
+	cd riscv-isa-sim/build
+
+3 - Configure the install
+
+	../configure --with-isa=RV32I --prefix=$PWD/../../spike_install [--without-boost --without-boost-asio --without-boost-regex]
+
+4 - Build and install (use -j to change the number of parallel threads)
+
+	make -j6
+
+	make install
+
+5 - Go back
+
+	cd ../../
 
 
 ############### Build Rocket-Tile ###############
@@ -59,15 +128,15 @@
 
 	curl -L https://github.com/llvm/circt/releases/download/firtool-1.40.0/firrtl-bin-ubuntu-20.04.tar.gz > firrtl-bin-ubuntu-20.04.tar.gz
 
-6 - Extract girtool
+6 - Extract firtool
 
 	tar -xf firrtl-bin-ubuntu-20.04.tar.gz
 
-7 - Add firtool to path
+7 - Add firtool to PATH
 
 	export PATH=$PATH:$PWD/firtool-1.40.0/bin
 
-8 - Set desired Config in rocket-chip-big32 Makefile
+8 - Set the desired configuration in rocket-chip-big32 Makefile
 
 	CONFIG ?= $(CFG_PROJECT).Big32Config
 
@@ -77,46 +146,14 @@
 
 11 - wait
 
-12 - SV output in the following path :)
+12 - Verilog output is found in the following path:
 
 	/rocket-chip/out/emulator/freechips.rocketchip.system.TestHarness/freechips.rocketchip.system.Big32Config/mfccompiler/compile.dest
 
-############### Build SPIKE ###############
-
-1- Clone the spike repo (included as submodule)
-
-	git clone https://github.com/pau-RB/riscv-isa-sim
-
-2- Create spike_install and build folders
-
-	mkdir spike_install
-
-	mkdir riscv-isa-sim/build
-
-	cd riscv-isa-sim/build
-
-3- Configure install
-
-	../configure --with-isa=RV32I --prefix=$PWD/../../spike_install
-
-	[--without-boost --without-boost-asio --without-boost-regex]
-
-4- Build and install:
-
-	make -j6
-
-	make install
-
-5- Default path for installation (if no --prefix is defined):
-	
-	/usr/local/bin/              -- spike binary
-
-	/usr/local/include/          -- C/C++ includes
-
-	/usr/local/lib/              -- .so libraruies
+13 - Update the "source RocketTile" section of the main Makefile to point here rather than the pre-generated folder
 
 
-############### Add instruction to SPIKE ###############
+############### Add instruction to Spike ###############
 
 1 - create riscv/insns/new_inst.h
 

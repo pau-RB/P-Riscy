@@ -32,23 +32,6 @@ CPPFILES +=                          \
 	testbench/Tandem.cc              \
 	testbench/Interpreter.cc
 
-XILINX_INT_MUL_LATENCY = 1 # The BSV wrapper adds 1 cycle
-XILINX_INT_DIV_LATENCY = 8 # The BSV wrapper adds 1 cycle
-
-######### Import RocketTile #########
-
-# To use pregenerated Verilog
-CONNECTALFLAGS += --verilog pregen_rocket/big32-D32-I16-53295d9/
-include $(PWD)/pregen_rocket/big32-D32-I16-53295d9.mcflist
-
-# To use custom RocketTile builds
-# CONNECTALFLAGS += --verilog rocket-chip-big32/out/emulator/freechips.rocketchip.system.TestHarness/freechips.rocketchip.system.Big32Config/mfccompiler/compile.dest/
-CONNECTALFLAGS += --verilog src/TileLink/
-CONNECTALFLAGS += --verilog src/RocketTile/
-CONNECTALFLAGS += --verilog src/TileLink/TileLinkTypes.sv
-CONNECTALFLAGS += --verilog src/RocketTile/RocketTileBcastTypes.sv
-CONNECTALFLAGS += --verilog src/RocketTile/PackedRocketTile.sv
-
 ######### Xilinx DDR4 #########
 
 CONNECTALFLAGS += -D IMPORT_HOSTIF -D XILINX_SYS_CLK
@@ -84,6 +67,9 @@ endif
 
 ######### Xilinx int mul/div #########
 
+XILINX_INT_MUL_LATENCY = 1 # The BSV wrapper adds 1 cycle
+XILINX_INT_DIV_LATENCY = 8 # The BSV wrapper adds 1 cycle
+
 CONNECTALFLAGS += -D XILINX_INT_MUL_LATENCY=$(XILINX_INT_MUL_LATENCY)
 
 ifeq ($(BOARD), $(filter $(BOARD), vcu108))
@@ -112,29 +98,45 @@ $(INT_DIV_UNSIGNED_XCI): src/MulDiv/core-scripts/synth_int_div.tcl
 
 endif
 
-######### connectal project #########
+######### source RocketTile #########
 
-#CONNECTALFLAGS += -D PRISCY                                            # FPGA and simulation - Use P-Riscy as the main core
- CONNECTALFLAGS += -D ROCKET                                            # FPGA and simulation - Use RocketTile as the main core
-#CONNECTALFLAGS += -D MEMTEST                                           # FPGA and simulation - Test main memory performance before start
+# To use pregenerated Verilog
+CONNECTALFLAGS += --verilog pregen_rocket/big32-D32-I16-53295d9/
+include $(PWD)/pregen_rocket/big32-D32-I16-53295d9.mcflist
+
+# To use custom RocketTile builds
+# CONNECTALFLAGS += --verilog rocket-chip-big32/out/emulator/freechips.rocketchip.system.TestHarness/freechips.rocketchip.system.Big32Config/mfccompiler/compile.dest/
+
+# Needed port for both
+CONNECTALFLAGS += --verilog src/TileLink/
+CONNECTALFLAGS += --verilog src/RocketTile/
+CONNECTALFLAGS += --verilog src/TileLink/TileLinkTypes.sv
+CONNECTALFLAGS += --verilog src/RocketTile/RocketTileBcastTypes.sv
+CONNECTALFLAGS += --verilog src/RocketTile/PackedRocketTile.sv
+
+######### hardware config #########
+
+ CONNECTALFLAGS += -D PRISCY                                            # FPGA and simulation - Use P-Riscy as the main core
+#CONNECTALFLAGS += -D ROCKET                                            # FPGA and simulation - Use RocketTile as the main core
+#CONNECTALFLAGS += -D MEMTEST                                           # FPGA and simulation - Test main memory performance before boot
  CONNECTALFLAGS += -D L2SC                                              # FPGA and simulation - Add L2 cache to the memory hierarchy
  CONNECTALFLAGS += -D VCUDDRDELAY                                       # FPGA and simulation - Add latency to DDR4 artificially
 
 # Flags for P-Riscy instances
 
+ CONNECTALFLAGS += -D MMIO                  -D DEBUG_STATS              # FPGA and simulation - Report MMIO messages to host server through Connectal
+#CONNECTALFLAGS += -D DEBUG_CMR             -D DEBUG_RAW_INST           # FPGA and simulation - Report commits to host server through Connectal for tandem verification (PRINT_COMMIT in main.cpp)
 #CONNECTALFLAGS += -D DEBUG_CYC             -D DEBUG_RAW_INST           # simulation only     - Report cycle-accurate status of the pipeline
-#CONNECTALFLAGS += -D DEBUG_CMR             -D DEBUG_RAW_INST           # FPGA and simulation - Report commits to host server through Connectal for tandem verification
-#CONNECTALFLAGS += -D MMIO                  -D DEBUG_STATS              # FPGA and simulation - Report MMIO messages to host server through Connectal
 
 # Flags for Rocket instances
 
+#CONNECTALFLAGS += -D RCKT_MMIO             -D DEBUG_STATS              # FPGA and simulation - Report MMIO messages to host server through Connectal
+#CONNECTALFLAGS += -D DEBUG_RCKT_CMR                                    # FPGA and simulation - Report commits to host server through Connectal for tandem verification (PRINT_COMMIT in main.cpp)
 #CONNECTALFLAGS += -D DEBUG_RCKT_TL         -D DEBUG_TL2WM_BRIDGE       # simulation only     - Report cycle-accurate status of the rocket tile TileLink interface
 #CONNECTALFLAGS += -D DEBUG_RCKT_TRACE                                  # simulation only     - Report cycle-accurate status of the rocket tile instruction trace interface
 #CONNECTALFLAGS += -D DEBUG_RCKT_WFI                                    # simulation only     - Report cycle-accurate status of the rocket tile WFI interface
-#CONNECTALFLAGS += -D DEBUG_RCKT_CMR                                    # FPGA and simulation - Report commits to host server through Connectal for tandem verification
- CONNECTALFLAGS += -D RCKT_MMIO             -D DEBUG_STATS              # FPGA and simulation - Report MMIO messages to host server through Connectal
 
-# BSC and platform
+######### connectal project #########
 
 CONNECTALFLAGS += --mainclockperiod=24
 CONNECTALFLAGS += --bscflags="-show-schedule"
@@ -162,11 +164,14 @@ clean:
 	rm -rf ./vcu108
 	rm -rf ./connectal/out
 
-slow:
-	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-c-matmul 1 2000 --color=always | less -r
+sim:
+	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-c-hello 1 600
 
-fast:
-	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-c-matmul 1 600
+sim-less:
+	./verilator/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-c-hello 1 600 --color=always | less -r
 
 vcu:
-	./vcu108/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-c-matmul 1 600
+	./vcu108/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-c-hello 1 600
+
+vcu-less:
+	./vcu108/bin/ubuntu.exe ./P-RISC-TEST/build/rv32-c-hello 1 600 --color=always | less -r
